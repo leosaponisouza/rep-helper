@@ -1,151 +1,149 @@
+// src/services/financesService.ts
 import api from './api';
-import { ErrorHandler } from '../utils/errorHandling';
-import { 
-  Expense, 
-  Income, 
-  CreateExpenseRequest, 
+import {
+  Expense,
+  Income,
+  CreateExpenseRequest,
+  UpdateExpenseRequest,
+  RejectExpenseRequest,
   CreateIncomeRequest,
+  UpdateIncomeRequest,
   FinancialDashboardSummary,
-  ExpenseStatus
+  MonthlyChartData,
+  PendingActionsResponse,
 } from '../models/finances.model';
 
-/**
- * Serviço para gerenciamento de finanças
- */
-
-/**
- * Busca resumo financeiro da república
- * @param republicId ID da república
- * @returns Resumo financeiro
- */
-export const getFinancialSummary = async (republicId: string): Promise<FinancialDashboardSummary> => {
-  try {
-    const response = await api.get<FinancialDashboardSummary>(`/api/v1/financial-dashboard/summary/${republicId}`);
-    return response.data;
-  } catch (error) {
-    console.error('Erro ao buscar resumo financeiro:', error);
-    const parsedError = await ErrorHandler.parseError(error);
-    throw parsedError;
-  }
-};
-
-/**
- * Busca despesas da república
- * @param republicId ID da república
- * @returns Lista de despesas
- */
 export const getExpenses = async (republicId: string): Promise<Expense[]> => {
-  try {
-    const response = await api.get<Expense[]>(`/api/v1/expenses`, { params: { republicId } });
-    return response.data;
-  } catch (error) {
-    console.error('Erro ao buscar despesas:', error);
-    const parsedError = await ErrorHandler.parseError(error);
-    throw parsedError;
-  }
+  const response = await api.get<Expense[]>('/api/v1/expenses', {
+    params: { republicId },
+  });
+  return response.data;
 };
 
-/**
- * Busca receitas da república
- * @param republicId ID da república
- * @returns Lista de receitas
- */
+export const getExpensesByStatus = async (
+  republicId: string,
+  status: string
+): Promise<Expense[]> => {
+  const response = await api.get<Expense[]>(`/api/v1/expenses/status/${status}`, {
+    params: { republicId },
+  });
+  return response.data;
+};
+
+export const getExpenseById = async (id: number): Promise<Expense> => {
+  const response = await api.get<Expense>(`/api/v1/expenses/${id}`);
+  return response.data;
+};
+
+export const createExpense = async (data: CreateExpenseRequest): Promise<Expense> => {
+  const response = await api.post<Expense>('/api/v1/expenses', data);
+  return response.data;
+};
+
+export const updateExpense = async (
+  id: number,
+  data: UpdateExpenseRequest
+): Promise<Expense> => {
+  const response = await api.put<Expense>(`/api/v1/expenses/${id}`, data);
+  return response.data;
+};
+
+export const approveExpense = async (id: number): Promise<Expense> => {
+  const response = await api.post<Expense>(`/api/v1/expenses/${id}/approve`);
+  return response.data;
+};
+
+export const rejectExpense = async (
+  id: number,
+  data: RejectExpenseRequest
+): Promise<Expense> => {
+  const response = await api.post<Expense>(`/api/v1/expenses/${id}/reject`, data);
+  return response.data;
+};
+
+export const reimburseExpense = async (id: number): Promise<Expense> => {
+  const response = await api.post<Expense>(`/api/v1/expenses/${id}/reimburse`);
+  return response.data;
+};
+
+export const resetExpenseStatus = async (id: number): Promise<Expense> => {
+  const response = await api.post<Expense>(`/api/v1/expenses/${id}/reset`);
+  return response.data;
+};
+
+export const deleteExpense = async (id: number): Promise<void> => {
+  await api.delete(`/api/v1/expenses/${id}`);
+};
+
 export const getIncomes = async (republicId: string): Promise<Income[]> => {
-  try {
-    const response = await api.get<Income[]>(`/api/v1/incomes`, { params: { republicId } });
-    return response.data;
-  } catch (error) {
-    console.error('Erro ao buscar receitas:', error);
-    const parsedError = await ErrorHandler.parseError(error);
-    throw parsedError;
-  }
+  const response = await api.get<Income[]>('/api/v1/incomes', {
+    params: { republicId },
+  });
+  return response.data;
 };
 
-/**
- * Cria uma nova despesa
- * @param expense Dados da despesa
- * @returns Despesa criada
- */
-export const createExpense = async (expense: CreateExpenseRequest): Promise<Expense> => {
-  try {
-    const response = await api.post<Expense>(`/api/v1/expenses`, expense);
-    return response.data;
-  } catch (error) {
-    console.error('Erro ao criar despesa:', error);
-    const parsedError = await ErrorHandler.parseError(error);
-    throw parsedError;
-  }
+export const getIncomeById = async (id: number): Promise<Income> => {
+  const response = await api.get<Income>(`/api/v1/incomes/${id}`);
+  return response.data;
 };
 
-/**
- * Cria uma nova receita
- * @param income Dados da receita
- * @returns Receita criada
- */
-export const createIncome = async (income: CreateIncomeRequest): Promise<Income> => {
-  try {
-    const response = await api.post<Income>(`/api/v1/incomes`, income);
-    return response.data;
-  } catch (error) {
-    console.error('Erro ao criar receita:', error);
-    const parsedError = await ErrorHandler.parseError(error);
-    throw parsedError;
-  }
+export const createIncome = async (data: CreateIncomeRequest): Promise<Income> => {
+  const response = await api.post<Income>('/api/v1/incomes', data);
+  return response.data;
 };
 
-/**
- * Aprova uma despesa
- * @param expenseId ID da despesa
- * @returns Despesa atualizada
- */
-export const approveExpense = async (expenseId: number): Promise<Expense> => {
-  try {
-    const response = await api.put<Expense>(`/api/v1/expenses/${expenseId}/approve`);
-    return response.data;
-  } catch (error) {
-    console.error('Erro ao aprovar despesa:', error);
-    const parsedError = await ErrorHandler.parseError(error);
-    throw parsedError;
-  }
+export const updateIncome = async (
+  id: number,
+  data: UpdateIncomeRequest
+): Promise<Income> => {
+  const response = await api.put<Income>(`/api/v1/incomes/${id}`, data);
+  return response.data;
 };
 
-/**
- * Rejeita uma despesa
- * @param expenseId ID da despesa
- * @param reason Motivo da rejeição
- * @returns Despesa atualizada
- */
-export const rejectExpense = async (expenseId: number, reason: string): Promise<Expense> => {
-  try {
-    const response = await api.put<Expense>(`/api/v1/expenses/${expenseId}/reject`, { rejectionReason: reason });
-    return response.data;
-  } catch (error) {
-    console.error('Erro ao rejeitar despesa:', error);
-    const parsedError = await ErrorHandler.parseError(error);
-    throw parsedError;
-  }
+export const deleteIncome = async (id: number): Promise<void> => {
+  await api.delete(`/api/v1/incomes/${id}`);
 };
 
-/**
- * Ajusta o saldo da república
- * @param republicId ID da república
- * @param newBalance Novo saldo
- * @param description Descrição do ajuste (opcional)
- * @returns Resumo financeiro atualizado
- */
-export const adjustBalance = async (republicId: string, newBalance: number, description?: string): Promise<FinancialDashboardSummary> => {
-  try {
-    const response = await api.post<FinancialDashboardSummary>(
-      `/api/v1/finances/${republicId}/adjust-balance`, 
-      { 
-        amount: newBalance,
-        description: description || ''
-      }
-    );
-    return response.data;
-  } catch (error) {
-    console.error('Erro ao ajustar saldo:', error);
-    const parsedError = await ErrorHandler.parseError(error);
-    throw parsedError;
-  }
-}; 
+export const getDashboardSummary = async (
+  republicId: string
+): Promise<FinancialDashboardSummary> => {
+  const response = await api.get<FinancialDashboardSummary>(
+    `/api/v1/financial-dashboard/summary/${republicId}`
+  );
+  return response.data;
+};
+
+export const getMonthlyExpensesChart = async (
+  republicId: string,
+  numberOfMonths: number = 6
+): Promise<MonthlyChartData> => {
+  const response = await api.get<MonthlyChartData>(
+    `/api/v1/financial-dashboard/expenses/monthly/${republicId}`,
+    { params: { numberOfMonths } }
+  );
+  return response.data;
+};
+
+export const getPendingActions = async (
+  republicId: string
+): Promise<PendingActionsResponse> => {
+  const response = await api.get<PendingActionsResponse>(
+    `/api/v1/financial-dashboard/pending-actions/${republicId}`
+  );
+  return response.data;
+};
+
+export const adjustRepublicBalance = async (
+  republicId: string,
+  amount: number,
+  description: string = ''
+): Promise<FinancialDashboardSummary> => {
+  const response = await api.post<FinancialDashboardSummary>(
+    `/api/v1/finances/${republicId}/adjust-balance`,
+    {
+      amount,
+      description,
+    }
+  );
+  return response.data;
+};

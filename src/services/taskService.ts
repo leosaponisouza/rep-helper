@@ -1,17 +1,23 @@
 // src/services/taskService.ts
 import api from './api';
-import { Task, CreateTaskDTO, UpdateTaskDTO } from '../models/task.model';
+import { Task, CreateTaskDTO, UpdateTaskDTO, normalizeTask } from '../models/task.model';
 import { TaskFilterRequest } from '../models/taskFilter.model';
 import { PagedResponse } from '../models/pagedResponse.model';
 
+// Obter uma tarefa específica pelo ID
+export const getTaskById = async (taskId: number | string): Promise<Task> => {
+  const response = await api.get(`/api/v1/tasks/${taskId}`);
+  return normalizeTask(response.data);
+};
+
 // Obter todas as tarefas (método legado)
 export const getAllTasks = async (republicId?: string): Promise<Task[]> => {
-  const params: Record<string, any> = {};
+  const params: Record<string, string> = {};
   if (republicId) {
     params.republicId = republicId;
   }
   const response = await api.get('/api/v1/tasks', { params });
-  return response.data;
+  return Array.isArray(response.data) ? response.data.map(normalizeTask) : [];
 };
 
 // Obter tarefas com filtros e paginação
@@ -23,29 +29,36 @@ export const getTasksWithFilters = async (
   sortBy: string = 'dueDate',
   sortDirection: string = 'asc'
 ): Promise<PagedResponse<Task>> => {
-  // Preparar o objeto de filtro
-  const taskFilter: TaskFilterRequest = filter || {};
-  
-  // Adicionar informações de paginação e ordenação
+  const taskFilter: TaskFilterRequest = { ...(filter || {}) };
+
   if (page !== undefined) taskFilter.page = page;
   if (size !== undefined) taskFilter.size = size;
   if (sortBy) taskFilter.sortBy = sortBy;
   if (sortDirection) taskFilter.sortDirection = sortDirection;
-  
-  // Parâmetros de consulta
-  const params: Record<string, any> = {};
+
+  const params: Record<string, string> = {};
   if (republicId) {
     params.republicId = republicId;
   }
-  
-  const response = await api.post('/api/v1/tasks/filter', taskFilter, { params });
-  return response.data;
+
+  const response = await api.post<PagedResponse<Record<string, unknown>>>(
+    '/api/v1/tasks/filter',
+    taskFilter,
+    { params }
+  );
+
+  return {
+    ...response.data,
+    content: Array.isArray(response.data.content)
+      ? response.data.content.map(normalizeTask)
+      : [],
+  };
 };
 
 // Obter tarefas atribuídas ao usuário atual (método legado)
 export const getAssignedTasks = async (): Promise<Task[]> => {
   const response = await api.get('/api/v1/tasks/assigned');
-  return response.data;
+  return Array.isArray(response.data) ? response.data.map(normalizeTask) : [];
 };
 
 // Obter tarefas atribuídas ao usuário atual com filtros e paginação
@@ -56,41 +69,48 @@ export const getAssignedTasksWithFilters = async (
   sortBy: string = 'dueDate',
   sortDirection: string = 'asc'
 ): Promise<PagedResponse<Task>> => {
-  // Preparar o objeto de filtro
-  const taskFilter: TaskFilterRequest = filter || {};
-  
-  // Adicionar informações de paginação e ordenação
+  const taskFilter: TaskFilterRequest = { ...(filter || {}) };
+
   if (page !== undefined) taskFilter.page = page;
   if (size !== undefined) taskFilter.size = size;
   if (sortBy) taskFilter.sortBy = sortBy;
   if (sortDirection) taskFilter.sortDirection = sortDirection;
-  
-  const response = await api.post('/api/v1/tasks/assigned/filter', taskFilter);
-  return response.data;
+
+  const response = await api.post<PagedResponse<Record<string, unknown>>>(
+    '/api/v1/tasks/assigned/filter',
+    taskFilter
+  );
+
+  return {
+    ...response.data,
+    content: Array.isArray(response.data.content)
+      ? response.data.content.map(normalizeTask)
+      : [],
+  };
 };
 
 // Criar uma nova tarefa
 export const createTask = async (taskData: CreateTaskDTO): Promise<Task> => {
   const response = await api.post('/api/v1/tasks', taskData);
-  return response.data;
+  return normalizeTask(response.data);
 };
 
 // Atualizar uma tarefa existente
 export const updateTask = async (taskId: number, updateData: UpdateTaskDTO): Promise<Task> => {
   const response = await api.put(`/api/v1/tasks/${taskId}`, updateData);
-  return response.data;
+  return normalizeTask(response.data);
 };
 
 // Completar uma tarefa
 export const completeTask = async (taskId: number): Promise<Task> => {
   const response = await api.post(`/api/v1/tasks/${taskId}/complete`);
-  return response.data;
+  return normalizeTask(response.data);
 };
 
 // Cancelar uma tarefa
 export const cancelTask = async (taskId: number): Promise<Task> => {
   const response = await api.post(`/api/v1/tasks/${taskId}/cancel`);
-  return response.data;
+  return normalizeTask(response.data);
 };
 
 // Excluir uma tarefa
@@ -101,21 +121,21 @@ export const deleteTask = async (taskId: number): Promise<void> => {
 // Atribuir uma tarefa a um usuário
 export const assignTask = async (taskId: number, userId: string): Promise<Task> => {
   const response = await api.post(`/api/v1/tasks/${taskId}/assign`, { userId });
-  return response.data;
+  return normalizeTask(response.data);
 };
 
 // Desatribuir uma tarefa de um usuário
 export const unassignTask = async (taskId: number, userId: string): Promise<Task> => {
   const response = await api.post(`/api/v1/tasks/${taskId}/unassign`, { userId });
-  return response.data;
+  return normalizeTask(response.data);
 };
 
 // Atribuir múltiplos usuários a uma tarefa
 export const assignMultipleUsers = async (taskId: number, userIds: string[]): Promise<boolean> => {
-  const assignmentPromises = userIds.map(userId => 
+  const assignmentPromises = userIds.map(userId =>
     api.post(`/api/v1/tasks/${taskId}/assign`, { userId })
   );
-  
+
   await Promise.all(assignmentPromises);
   return true;
 };
@@ -123,5 +143,5 @@ export const assignMultipleUsers = async (taskId: number, userIds: string[]): Pr
 // Parar recorrência de uma tarefa
 export const stopRecurrence = async (taskId: number): Promise<Task> => {
   const response = await api.put(`/api/v1/tasks/${taskId}`, { recurring: false });
-  return response.data;
+  return normalizeTask(response.data);
 };
