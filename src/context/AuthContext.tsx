@@ -12,6 +12,7 @@ import { auth } from '../utils/firebaseClientConfig';
 import { router } from 'expo-router';
 import { ErrorHandler } from '../utils/errorHandling';
 import * as authService from '../services/authService';
+import { logger } from '../utils/logger';
  
 interface AuthContextProps {
   user: User | null;
@@ -81,11 +82,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const cachedUserData = await getData('user');
           if (cachedUserData) {
             const cachedUser = JSON.parse(cachedUserData);
-            console.log('Carregando usuário do cache:', cachedUser);
+            logger.debug('Carregando usuário do cache:', cachedUser);
             setUser(cachedUser);
           }
         } catch (cacheError) {
-          console.error("Erro ao carregar usuário do cache:", cacheError);
+          logger.error("Erro ao carregar usuário do cache:", cacheError);
         }
 
         // Configurar token para requisições
@@ -103,7 +104,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           clearTimeout(timeoutId);
 
           if (response.data.user) {
-            console.log('Dados do usuário recebidos do servidor:', response.data.user);
+            logger.debug('Dados do usuário recebidos do servidor:', response.data.user);
             setUser(response.data.user);
             // Atualizar cache
             await storeData('user', JSON.stringify(response.data.user));
@@ -111,24 +112,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
         } catch (error) {
           if (axios.isCancel(error)) {
-            console.log('Requisição cancelada por timeout');
+            logger.debug('Requisição cancelada por timeout');
           } else if (axios.isAxiosError(error) && error.response?.status === 401) {
             // Tentar refresh token
             const refreshSuccessful = await refreshToken();
             if (!refreshSuccessful) {
-              console.error("Token expirado e não foi possível renovar");
+              logger.error("Token expirado e não foi possível renovar");
               await clearAuthData();
               setUser(null);
               setError("Sessão expirada. Por favor, faça login novamente.");
             }
           } else {
-            console.error("Erro ao carregar usuário:", error);
+            logger.error("Erro ao carregar usuário:", error);
             await removeToken();
             setError("Erro ao carregar dados do usuário");
           }
         }
       } catch (err) {
-        console.error("Erro ao recuperar token:", err);
+        logger.error("Erro ao recuperar token:", err);
         setError("Erro ao recuperar token de autenticação");
       } finally {
         setLoading(false);
@@ -152,7 +153,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setError(null);
       api.defaults.headers.common['Authorization'] = `Bearer ${tokenString}`;
     } catch (error) {
-      console.error('Erro ao salvar dados de login:', error);
+      logger.error('Erro ao salvar dados de login:', error);
       throw error;
     }
   };
@@ -191,14 +192,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         // Atualizar estado do contexto
         setUser(updatedUser);
         
-        console.log('Usuário atualizado no contexto e storage:', updatedUser);
+        logger.debug('Usuário atualizado no contexto e storage:', updatedUser);
         
         return updatedUser;
       }
       
       return null;
     } catch (error) {
-      console.error('Erro ao atualizar usuário armazenado:', error);
+      logger.error('Erro ao atualizar usuário armazenado:', error);
       return null;
     }
   }, []);
@@ -357,7 +358,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       
       return true;
     } catch (error) {
-      console.error('Erro ao renovar token:', error);
+      logger.error('Erro ao renovar token:', error);
       return false;
     }
   };
