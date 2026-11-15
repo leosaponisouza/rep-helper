@@ -11,86 +11,72 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
-  TouchableOpacity
+  TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import api from '../../../src/services/api';
 import { ErrorHandler } from '../../../src/utils/errorHandling';
 import { useAuth } from '../../../src/context/AuthContext';
 import { useTasks } from '../../../src/hooks/useTasks';
-
-// Importação dos componentes modulares por meio do arquivo de índice
+import { useRepublicMembers } from '../../../src/hooks/useRepublicMembers';
+import { taskFormSchema, TaskFormValues } from '../../../src/validation/taskSchemas';
 import {
   HeaderBar,
   TitleDescriptionInputs,
   UserAssignmentSection,
   DateTimePickerSection,
-  CategorySection
+  CategorySection,
 } from '@/components/Task/TaskEdit';
-
-// Schema de validação
-const taskSchema = z.object({
-  title: z.string().min(3, "Título deve ter pelo menos 3 caracteres"),
-  description: z.string().optional(),
-  dueDate: z.date().optional(),
-  category: z.string().optional(),
-});
 
 const EditTaskScreen = () => {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
+  const { getTaskById, updateTask, assignMultipleUsers } = useTasks();
+  const { members: availableUsers } = useRepublicMembers(user?.currentRepublicId);
+
   const [isDatePickerVisible, setDatePickerVisibility] = useState(false);
   const [datePickerMode, setDatePickerMode] = useState<'date' | 'time'>('date');
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
-  const [availableUsers, setAvailableUsers] = useState<{uid: string, name: string, nickname?: string, email: string, profilePictureUrl?: string}[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isFetchingTask, setIsFetchingTask] = useState(true);
-  const { updateTask, assignMultipleUsers } = useTasks();
 
-  const { 
-    control, 
-    handleSubmit, 
-    formState: { errors }, 
-    setValue, 
+  const {
+    control,
+    handleSubmit,
+    formState: { errors },
+    setValue,
     watch,
-    reset
-  } = useForm<z.infer<typeof taskSchema>>({
-    resolver: zodResolver(taskSchema),
+  } = useForm<TaskFormValues>({
+    resolver: zodResolver(taskFormSchema),
     defaultValues: {
       title: '',
       description: '',
       dueDate: undefined,
-      category: ''
-    }
+      category: '',
+    },
   });
 
-  // Fetch task data
   useEffect(() => {
     const fetchTaskDetails = async () => {
       if (!id) return;
-      
+
       try {
         setIsFetchingTask(true);
-        const response = await api.get(`/api/v1/tasks/${id}`);
-        const task = response.data;
-        
-        // Populate form with task data
+        const task = await getTaskById(id);
+
         setValue('title', task.title);
         setValue('description', task.description || '');
         setValue('category', task.category || '');
-        
+
         if (task.dueDate) {
           setValue('dueDate', new Date(task.dueDate));
         }
-        
-        // Set selected users
+
         if (task.assignedUsers && task.assignedUsers.length > 0) {
-          const userIds = task.assignedUsers.map((user: { uid: string }) => String(user.uid));
+          const userIds = task.assignedUsers.map(assignedUser => String(assignedUser.uid));
           setSelectedUsers(userIds);
         }
       } catch (error) {
@@ -100,61 +86,35 @@ const EditTaskScreen = () => {
         setIsFetchingTask(false);
       }
     };
-  
+
     fetchTaskDetails();
-  }, [id, setValue]);
+  }, [id, getTaskById, setValue, router]);
 
-  // Fetch republic users
-  useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const { data } = await api.get(`/api/v1/republics/${user?.currentRepublicId}/users`);
-        const formattedUsers = data.map((u: any) => ({
-          uid: u.uid,
-          name: u.name,
-          nickname: u.nickname,
-          email: u.email,
-          profilePictureUrl: u.profilePictureUrl
-        }));
-        setAvailableUsers(formattedUsers);
-      } catch (error) {
-        console.error('Erro ao buscar usuários:', error);
-      }
-    };
-
-    fetchUsers();
-  }, [user?.currentRepublicId]);
-
-  const onSubmit = async (data: z.infer<typeof taskSchema>) => {
+  const onSubmit = async (data: TaskFormValues) => {
     try {
       if (selectedUsers.length === 0) {
         Alert.alert('Atenção', 'Selecione pelo menos um responsável para a tarefa.');
         return;
       }
-      
+
       setIsLoading(true);
-      
+
       const taskData = {
         title: data.title,
         description: data.description || '',
         dueDate: data.dueDate ? data.dueDate.toISOString() : undefined,
-        category: data.category
+        category: data.category,
       };
-  
-      // Update the task
+
       await updateTask(Number(id), taskData);
-      
-      // Update assigned users
       await assignMultipleUsers(Number(id), selectedUsers);
-      
-      Alert.alert(
-        'Sucesso', 
-        'Tarefa atualizada com sucesso!', 
-        [{ 
-          text: 'OK', 
-          onPress: () => router.replace('/(panel)/tasks') 
-        }]
-      );
+
+      Alert.alert('Sucesso', 'Tarefa atualizada com sucesso!', [
+        {
+          text: 'OK',
+          onPress: () => router.replace('/(panel)/tasks'),
+        },
+      ]);
     } catch (error) {
       ErrorHandler.handle(error);
     } finally {
@@ -177,21 +137,18 @@ const EditTaskScreen = () => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" backgroundColor="#222" />
-      
-      <KeyboardAvoidingView 
+
+      <KeyboardAvoidingView
         style={styles.container}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <HeaderBar title="Editar Tarefa" onBack={() => router.back()} />
 
-        <ScrollView 
+        <ScrollView
           style={styles.scrollContainer}
           keyboardShouldPersistTaps="handled"
         >
-          <TitleDescriptionInputs 
-            control={control}
-            errors={errors}
-          />
+          <TitleDescriptionInputs control={control} errors={errors} />
 
           <UserAssignmentSection
             selectedUsers={selectedUsers}
@@ -208,6 +165,7 @@ const EditTaskScreen = () => {
             isDatePickerVisible={isDatePickerVisible}
             datePickerMode={datePickerMode}
             setDatePickerMode={setDatePickerMode}
+            errors={errors}
           />
 
           <CategorySection
@@ -216,11 +174,8 @@ const EditTaskScreen = () => {
             watch={watch}
           />
 
-          <TouchableOpacity 
-            style={[
-              styles.submitButton, 
-              (isLoading) && styles.submitButtonDisabled
-            ]}
+          <TouchableOpacity
+            style={[styles.submitButton, isLoading && styles.submitButtonDisabled]}
             onPress={handleSubmit(onSubmit)}
             disabled={isLoading}
           >
@@ -228,7 +183,12 @@ const EditTaskScreen = () => {
               <ActivityIndicator size="small" color="#fff" />
             ) : (
               <>
-                <Ionicons name="save-outline" size={20} color="#fff" style={styles.submitButtonIcon} />
+                <Ionicons
+                  name="save-outline"
+                  size={20}
+                  color="#fff"
+                  style={styles.submitButtonIcon}
+                />
                 <Text style={styles.submitButtonText}>Salvar Alterações</Text>
               </>
             )}
@@ -271,7 +231,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 30,
     marginBottom: 30,
-    shadowColor: "#7B68EE",
+    shadowColor: '#7B68EE',
     shadowOffset: {
       width: 0,
       height: 4,
