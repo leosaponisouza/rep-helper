@@ -1,23 +1,22 @@
 // src/hooks/useFinances.ts
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import api from '../services/api';
 import { ErrorHandler } from '../utils/errorHandling';
 import { useAuth } from '../context/AuthContext';
-import { 
-  Expense, 
+import { logger } from '../utils/logger';
+import * as financesService from '../services/financesService';
+import {
+  Expense,
   Income,
-  CreateExpenseRequest, 
-  UpdateExpenseRequest, 
+  CreateExpenseRequest,
+  UpdateExpenseRequest,
   RejectExpenseRequest,
-  CreateIncomeRequest, 
+  CreateIncomeRequest,
   UpdateIncomeRequest,
   FinancialDashboardSummary,
   MonthlyChartData,
-  CategoryExpense,
   PendingAction,
   Transaction,
   TransactionType,
-  PendingActionsResponse
 } from '../models/finances.model';
 
 export type ExpenseFilterType = 'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'REIMBURSED';
@@ -29,25 +28,25 @@ interface UseFinancesOptions {
 export const useFinances = (options: UseFinancesOptions = {}) => {
   const { user } = useAuth();
   const republicId = user?.currentRepublicId;
-  
+
   // State for expenses
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [expenseFilter, setExpenseFilter] = useState<ExpenseFilterType>(options.initialFilter || 'ALL');
   const [loadingExpenses, setLoadingExpenses] = useState(false);
   const [expensesError, setExpensesError] = useState<string | null>(null);
-  
+
   // State for incomes
   const [incomes, setIncomes] = useState<Income[]>([]);
   const [loadingIncomes, setLoadingIncomes] = useState(false);
   const [incomesError, setIncomesError] = useState<string | null>(null);
-  
+
   // State for dashboard
   const [dashboardSummary, setDashboardSummary] = useState<FinancialDashboardSummary | null>(null);
   const [monthlyData, setMonthlyData] = useState<MonthlyChartData>();
   const [pendingActions, setPendingActions] = useState<PendingAction[]>([]);
   const [loadingDashboard, setLoadingDashboard] = useState(false);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
-  
+
   // Derived state
   const filteredExpenses = useMemo(() => {
     if (expenseFilter === 'ALL') {
@@ -55,7 +54,7 @@ export const useFinances = (options: UseFinancesOptions = {}) => {
     }
     return expenses.filter(expense => expense.status === expenseFilter);
   }, [expenses, expenseFilter]);
-  
+
   const categoryExpenses = useMemo(() => {
     const categories = new Map<string, number>();
     const total = expenses.reduce((sum, expense) => {
@@ -67,46 +66,42 @@ export const useFinances = (options: UseFinancesOptions = {}) => {
       }
       return sum;
     }, 0);
-    
+
     return Array.from(categories.entries())
       .map(([category, amount]) => ({
         category,
         amount,
-        percentage: total > 0 ? (amount / total) * 100 : 0
+        percentage: total > 0 ? (amount / total) * 100 : 0,
       }))
-      .sort((a, b) => b.amount - a.amount); // Sort by amount descending
+      .sort((a, b) => b.amount - a.amount);
   }, [expenses]);
-// No hook useFinances, ao formar o recentTransactions:
-const recentTransactions = useMemo<Transaction[]>(() => {
-  // Use um timestamp para garantir unicidade nas keys mesmo com recarregamentos
-  const timestamp = Date.now();
-  
-  const allTransactions: Transaction[] = [
-    ...expenses.map((expense, index) => ({
-      ...expense,
-      date: expense.expenseDate,
-      type: 'EXPENSE' as TransactionType,
-      uniqueId: `expense-${expense.id}-${timestamp}-${index}`
-    })),
-    ...incomes.map((income, index) => ({
-      ...income,
-      date: income.incomeDate,
-      type: 'INCOME' as TransactionType,
-      uniqueId: `income-${income.id}-${timestamp}-${index}`
-    }))
-  ];
-  
-  return allTransactions
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 10);
-}, [expenses, incomes]);
 
-  // API request functions with better error handling
+  const recentTransactions = useMemo<Transaction[]>(() => {
+    const allTransactions: Transaction[] = [
+      ...expenses.map(expense => ({
+        ...expense,
+        date: expense.expenseDate,
+        type: 'EXPENSE' as TransactionType,
+        uniqueId: `expense-${expense.id}`,
+      })),
+      ...incomes.map(income => ({
+        ...income,
+        date: income.incomeDate,
+        type: 'INCOME' as TransactionType,
+        uniqueId: `income-${income.id}`,
+      })),
+    ];
+
+    return allTransactions
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 10);
+  }, [expenses, incomes]);
+
   const fetchWithErrorHandling = async <T>(
     apiCall: () => Promise<T>,
     setLoading: (loading: boolean) => void,
     setError: (error: string | null) => void,
-    errorMessage: string = "Ocorreu um erro ao buscar os dados"
+    errorMessage: string = 'Ocorreu um erro ao buscar os dados'
   ): Promise<T | null> => {
     try {
       setLoading(true);
@@ -115,7 +110,7 @@ const recentTransactions = useMemo<Transaction[]>(() => {
     } catch (err) {
       const parsedError = await ErrorHandler.parseError(err);
       setError(parsedError.message || errorMessage);
-      console.error(`${errorMessage}:`, err);
+      logger.error(`${errorMessage}:`, err);
       return null;
     } finally {
       setLoading(false);
@@ -125,15 +120,14 @@ const recentTransactions = useMemo<Transaction[]>(() => {
   // Fetch expenses
   const fetchExpenses = useCallback(async (): Promise<void> => {
     if (!republicId) return;
-    
+
     const data = await fetchWithErrorHandling(
-      () => api.get<Expense[]>(`/api/v1/expenses`, { params: { republicId } })
-        .then(response => response.data),
+      () => financesService.getExpenses(republicId),
       setLoadingExpenses,
       setExpensesError,
-      "Não foi possível carregar as despesas"
+      'Não foi possível carregar as despesas'
     );
-    
+
     if (data) {
       setExpenses(data);
     }
@@ -142,15 +136,14 @@ const recentTransactions = useMemo<Transaction[]>(() => {
   // Fetch incomes
   const fetchIncomes = useCallback(async (): Promise<void> => {
     if (!republicId) return;
-    
+
     const data = await fetchWithErrorHandling(
-      () => api.get<Income[]>(`/api/v1/incomes`, { params: { republicId } })
-        .then(response => response.data),
+      () => financesService.getIncomes(republicId),
       setLoadingIncomes,
       setIncomesError,
-      "Não foi possível carregar as receitas"
+      'Não foi possível carregar as receitas'
     );
-    
+
     if (data) {
       setIncomes(data);
     }
@@ -159,46 +152,34 @@ const recentTransactions = useMemo<Transaction[]>(() => {
   // Fetch dashboard data
   const fetchDashboardData = useCallback(async (): Promise<void> => {
     if (!republicId) return;
-    
+
     setLoadingDashboard(true);
     setDashboardError(null);
-    
+
     try {
-      // Use Promise.all to fetch dashboard data in parallel
-      const [summaryResponse, monthlyResponse, pendingResponse] = await Promise.all([
-        api.get<FinancialDashboardSummary>(`/api/v1/financial-dashboard/summary/${republicId}`),
-        api.get<MonthlyChartData>(`/api/v1/financial-dashboard/expenses/monthly/${republicId}`, {
-          params: { numberOfMonths: 6 }
-        }),
-        api.get<PendingActionsResponse>(`/api/v1/financial-dashboard/pending-actions/${republicId}`)
+      const [summaryData, monthlyChart, pendingData] = await Promise.all([
+        financesService.getDashboardSummary(republicId),
+        financesService.getMonthlyExpensesChart(republicId, 6),
+        financesService.getPendingActions(republicId),
       ]);
-      
-      setDashboardSummary(summaryResponse.data);
-      console.log("summary:", summaryResponse.data);
-      setMonthlyData(monthlyResponse.data);
-      console.log("monthly ", monthlyResponse.data)
-      // Extract and process pending expenses from the response
-      if (pendingResponse.data && Array.isArray(pendingResponse.data.pendingExpenses)) {
-        console.log("Pending expenses from API:", pendingResponse.data.pendingExpenses);
-        
-        // Map the expenses to include a 'date' field for backwards compatibility with components
-        const mappedPendingActions = pendingResponse.data.pendingExpenses.map(expense => ({
+
+      setDashboardSummary(summaryData);
+      setMonthlyData(monthlyChart);
+
+      if (pendingData && Array.isArray(pendingData.pendingExpenses)) {
+        const mappedPendingActions = pendingData.pendingExpenses.map(expense => ({
           ...expense,
-          date: expense.expenseDate // Add date field pointing to expenseDate for compatibility
+          date: expense.expenseDate,
         }));
-        
         setPendingActions(mappedPendingActions);
-        console.log("Mapped pending actions:", mappedPendingActions);
       } else {
-        console.log("No pending expenses found or invalid format", pendingResponse.data);
         setPendingActions([]);
       }
     } catch (err) {
       const parsedError = await ErrorHandler.parseError(err);
-      setDashboardError(parsedError.message || "Não foi possível carregar os dados do dashboard");
-      console.error("Dashboard error:", err);
-      
-      // Set default values on error
+      setDashboardError(parsedError.message || 'Não foi possível carregar os dados do dashboard');
+      logger.error('Dashboard error:', err);
+
       setMonthlyData(undefined);
       setPendingActions([]);
     } finally {
@@ -211,13 +192,10 @@ const recentTransactions = useMemo<Transaction[]>(() => {
     setExpenseFilter(filter);
   }, []);
 
-  // CRUD Operations with improved error handling
-  
   // Get expense by ID
   const getExpenseById = useCallback(async (id: number): Promise<Expense> => {
     try {
-      const response = await api.get<Expense>(`/api/v1/expenses/${id}`);
-      return response.data;
+      return await financesService.getExpenseById(id);
     } catch (err) {
       const error = await ErrorHandler.parseError(err);
       throw error;
@@ -227,8 +205,7 @@ const recentTransactions = useMemo<Transaction[]>(() => {
   // Get income by ID
   const getIncomeById = useCallback(async (id: number): Promise<Income> => {
     try {
-      const response = await api.get<Income>(`/api/v1/incomes/${id}`);
-      return response.data;
+      return await financesService.getIncomeById(id);
     } catch (err) {
       const error = await ErrorHandler.parseError(err);
       throw error;
@@ -238,10 +215,9 @@ const recentTransactions = useMemo<Transaction[]>(() => {
   // Create expense
   const createExpense = useCallback(async (data: CreateExpenseRequest): Promise<Expense> => {
     try {
-      const response = await api.post<Expense>('/api/v1/expenses', data);
-      await fetchExpenses(); // Refresh expenses
-      await fetchDashboardData(); // Refresh dashboard
-      return response.data;
+      const created = await financesService.createExpense(data);
+      await Promise.all([fetchExpenses(), fetchDashboardData()]);
+      return created;
     } catch (err) {
       const error = await ErrorHandler.parseError(err);
       throw error;
@@ -251,9 +227,9 @@ const recentTransactions = useMemo<Transaction[]>(() => {
   // Update expense
   const updateExpense = useCallback(async (id: number, data: UpdateExpenseRequest): Promise<Expense> => {
     try {
-      const response = await api.put<Expense>(`/api/v1/expenses/${id}`, data);
-      await fetchExpenses(); // Refresh expenses
-      return response.data;
+      const updated = await financesService.updateExpense(id, data);
+      await fetchExpenses();
+      return updated;
     } catch (err) {
       const error = await ErrorHandler.parseError(err);
       throw error;
@@ -263,9 +239,9 @@ const recentTransactions = useMemo<Transaction[]>(() => {
   // Expense status operations
   const approveExpense = useCallback(async (id: number): Promise<Expense> => {
     try {
-      const response = await api.post<Expense>(`/api/v1/expenses/${id}/approve`);
+      const approved = await financesService.approveExpense(id);
       await Promise.all([fetchExpenses(), fetchDashboardData()]);
-      return response.data;
+      return approved;
     } catch (err) {
       const error = await ErrorHandler.parseError(err);
       throw error;
@@ -274,9 +250,9 @@ const recentTransactions = useMemo<Transaction[]>(() => {
 
   const rejectExpense = useCallback(async (id: number, data: RejectExpenseRequest): Promise<Expense> => {
     try {
-      const response = await api.post<Expense>(`/api/v1/expenses/${id}/reject`, data);
+      const rejected = await financesService.rejectExpense(id, data);
       await Promise.all([fetchExpenses(), fetchDashboardData()]);
-      return response.data;
+      return rejected;
     } catch (err) {
       const error = await ErrorHandler.parseError(err);
       throw error;
@@ -285,9 +261,9 @@ const recentTransactions = useMemo<Transaction[]>(() => {
 
   const reimburseExpense = useCallback(async (id: number): Promise<Expense> => {
     try {
-      const response = await api.post<Expense>(`/api/v1/expenses/${id}/reimburse`);
+      const reimbursed = await financesService.reimburseExpense(id);
       await Promise.all([fetchExpenses(), fetchDashboardData()]);
-      return response.data;
+      return reimbursed;
     } catch (err) {
       const error = await ErrorHandler.parseError(err);
       throw error;
@@ -296,9 +272,9 @@ const recentTransactions = useMemo<Transaction[]>(() => {
 
   const resetExpenseStatus = useCallback(async (id: number): Promise<Expense> => {
     try {
-      const response = await api.post<Expense>(`/api/v1/expenses/${id}/reset`);
+      const reset = await financesService.resetExpenseStatus(id);
       await Promise.all([fetchExpenses(), fetchDashboardData()]);
-      return response.data;
+      return reset;
     } catch (err) {
       const error = await ErrorHandler.parseError(err);
       throw error;
@@ -307,7 +283,7 @@ const recentTransactions = useMemo<Transaction[]>(() => {
 
   const deleteExpense = useCallback(async (id: number): Promise<boolean> => {
     try {
-      await api.delete(`/api/v1/expenses/${id}`);
+      await financesService.deleteExpense(id);
       await Promise.all([fetchExpenses(), fetchDashboardData()]);
       return true;
     } catch (err) {
@@ -319,9 +295,9 @@ const recentTransactions = useMemo<Transaction[]>(() => {
   // Income operations
   const createIncome = useCallback(async (data: CreateIncomeRequest): Promise<Income> => {
     try {
-      const response = await api.post<Income>('/api/v1/incomes', data);
+      const created = await financesService.createIncome(data);
       await Promise.all([fetchIncomes(), fetchDashboardData()]);
-      return response.data;
+      return created;
     } catch (err) {
       const error = await ErrorHandler.parseError(err);
       throw error;
@@ -330,9 +306,9 @@ const recentTransactions = useMemo<Transaction[]>(() => {
 
   const updateIncome = useCallback(async (id: number, data: UpdateIncomeRequest): Promise<Income> => {
     try {
-      const response = await api.put<Income>(`/api/v1/incomes/${id}`, data);
+      const updated = await financesService.updateIncome(id, data);
       await Promise.all([fetchIncomes(), fetchDashboardData()]);
-      return response.data;
+      return updated;
     } catch (err) {
       const error = await ErrorHandler.parseError(err);
       throw error;
@@ -341,7 +317,7 @@ const recentTransactions = useMemo<Transaction[]>(() => {
 
   const deleteIncome = useCallback(async (id: number): Promise<boolean> => {
     try {
-      await api.delete(`/api/v1/incomes/${id}`);
+      await financesService.deleteIncome(id);
       await Promise.all([fetchIncomes(), fetchDashboardData()]);
       return true;
     } catch (err) {
@@ -350,18 +326,28 @@ const recentTransactions = useMemo<Transaction[]>(() => {
     }
   }, [fetchIncomes, fetchDashboardData]);
 
+  // Adjust republic balance
+  const adjustBalance = useCallback(async (newBalance: number, description?: string): Promise<FinancialDashboardSummary> => {
+    if (!republicId) {
+      throw new Error('República não identificada');
+    }
+    try {
+      return await financesService.adjustRepublicBalance(republicId, newBalance, description || '');
+    } catch (err) {
+      const error = await ErrorHandler.parseError(err);
+      throw error;
+    }
+  }, [republicId]);
+
   // Fetch expenses by status
   const fetchExpensesByStatus = useCallback(async (status: ExpenseFilterType): Promise<Expense[]> => {
     if (!republicId || status === 'ALL') return [];
-    
+
     try {
-      const response = await api.get<Expense[]>(`/api/v1/expenses/status/${status}`, {
-        params: { republicId }
-      });
-      return response.data;
+      return await financesService.getExpensesByStatus(republicId, status);
     } catch (err) {
       const error = await ErrorHandler.parseError(err);
-      console.error("Error fetching expenses by status:", error);
+      logger.error('Error fetching expenses by status:', error);
       return [];
     }
   }, [republicId]);
@@ -369,16 +355,16 @@ const recentTransactions = useMemo<Transaction[]>(() => {
   // Refresh all financial data
   const refreshFinancialData = useCallback(async (): Promise<boolean> => {
     if (!republicId) return false;
-    
+
     try {
       await Promise.all([
         fetchExpenses(),
         fetchIncomes(),
-        fetchDashboardData()
+        fetchDashboardData(),
       ]);
       return true;
     } catch (error) {
-      console.error("Error refreshing financial data:", error);
+      logger.error('Error refreshing financial data:', error);
       return false;
     }
   }, [republicId, fetchExpenses, fetchIncomes, fetchDashboardData]);
@@ -386,46 +372,44 @@ const recentTransactions = useMemo<Transaction[]>(() => {
   // Load initial data
   useEffect(() => {
     if (republicId) {
-      // Initial fetch of all data
       refreshFinancialData();
     }
   }, [republicId, refreshFinancialData]);
 
-  // Return all the hooks and functions
   return {
     // Data
     expenses: filteredExpenses,
     allExpenses: expenses,
     incomes,
     recentTransactions,
-    
+
     // Dashboard
     dashboardSummary,
     monthlyData,
     categoryExpenses,
     pendingActions,
-    
+
     // Loading states
     loadingExpenses,
     loadingIncomes,
     loadingDashboard,
-    
+
     // Errors
     expensesError,
     incomesError,
     dashboardError,
-    
+
     // Data fetching
     fetchExpenses,
     fetchIncomes,
     fetchDashboardData,
     fetchExpensesByStatus,
     refreshFinancialData,
-    
+
     // Filter
     applyExpenseFilter,
     expenseFilter,
-    
+
     // Expense operations
     createExpense,
     getExpenseById,
@@ -435,11 +419,14 @@ const recentTransactions = useMemo<Transaction[]>(() => {
     reimburseExpense,
     resetExpenseStatus,
     deleteExpense,
-    
+
     // Income operations
     createIncome,
     getIncomeById,
     updateIncome,
-    deleteIncome
+    deleteIncome,
+
+    // Balance operations
+    adjustBalance,
   };
 };
