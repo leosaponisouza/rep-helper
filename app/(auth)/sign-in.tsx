@@ -56,9 +56,9 @@ const LoginScreen = () => {
 
     // Configuração do Google Auth para funcionar em Expo Go e builds nativas
     const [request, response, promptAsync] = Google.useAuthRequest({
-        androidClientId: process.env.EXPO_PUBLIC_ANDROID_CLIENT_ID,
-        iosClientId: process.env.EXPO_PUBLIC_IOS_CLIENT_ID,
-        webClientId: process.env.EXPO_PUBLIC_WEB_CLIENT_ID,
+        androidClientId: process.env.EXPO_PUBLIC_ANDROID_CLIENT_ID || 'android-client-id-placeholder',
+        iosClientId: process.env.EXPO_PUBLIC_IOS_CLIENT_ID || 'ios-client-id-placeholder',
+        webClientId: process.env.EXPO_PUBLIC_WEB_CLIENT_ID || 'web-client-id-placeholder',
     });
 
     // Sincronizar os estados de loading e erro do AuthContext com os locais

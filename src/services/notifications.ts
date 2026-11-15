@@ -2,6 +2,10 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
 export async function registerForPushNotificationsAsync() {
+  if (Platform.OS === 'web') {
+    return undefined;
+  }
+
   let token;
 
   if (Platform.OS === 'android') {
