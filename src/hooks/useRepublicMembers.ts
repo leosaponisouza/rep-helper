@@ -23,7 +23,7 @@ export function normalizeMembers(rawMembers: Array<Record<string, any>>): Select
   }));
 }
 
-export function useRepublicMembers(republicId?: string) {
+export function useRepublicMembers(republicId?: string | null) {
   const [members, setMembers] = useState<SelectableMember[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);

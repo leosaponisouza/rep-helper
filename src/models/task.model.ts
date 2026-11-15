@@ -4,6 +4,7 @@ import { User } from "./user.model";
 
 export type RecurrenceType = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
 export type TaskStatus = 'PENDING' | 'COMPLETED' | 'IN_PROGRESS' | 'OVERDUE' | 'CANCELLED';
+export type AssignedUser = User;
 
 export interface Task {
   id: number;
@@ -15,6 +16,7 @@ export interface Task {
   category?: string;
   status: TaskStatus;
   createdAt?: string;
+  created_at?: string;
   updatedAt?: string;
   updated_at?: string;
   assignedUsers?: User[];
