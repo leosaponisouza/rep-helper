@@ -353,6 +353,12 @@ describe('ThemeProvider and adapters', () => {
     expect(cal.selectedDayBackgroundColor).toBe('#1F4AA8');
     expect(calDark.calendarBackground).toBe('#1E1D1A');
     expect(calDark.selectedDayBackgroundColor).toBe('#7EA4FF');
+    expect(cal.textDayFontWeight).toBe('400');
+    expect(cal.textMonthFontWeight).toBe('400');
+    expect(cal.textDayHeaderFontWeight).toBe('400');
+    expect(calDark.textDayFontWeight).toBe('400');
+    expect(calDark.textMonthFontWeight).toBe('400');
+    expect(calDark.textDayHeaderFontWeight).toBe('400');
 
     expect(chart.backgroundColor).toBe('#1E1D1A');
     expect(chart.backgroundGradientFrom).toBe('#1E1D1A');

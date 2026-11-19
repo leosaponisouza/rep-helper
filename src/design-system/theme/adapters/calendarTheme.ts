@@ -27,8 +27,8 @@ export type CalendarThemeConfig = {
   textMonthFontFamily: string;
   textDayHeaderFontFamily: string;
   textDayFontWeight: '400';
-  textMonthFontWeight: '600';
-  textDayHeaderFontWeight: '500';
+  textMonthFontWeight: '400';
+  textDayHeaderFontWeight: '400';
   textDayFontSize: number;
   textMonthFontSize: number;
   textDayHeaderFontSize: number;
@@ -67,8 +67,8 @@ export function createCalendarTheme(theme: Theme): CalendarThemeConfig {
     textDayHeaderFontFamily:
       theme.typography.monoLabel.fontFamily ?? fontFamilies.monoMedium,
     textDayFontWeight: '400',
-    textMonthFontWeight: '600',
-    textDayHeaderFontWeight: '500',
+    textMonthFontWeight: '400',
+    textDayHeaderFontWeight: '400',
     textDayFontSize: theme.typography.body.fontSize ?? 15,
     textMonthFontSize: theme.typography.heading.fontSize ?? 18,
     textDayHeaderFontSize: theme.typography.monoLabel.fontSize ?? 12,
