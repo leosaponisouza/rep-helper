@@ -1,13 +1,13 @@
 import React from 'react';
+import { StyleSheet, View } from 'react-native';
+import { CheckCircle2, PlayCircle, XCircle } from 'lucide-react-native';
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  ActivityIndicator,
-  Alert,
-  StyleSheet,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+  AppText,
+  Button,
+  Divider,
+  useFeedback,
+  useTheme,
+} from '../../../src/design-system';
 import { TaskStatus } from '../../../src/models/task.model';
 
 export interface TaskActionButtonsProps {
@@ -29,142 +29,108 @@ export const TaskActionButtons: React.FC<TaskActionButtonsProps> = ({
   onToggleStatus,
   onCancelTask,
 }) => {
+  const { theme } = useTheme();
+  const { confirm, toast } = useFeedback();
+
   if (!['PENDING', 'IN_PROGRESS', 'OVERDUE'].includes(status) || !canModifyTask) {
     return null;
   }
 
+  const isStartAction = status === 'PENDING' || status === 'OVERDUE';
+
+  const handlePressToggle = () => {
+    if (!canChangeStatus) {
+      toast({
+        title: 'Acesso negado',
+        message: 'Apenas o criador ou os responsáveis podem alterar o status da tarefa.',
+        tone: 'warning',
+      });
+      return;
+    }
+    onToggleStatus();
+  };
+
+  const handlePressCancel = async () => {
+    if (!canChangeStatus) {
+      toast({
+        title: 'Acesso negado',
+        message: 'Apenas o criador ou os responsáveis podem cancelar esta tarefa.',
+        tone: 'warning',
+      });
+      return;
+    }
+    if (isCancelling) return;
+
+    const accepted = await confirm({
+      title: 'Cancelar Tarefa',
+      message: 'Tem certeza que deseja cancelar esta tarefa?',
+      confirmLabel: 'Cancelar Tarefa',
+      cancelLabel: 'Voltar',
+      destructive: true,
+    });
+
+    if (accepted) {
+      onCancelTask();
+    }
+  };
+
   return (
-    <View style={styles.actionButtonsContainer}>
-      {(status === 'PENDING' || status === 'OVERDUE') && (
-        <TouchableOpacity
-          style={[
-            styles.actionButton,
-            styles.primaryButton,
-            isStatusChanging && styles.actionButtonDisabled,
-          ]}
-          onPress={onToggleStatus}
-          disabled={!canChangeStatus || isStatusChanging}
-        >
-          {isStatusChanging ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <>
-              <Ionicons name="play-circle" size={18} color="#fff" />
-              <Text style={styles.primaryButtonText}>Iniciar Tarefa</Text>
-            </>
-          )}
-        </TouchableOpacity>
-      )}
+    <View style={{ gap: theme.spacing.sm }}>
+      <Divider />
 
-      {status === 'IN_PROGRESS' && (
-        <TouchableOpacity
-          style={[
-            styles.actionButton,
-            styles.primaryButton,
-            isStatusChanging && styles.actionButtonDisabled,
-          ]}
-          onPress={onToggleStatus}
-          disabled={!canChangeStatus || isStatusChanging}
-        >
-          {isStatusChanging ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <>
-              <Ionicons name="checkmark-circle" size={18} color="#fff" />
-              <Text style={styles.primaryButtonText}>Concluir Tarefa</Text>
-            </>
-          )}
-        </TouchableOpacity>
-      )}
+      <View style={[styles.actionsRow, { gap: theme.spacing.sm }]}>
+        <View style={styles.primarySlot}>
+          <Button
+            variant="primary"
+            fullWidth
+            label={isStartAction ? 'Iniciar Tarefa' : 'Concluir Tarefa'}
+            loading={isStatusChanging}
+            disabled={!canChangeStatus || isCancelling}
+            leftIcon={
+              isStartAction ? (
+                <PlayCircle size={18} strokeWidth={1.75} color={theme.colors.onAccent} />
+              ) : (
+                <CheckCircle2 size={18} strokeWidth={1.75} color={theme.colors.onAccent} />
+              )
+            }
+            onPress={handlePressToggle}
+          />
+        </View>
 
-      <View style={styles.buttonSpacer} />
+        <View style={styles.secondarySlot}>
+          <Button
+            variant="secondary"
+            fullWidth
+            label="Cancelar"
+            loading={isCancelling}
+            disabled={!canChangeStatus || isStatusChanging}
+            leftIcon={<XCircle size={18} strokeWidth={1.75} color={theme.colors.ink} />}
+            onPress={() => void handlePressCancel()}
+          />
+        </View>
+      </View>
 
-      <TouchableOpacity
-        style={[
-          styles.actionButton,
-          styles.secondaryButton,
-          isCancelling && styles.actionButtonDisabled,
-        ]}
-        onPress={() => {
-          Alert.alert(
-            'Cancelar Tarefa',
-            'Tem certeza que deseja cancelar esta tarefa?',
-            [
-              { text: 'Não', style: 'cancel' },
-              {
-                text: 'Cancelar Tarefa',
-                onPress: onCancelTask,
-              },
-            ]
-          );
-        }}
-        disabled={!canChangeStatus || isCancelling}
-      >
-        {isCancelling ? (
-          <ActivityIndicator size="small" color="#fff" />
-        ) : (
-          <>
-            <Ionicons name="close-circle" size={18} color="#fff" />
-            <Text style={styles.secondaryButtonText}>Cancelar</Text>
-          </>
-        )}
-      </TouchableOpacity>
+      {!canChangeStatus ? (
+        <AppText variant="caption" color="inkMuted">
+          Apenas o criador da tarefa ou responsáveis atribuídos podem alterar o status.
+        </AppText>
+      ) : null}
+
+      <Divider />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  actionButtonsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 16,
-    marginTop: 16,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: '#444',
-  },
-  actionButton: {
-    padding: 8,
-    marginLeft: 8,
-  },
-  primaryButton: {
+  actionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#7B68EE',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    flex: 1,
-    maxWidth: '60%',
   },
-  secondaryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#555',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    flex: 1,
-    maxWidth: '35%',
+  primarySlot: {
+    flex: 3,
   },
-  buttonSpacer: {
-    width: 12,
-  },
-  actionButtonDisabled: {
-    opacity: 0.5,
-  },
-  primaryButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    marginLeft: 8,
-  },
-  secondaryButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    marginLeft: 8,
+  secondarySlot: {
+    flex: 2,
   },
 });
 

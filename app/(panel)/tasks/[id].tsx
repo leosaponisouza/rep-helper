@@ -1,38 +1,74 @@
-// app/(panel)/tasks/[id].tsx - Com suporte aprimorado para recorrência
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+// app/(panel)/tasks/[id].tsx
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Platform, Share, StyleSheet, View } from 'react-native';
+import { differenceInMinutes, isToday, isTomorrow, isValid } from 'date-fns';
+import * as Haptics from 'expo-haptics';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ActivityIndicator,
-  Alert,
-  SafeAreaView,
-  StatusBar,
-  Platform,
-  Animated,
-  Share,
-} from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Ionicons, FontAwesome5, Feather } from '@expo/vector-icons';
-import { isToday, isTomorrow, differenceInMinutes } from 'date-fns';
-import { useTasks } from '../../../src/hooks/useTasks';
-import { useAuth } from '../../../src/context/AuthContext';
-import { Task } from '../../../src/models/task.model';
-import { ErrorHandler } from '../../../src/utils/errorHandling';
-import {
-  parseISOPreservingTime,
-  formatLocalDate,
-  formatTime,
-} from '../../../src/utils/dateUtils';
-import { logger } from '../../../src/utils/logger';
-import { TaskRecurrenceCard } from '../../../components/Task/TaskDetails/TaskRecurrenceCard';
+  Calendar,
+  CheckCircle2,
+  Clock,
+  Edit2,
+  Home,
+  Repeat,
+  Share2,
+  Tag,
+  User,
+} from 'lucide-react-native';
 import { TaskActionButtons } from '../../../components/Task/TaskDetails/TaskActionButtons';
 import { TaskAssignedUsersCard } from '../../../components/Task/TaskDetails/TaskAssignedUsersCard';
-import { ConfirmDeleteModal } from '../../../components/common/ConfirmDeleteModal';
+import { TaskRecurrenceCard } from '../../../components/Task/TaskDetails/TaskRecurrenceCard';
+import { useAuth } from '../../../src/context/AuthContext';
+import {
+  AppText,
+  ConfirmSection,
+  IconButton,
+  ListRow,
+  Screen,
+  ScreenHeader,
+  StateView,
+  StatusText,
+  Surface,
+  useFeedback,
+  useMotion,
+  useTheme,
+  type StatusTone,
+} from '../../../src/design-system';
+import { useTasks } from '../../../src/hooks/useTasks';
+import { Task, TaskStatus } from '../../../src/models/task.model';
+import {
+  formatLocalDate,
+  formatTime,
+  parseISOPreservingTime,
+} from '../../../src/utils/dateUtils';
+import { ErrorHandler } from '../../../src/utils/errorHandling';
+import { logger } from '../../../src/utils/logger';
+import { getRecurrencePatternLabel } from '../../../src/validation/taskSchemas';
+
+const TASK_STATUS_MAP: Record<TaskStatus, { label: string; tone: StatusTone }> = {
+  PENDING: { label: 'Pendente', tone: 'warning' },
+  IN_PROGRESS: { label: 'Em andamento', tone: 'accent' },
+  COMPLETED: { label: 'Concluída', tone: 'success' },
+  OVERDUE: { label: 'Atrasada', tone: 'danger' },
+  CANCELLED: { label: 'Cancelada', tone: 'neutral' },
+};
+
+const triggerSuccessHaptic = () => {
+  if (Platform.OS === 'web') return;
+  try {
+    void Promise.resolve(
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+    ).catch(() => {});
+  } catch {
+    // Ignore haptics errors on unsupported devices
+  }
+};
 
 const TaskDetailsScreen: React.FC = () => {
   const router = useRouter();
+  const { theme } = useTheme();
+  const motion = useMotion();
+  const { toast } = useFeedback();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const {
@@ -53,31 +89,36 @@ const TaskDetailsScreen: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isStoppingRecurrence, setIsStoppingRecurrence] = useState(false);
 
-  const isCreator = task?.createdBy?.uid === user?.uid;
-  const isAssigned = task?.assignedUsers?.some((u) => u.uid === user?.uid);
-  const canChangeStatus = Boolean(isCreator || isAssigned);
-
-  const fadeAnim = useState(new Animated.Value(0))[0];
-  const scaleAnim = useState(new Animated.Value(0.95))[0];
-  const scrollY = useState(new Animated.Value(0))[0];
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const loadedTaskId = task?.id;
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(scaleAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [fadeAnim, scaleAnim]);
+    if (!loadedTaskId) return;
+    if (!motion.shouldAnimate) {
+      fadeAnim.setValue(1);
+      return;
+    }
+
+    fadeAnim.setValue(0);
+    const animation = Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: motion.duration(theme.motion.duration.normal, { allowReducedFade: true }),
+      easing: theme.motion.easing.standard,
+      useNativeDriver: motion.useNativeDriver,
+    });
+    animation.start();
+
+    return () => {
+      animation.stop();
+    };
+  }, [loadedTaskId, fadeAnim, motion, theme.motion.duration.normal, theme.motion.easing.standard]);
 
   const loadTaskDetails = useCallback(async () => {
-    if (!id) return;
+    if (!id) {
+      setError('Identificador da tarefa não informado.');
+      setLoading(false);
+      return;
+    }
 
     try {
       setLoading(true);
@@ -91,7 +132,7 @@ const TaskDetailsScreen: React.FC = () => {
       }
     } catch (err) {
       logger.error('Error loading task details:', err);
-      ErrorHandler.handle(err);
+      void ErrorHandler.handle(err);
       setError('Não foi possível carregar os detalhes da tarefa');
     } finally {
       setLoading(false);
@@ -99,31 +140,41 @@ const TaskDetailsScreen: React.FC = () => {
   }, [id, getTaskById]);
 
   useEffect(() => {
-    loadTaskDetails();
+    void loadTaskDetails();
   }, [loadTaskDetails]);
 
+  const isCreator = task?.createdBy?.uid === user?.uid;
   const isAssignedToCurrentUser = useMemo(() => {
     if (!task || !user) return false;
     return task.assignedUsers?.some((u) => u.uid === user.uid) || false;
   }, [task, user]);
 
-  const canEditTask = isAssignedToCurrentUser;
+  const canChangeStatus = Boolean(isCreator || isAssignedToCurrentUser);
   const isUserAdmin = user?.isAdmin === true;
-  const canModifyTask = Boolean(canEditTask || isUserAdmin || isCreator);
+  const canModifyTask = Boolean(isAssignedToCurrentUser || isUserAdmin || isCreator);
+  const canDeleteTask = Boolean(isCreator || isUserAdmin);
+
+  const handleBack = useCallback(() => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(panel)/tasks');
+    }
+  }, [router]);
 
   const formatTaskDate = useCallback((dateString?: string): string => {
     if (!dateString) return '';
-
     try {
       const date = parseISOPreservingTime(dateString);
+      if (!isValid(date)) return dateString;
 
       if (isToday(date)) {
         return `Hoje, ${formatTime(date)}`;
-      } else if (isTomorrow(date)) {
-        return `Amanhã, ${formatTime(date)}`;
-      } else {
-        return formatLocalDate(date, "EEEE, dd 'de' MMMM 'às' HH:mm");
       }
+      if (isTomorrow(date)) {
+        return `Amanhã, ${formatTime(date)}`;
+      }
+      return formatLocalDate(date, "EEEE, dd 'de' MMMM 'às' HH:mm");
     } catch {
       return dateString;
     }
@@ -133,11 +184,11 @@ const TaskDetailsScreen: React.FC = () => {
     if (!dateString) return '';
     try {
       const date = parseISOPreservingTime(dateString);
-      const now = new Date();
-      const diffMinutes = differenceInMinutes(now, date);
+      if (!isValid(date)) return '';
+      const diffMinutes = differenceInMinutes(new Date(), date);
 
       if (diffMinutes < 1) return 'agora mesmo';
-      if (diffMinutes < 60) return `há ${diffMinutes} minutos`;
+      if (diffMinutes < 60) return `há ${diffMinutes} min`;
       if (diffMinutes < 120) return 'há 1 hora';
       if (diffMinutes < 1440) return `há ${Math.floor(diffMinutes / 60)} horas`;
       if (diffMinutes < 2880) return 'há 1 dia';
@@ -148,15 +199,23 @@ const TaskDetailsScreen: React.FC = () => {
     }
   }, []);
 
+  const formatDateWithTime = useCallback((dateString?: string | null) => {
+    if (!dateString) return '--';
+    return (
+      formatLocalDate(dateString, "dd 'de' MMM 'de' yyyy 'às' HH:mm") || dateString
+    );
+  }, []);
+
   const isTaskCompleted = task?.status === 'COMPLETED';
   const isTaskCancelled = task?.status === 'CANCELLED';
 
   const handleToggleStatus = async () => {
     if (!task || !canChangeStatus) {
-      Alert.alert(
-        'Acesso Negado',
-        'Apenas o criador da tarefa ou os usuários responsáveis podem alterar seu status.'
-      );
+      toast({
+        title: 'Acesso negado',
+        message: 'Apenas o criador da tarefa ou os usuários responsáveis podem alterar seu status.',
+        tone: 'warning',
+      });
       return;
     }
 
@@ -164,14 +223,24 @@ const TaskDetailsScreen: React.FC = () => {
       setIsStatusChanging(true);
       if (task.status === 'IN_PROGRESS') {
         await completeTask(task.id);
+        triggerSuccessHaptic();
+        toast({
+          title: 'Tarefa concluída',
+          message: task.title,
+          tone: 'success',
+        });
       } else if (task.status === 'PENDING' || task.status === 'OVERDUE') {
         await updateTask(task.id, { status: 'IN_PROGRESS' });
+        toast({
+          title: 'Tarefa iniciada',
+          message: task.title,
+          tone: 'info',
+        });
       }
       await loadTaskDetails();
     } catch (err) {
       logger.error('Error toggling task status:', err);
-      ErrorHandler.handle(err);
-      Alert.alert('Erro', 'Não foi possível alterar o status da tarefa');
+      void ErrorHandler.handle(err);
     } finally {
       setIsStatusChanging(false);
     }
@@ -179,21 +248,26 @@ const TaskDetailsScreen: React.FC = () => {
 
   const handleCancelTask = async () => {
     if (!task || !canChangeStatus) {
-      Alert.alert(
-        'Acesso Negado',
-        'Apenas o criador da tarefa ou os usuários responsáveis podem cancelá-la.'
-      );
+      toast({
+        title: 'Acesso negado',
+        message: 'Apenas o criador da tarefa ou os usuários responsáveis podem cancelá-la.',
+        tone: 'warning',
+      });
       return;
     }
 
     try {
       setIsCancelling(true);
       await cancelTask(task.id);
+      toast({
+        title: 'Tarefa cancelada',
+        message: task.title,
+        tone: 'info',
+      });
       await loadTaskDetails();
     } catch (err) {
       logger.error('Error cancelling task:', err);
-      ErrorHandler.handle(err);
-      Alert.alert('Erro', 'Não foi possível cancelar a tarefa');
+      void ErrorHandler.handle(err);
     } finally {
       setIsCancelling(false);
     }
@@ -201,21 +275,26 @@ const TaskDetailsScreen: React.FC = () => {
 
   const handleStopRecurrence = async () => {
     if (!task || !canChangeStatus) {
-      Alert.alert(
-        'Acesso Negado',
-        'Apenas o criador da tarefa ou os usuários responsáveis podem parar a recorrência.'
-      );
+      toast({
+        title: 'Acesso negado',
+        message: 'Apenas o criador da tarefa ou os usuários responsáveis podem parar a recorrência.',
+        tone: 'warning',
+      });
       return;
     }
 
     try {
       setIsStoppingRecurrence(true);
       await stopRecurrence(task.id);
+      toast({
+        title: 'Recorrência interrompida',
+        message: 'Não serão geradas novas instâncias automáticas.',
+        tone: 'info',
+      });
       await loadTaskDetails();
     } catch (err) {
       logger.error('Error stopping task recurrence:', err);
-      ErrorHandler.handle(err);
-      Alert.alert('Erro', 'Não foi possível parar a recorrência da tarefa');
+      void ErrorHandler.handle(err);
     } finally {
       setIsStoppingRecurrence(false);
     }
@@ -230,10 +309,11 @@ const TaskDetailsScreen: React.FC = () => {
 
   const handleDeleteTask = async () => {
     if (!task || (!isCreator && !isUserAdmin)) {
-      Alert.alert(
-        'Acesso Negado',
-        'Apenas o criador da tarefa pode excluí-la.'
-      );
+      toast({
+        title: 'Acesso negado',
+        message: 'Apenas o criador da tarefa ou administradores podem excluí-la.',
+        tone: 'warning',
+      });
       return;
     }
 
@@ -245,11 +325,16 @@ const TaskDetailsScreen: React.FC = () => {
     try {
       setIsDeleting(true);
       await deleteTask(task.id);
+      triggerSuccessHaptic();
+      toast({
+        title: 'Tarefa excluída',
+        message: 'A tarefa foi removida permanentemente.',
+        tone: 'success',
+      });
       router.back();
     } catch (err) {
       logger.error('Error deleting task:', err);
-      ErrorHandler.handle(err);
-      Alert.alert('Erro', 'Não foi possível excluir a tarefa');
+      void ErrorHandler.handle(err);
     } finally {
       setIsDeleting(false);
     }
@@ -262,50 +347,43 @@ const TaskDetailsScreen: React.FC = () => {
   const handleShareTask = useCallback(async () => {
     if (!task) return;
 
+    const statusInfo = TASK_STATUS_MAP[task.status] ?? {
+      label: task.status,
+      tone: 'neutral' as StatusTone,
+    };
+
+    let message =
+      `Tarefa: ${task.title}\n` +
+      `Status: ${statusInfo.label}\n` +
+      (task.dueDate ? `Prazo: ${formatTaskDate(task.dueDate)}\n` : '');
+
+    if (task.recurring) {
+      const pattern = getRecurrencePatternLabel(
+        true,
+        task.recurrenceType || 'WEEKLY',
+        task.recurrenceInterval || 1
+      );
+      message += `Recorrência: ${pattern}\n`;
+    }
+
+    if (task.description) {
+      message += `\n${task.description}`;
+    }
+
     try {
-      let message =
-        `Tarefa: ${task.title}\n` +
-        `Status: ${
-          task.status === 'PENDING'
-            ? 'Pendente'
-            : task.status === 'IN_PROGRESS'
-              ? 'Em andamento'
-              : task.status === 'COMPLETED'
-                ? 'Concluída'
-                : task.status === 'OVERDUE'
-                  ? 'Atrasada'
-                  : 'Cancelada'
-        }\n` +
-        (task.dueDate ? `Prazo: ${formatTaskDate(task.dueDate)}\n` : '');
-
-      if (task.recurring) {
-        const recurrenceType =
-          task.recurrenceType === 'DAILY'
-            ? 'Diária'
-            : task.recurrenceType === 'WEEKLY'
-              ? 'Semanal'
-              : task.recurrenceType === 'MONTHLY'
-                ? 'Mensal'
-                : 'Anual';
-
-        const interval =
-          task.recurrenceInterval && task.recurrenceInterval > 1
-            ? ` (a cada ${task.recurrenceInterval} ${
-                task.recurrenceType === 'DAILY'
-                  ? 'dias'
-                  : task.recurrenceType === 'WEEKLY'
-                    ? 'semanas'
-                    : task.recurrenceType === 'MONTHLY'
-                      ? 'meses'
-                      : 'anos'
-              })`
-            : '';
-
-        message += `Recorrência: ${recurrenceType}${interval}\n`;
-      }
-
-      if (task.description) {
-        message += `\n${task.description}`;
+      if (
+        Platform.OS === 'web' &&
+        typeof navigator !== 'undefined' &&
+        !navigator.share &&
+        navigator.clipboard?.writeText
+      ) {
+        await navigator.clipboard.writeText(message);
+        toast({
+          title: 'Resumo copiado',
+          message: 'Os detalhes da tarefa foram copiados para a área de transferência.',
+          tone: 'success',
+        });
+        return;
       }
 
       await Share.share({
@@ -314,743 +392,338 @@ const TaskDetailsScreen: React.FC = () => {
       });
     } catch (err) {
       logger.error('Error sharing task:', err);
-      Alert.alert('Erro', 'Não foi possível compartilhar a tarefa');
+      toast({
+        title: 'Erro',
+        message: 'Não foi possível compartilhar a tarefa.',
+        tone: 'danger',
+      });
     }
-  }, [task, formatTaskDate]);
+  }, [task, formatTaskDate, toast]);
 
-  const headerOpacity = scrollY.interpolate({
-    inputRange: [0, 100],
-    outputRange: [0, 1],
-    extrapolate: 'clamp',
-  });
-
-  const headerHeight = scrollY.interpolate({
-    inputRange: [0, 100],
-    outputRange: [0, 60],
-    extrapolate: 'clamp',
-  });
-
-  const getDueStatusText = useCallback(() => {
+  const dueStatus = useMemo((): { text: string; tone: StatusTone } | null => {
     if (!task || !task.dueDate) return null;
 
     const dueDate = parseISOPreservingTime(task.dueDate);
+    if (!isValid(dueDate)) return null;
     const now = new Date();
 
     if (isTaskCompleted) {
       if (task.completedAt) {
         const completedAt = parseISOPreservingTime(task.completedAt);
-        return completedAt <= dueDate
-          ? { text: 'Concluída dentro do prazo', color: '#4CAF50' }
-          : { text: 'Concluída com atraso', color: '#FF9800' };
+        if (isValid(completedAt)) {
+          return completedAt <= dueDate
+            ? { text: 'Concluída dentro do prazo', tone: 'success' }
+            : { text: 'Concluída com atraso', tone: 'warning' };
+        }
       }
-      return { text: 'Concluída', color: '#4CAF50' };
+      return { text: 'Concluída', tone: 'success' };
     }
 
     if (isTaskCancelled) {
-      return { text: 'Cancelada', color: '#9E9E9E' };
+      return { text: 'Cancelada', tone: 'neutral' };
     }
 
-    if (dueDate < now) {
-      return { text: 'Atrasada', color: '#F44336' };
+    if (dueDate < now && !isToday(dueDate)) {
+      return { text: 'Atrasada', tone: 'danger' };
     }
 
-    const diffTime = Math.abs(dueDate.getTime() - now.getTime());
+    if (isToday(dueDate)) {
+      return dueDate < now
+        ? { text: 'Atrasada (hoje)', tone: 'danger' }
+        : { text: 'Vence hoje', tone: 'warning' };
+    }
+
+    if (isTomorrow(dueDate)) {
+      return { text: 'Vence amanhã', tone: 'warning' };
+    }
+
+    const diffTime = dueDate.getTime() - now.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 0) {
-      return { text: 'Vence hoje', color: '#FF9800' };
-    } else if (diffDays === 1) {
-      return { text: 'Vence amanhã', color: '#FF9800' };
-    } else if (diffDays <= 3) {
-      return { text: `Vence em ${diffDays} dias`, color: '#FF9800' };
-    } else {
-      return { text: `Vence em ${diffDays} dias`, color: '#4CAF50' };
-    }
+    return {
+      text: `Vence em ${diffDays} dias`,
+      tone: diffDays <= 3 ? 'warning' : 'success',
+    };
   }, [task, isTaskCompleted, isTaskCancelled]);
 
-  const formatDateWithTime = useCallback((dateString?: string | null) => {
-    if (!dateString) return '--';
-    return (
-      formatLocalDate(dateString, "dd 'de' MMM 'de' yyyy 'às' HH:mm") ||
-      dateString
-    );
-  }, []);
+  const baseHeader = (
+    <ScreenHeader title="Detalhes da Tarefa" onBack={handleBack} />
+  );
 
   if (loading && !task) {
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle="light-content" backgroundColor="#222" />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#7B68EE" />
-          <Text style={styles.loadingText}>
-            Carregando detalhes da tarefa...
-          </Text>
-        </View>
-      </SafeAreaView>
+      <Screen header={baseHeader}>
+        <StateView kind="loading" title="Carregando detalhes da tarefa..." />
+      </Screen>
     );
   }
 
   if (error) {
     return (
-      <SafeAreaView style={styles.errorContainer}>
-        <StatusBar barStyle="light-content" backgroundColor="#222" />
-        <Ionicons name="alert-circle" size={64} color="#FF6347" />
-        <Text style={styles.errorTitle}>Erro</Text>
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={loadTaskDetails}>
-          <Text style={styles.retryButtonText}>Tentar novamente</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Text style={styles.backButtonText}>Voltar</Text>
-        </TouchableOpacity>
-      </SafeAreaView>
+      <Screen header={baseHeader}>
+        <StateView
+          kind="error"
+          title="Não foi possível carregar"
+          description={error}
+          actionLabel="Tentar novamente"
+          onAction={() => void loadTaskDetails()}
+        />
+      </Screen>
     );
   }
 
   if (!task) {
     return (
-      <SafeAreaView style={styles.errorContainer}>
-        <StatusBar barStyle="light-content" backgroundColor="#222" />
-        <Ionicons name="checkmark-circle" size={64} color="#7B68EE" />
-        <Text style={styles.errorTitle}>Tarefa não encontrada</Text>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.push('/(panel)/tasks')}
-        >
-          <Text style={styles.backButtonText}>Voltar para Tarefas</Text>
-        </TouchableOpacity>
-      </SafeAreaView>
+      <Screen header={baseHeader}>
+        <StateView
+          kind="empty"
+          title="Tarefa não encontrada"
+          description="A tarefa solicitada não foi encontrada ou foi excluída."
+          actionLabel="Voltar para Tarefas"
+          onAction={() => router.replace('/(panel)/tasks')}
+        />
+      </Screen>
     );
   }
 
-  const dueStatus = getDueStatusText();
+  const statusInfo = TASK_STATUS_MAP[task.status] ?? {
+    label: task.status,
+    tone: 'neutral' as StatusTone,
+  };
+  const updatedTimeLabel = getTimeAgo(task.updatedAt || task.updated_at);
   const republicDisplayId = task.republicId || task.republic_id;
 
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor="#222" />
-
-      {/* Header animado */}
-      <Animated.View
-        style={[
-          styles.animatedHeader,
-          {
-            opacity: headerOpacity,
-            height: headerHeight,
-          },
-        ]}
-      >
-        <TouchableOpacity
-          style={styles.headerBackButton}
-          onPress={() => router.back()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#7B68EE" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          {task.title}
-        </Text>
-        <View style={styles.headerRight}>
-          {canModifyTask && (
-            <TouchableOpacity
-              style={styles.headerActionButton}
-              onPress={() => router.push(`/(panel)/tasks/edit?id=${task.id}`)}
-            >
-              <Ionicons name="create-outline" size={24} color="#7B68EE" />
-            </TouchableOpacity>
-          )}
-        </View>
-      </Animated.View>
-
-      {/* Banner de tarefa atribuída ao usuário */}
-      {isAssignedToCurrentUser && (
-        <View style={styles.userAssignmentBanner}>
-          <Ionicons name="person" size={18} color="#fff" />
-          <Text style={styles.userAssignmentText}>
-            Você está atribuído a esta tarefa
-          </Text>
-        </View>
-      )}
-
-      <Animated.ScrollView
-        style={[styles.scrollView, { opacity: fadeAnim }]}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: false }
-        )}
-        scrollEventThrottle={16}
-      >
-        {/* Cabeçalho */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <Ionicons name="arrow-back" size={24} color="#7B68EE" />
-          </TouchableOpacity>
-
-          <View style={styles.headerActions}>
-            <TouchableOpacity
-              style={styles.headerActionIcon}
-              onPress={handleShareTask}
-            >
-              <Ionicons name="share-outline" size={24} color="#7B68EE" />
-            </TouchableOpacity>
-
-            {canModifyTask && (
-              <TouchableOpacity
-                style={styles.headerActionIcon}
-                onPress={() => router.push(`/(panel)/tasks/edit?id=${task.id}`)}
-              >
-                <Ionicons name="create-outline" size={24} color="#7B68EE" />
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-
-        {/* Conteúdo principal */}
-        <Animated.View
-          style={[
-            styles.taskContainer,
-            {
-              opacity: fadeAnim,
-              transform: [{ scale: scaleAnim }],
-            },
-          ]}
-        >
-          {/* Status da tarefa */}
-          <View style={styles.taskStatusRow}>
-            <View
-              style={[
-                styles.statusBadge,
-                task.status === 'PENDING'
-                  ? styles.pendingBadge
-                  : task.status === 'IN_PROGRESS'
-                    ? styles.inProgressBadge
-                    : task.status === 'COMPLETED'
-                      ? styles.completedBadge
-                      : task.status === 'OVERDUE'
-                        ? styles.overdueBadge
-                        : styles.cancelledBadge,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.statusText,
-                  task.status === 'PENDING'
-                    ? styles.pendingText
-                    : task.status === 'IN_PROGRESS'
-                      ? styles.inProgressText
-                      : task.status === 'COMPLETED'
-                        ? styles.completedText
-                        : task.status === 'OVERDUE'
-                          ? styles.overdueText
-                          : styles.cancelledText,
-                ]}
-              >
-                {task.status === 'PENDING'
-                  ? 'Pendente'
-                  : task.status === 'IN_PROGRESS'
-                    ? 'Em andamento'
-                    : task.status === 'COMPLETED'
-                      ? 'Concluída'
-                      : task.status === 'OVERDUE'
-                        ? 'Atrasada'
-                        : 'Cancelada'}
-              </Text>
-            </View>
-            <Text style={styles.taskUpdatedTime}>
-              Atualizada {getTimeAgo(task.updatedAt || task.updated_at)}
-            </Text>
-          </View>
-
-          {/* Título */}
-          <Text style={styles.taskTitle}>
-            {task.title}
-            {task.recurring && (
-              <Text style={styles.recurringIndicator}>
-                {' '}
-                <Ionicons name="repeat" size={18} color="#4CAF50" />
-              </Text>
-            )}
-          </Text>
-
-          {/* República */}
-          {republicDisplayId && (
-            <View style={styles.republicRow}>
-              <Ionicons name="home" size={16} color="#7B68EE" />
-              <Text style={styles.republicText}>
-                República ID: {republicDisplayId}
-              </Text>
-            </View>
-          )}
-
-          {/* Informações de recorrência */}
-          <TaskRecurrenceCard
-            task={task}
-            canModifyTask={canModifyTask}
-            isStoppingRecurrence={isStoppingRecurrence}
-            formatDateWithTime={formatDateWithTime}
-            onNavigateToParent={handleNavigateToParent}
-            onStopRecurrence={handleStopRecurrence}
+  const header = (
+    <ScreenHeader
+      title="Detalhes da Tarefa"
+      variant="compact"
+      onBack={handleBack}
+      rightActions={
+        <>
+          <IconButton
+            icon={<Share2 size={20} strokeWidth={1.75} color={theme.colors.ink} />}
+            onPress={() => void handleShareTask()}
+            accessibilityLabel="Compartilhar tarefa"
+            variant="ghost"
           />
+          {canModifyTask ? (
+            <IconButton
+              icon={<Edit2 size={20} strokeWidth={1.75} color={theme.colors.accent} />}
+              onPress={() => router.push(`/(panel)/tasks/edit?id=${task.id}`)}
+              accessibilityLabel="Editar tarefa"
+              variant="ghost"
+            />
+          ) : null}
+        </>
+      }
+    />
+  );
 
-          {/* Action Buttons */}
+  return (
+    <Screen
+      scroll
+      header={header}
+      contentContainerStyle={{
+        gap: theme.spacing.md,
+        paddingBottom: theme.spacing.xxl,
+      }}
+    >
+      <Animated.View style={{ opacity: fadeAnim, gap: theme.spacing.md }}>
+        {isAssignedToCurrentUser ? (
+          <Surface
+            tone="subtle"
+            bordered
+            padded="sm"
+            radiusKey="md"
+            style={[styles.assignedBanner, { gap: theme.spacing.xs }]}
+          >
+            <User size={16} strokeWidth={1.75} color={theme.colors.accent} />
+            <AppText variant="caption" color="accent" style={styles.bannerText}>
+              Você está atribuído a esta tarefa
+            </AppText>
+          </Surface>
+        ) : null}
+
+        <Surface
+          tone="surface"
+          bordered
+          padded="md"
+          radiusKey="md"
+          style={{ gap: theme.spacing.sm }}
+        >
+          <View style={[styles.statusHeaderRow, { gap: theme.spacing.xs }]}>
+            <StatusText label={statusInfo.label} tone={statusInfo.tone} showDot />
+            {updatedTimeLabel ? (
+              <AppText variant="caption" color="inkMuted">
+                Atualizada {updatedTimeLabel}
+              </AppText>
+            ) : null}
+          </View>
+
+          <AppText variant="title" color="ink" strikethrough={isTaskCompleted}>
+            {task.title}
+          </AppText>
+
+          {task.recurring || republicDisplayId ? (
+            <View style={[styles.metaRow, { gap: theme.spacing.md }]}>
+              {task.recurring ? (
+                <StatusText
+                  label="Recorrente"
+                  tone="success"
+                  icon={<Repeat size={14} strokeWidth={1.75} color={theme.colors.success} />}
+                />
+              ) : null}
+
+              {republicDisplayId ? (
+                <View style={[styles.inlineMeta, { gap: theme.spacing.xxs }]}>
+                  <Home size={14} strokeWidth={1.75} color={theme.colors.inkMuted} />
+                  <AppText variant="caption" color="inkSecondary">
+                    República ID: {republicDisplayId}
+                  </AppText>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+
           <TaskActionButtons
             status={task.status}
             canModifyTask={canModifyTask}
             canChangeStatus={canChangeStatus}
             isStatusChanging={isStatusChanging}
             isCancelling={isCancelling}
-            onToggleStatus={handleToggleStatus}
-            onCancelTask={handleCancelTask}
+            onToggleStatus={() => void handleToggleStatus()}
+            onCancelTask={() => void handleCancelTask()}
           />
+        </Surface>
 
-          {/* Descrição */}
-          <View style={styles.descriptionContainer}>
-            <Text style={styles.descriptionLabel}>Descrição</Text>
-            <Text style={styles.descriptionText}>
-              {task.description || 'Nenhuma descrição fornecida.'}
-            </Text>
-          </View>
-
-          {/* Task Details */}
-          <View style={styles.sectionContainer}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Detalhes</Text>
-            </View>
-
-            <View style={styles.detailRow}>
-              <View style={styles.detailIcon}>
-                <Ionicons name="calendar-outline" size={20} color="#7B68EE" />
-              </View>
-              <View style={styles.detailContent}>
-                <Text style={styles.detailLabel}>Data de Criação</Text>
-                <Text style={styles.detailValue}>
-                  {formatDateWithTime(task.createdAt || task.created_at)}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.detailRow}>
-              <View style={styles.detailIcon}>
-                <Ionicons name="person-outline" size={20} color="#7B68EE" />
-              </View>
-              <View style={styles.detailContent}>
-                <Text style={styles.detailLabel}>Criado por</Text>
-                <Text style={styles.detailValue}>
-                  {task.createdBy?.nickname ||
-                    task.createdBy?.name ||
-                    'Desconhecido'}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.detailRow}>
-              <View style={styles.detailIcon}>
-                <Ionicons name="alarm-outline" size={20} color="#7B68EE" />
-              </View>
-              <View style={styles.detailContent}>
-                <Text style={styles.detailLabel}>Prazo</Text>
-                <View style={styles.dueDateContainer}>
-                  <Text style={styles.detailValue}>
-                    {task.dueDate
-                      ? formatDateWithTime(task.dueDate)
-                      : 'Sem prazo'}
-                  </Text>
-                  {dueStatus && (
-                    <View
-                      style={[
-                        styles.dueStatusBadge,
-                        { backgroundColor: `${dueStatus.color}20` },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.dueStatusText,
-                          { color: dueStatus.color },
-                        ]}
-                      >
-                        {dueStatus.text}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-            </View>
-
-            {task.completedAt && (
-              <View style={styles.detailRow}>
-                <View style={styles.detailIcon}>
-                  <Ionicons
-                    name="checkmark-circle-outline"
-                    size={20}
-                    color="#4CAF50"
-                  />
-                </View>
-                <View style={styles.detailContent}>
-                  <Text style={styles.detailLabel}>Concluída em</Text>
-                  <Text style={styles.detailValue}>
-                    {formatDateWithTime(task.completedAt)}
-                  </Text>
-                </View>
-              </View>
-            )}
-
-            <View style={styles.detailRow}>
-              <View style={styles.detailIcon}>
-                <FontAwesome5 name="tag" size={18} color="#7B68EE" />
-              </View>
-              <View style={styles.detailContent}>
-                <Text style={styles.detailLabel}>Categoria</Text>
-                <Text style={styles.detailValue}>
-                  {task.category || 'Sem categoria'}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Responsáveis */}
-          <TaskAssignedUsersCard
-            assignedUsers={task.assignedUsers}
-            currentUserId={user?.uid}
-          />
-
-          {/* Ações Administrativas (Exclusão) */}
-          {canModifyTask && (
-            <ConfirmDeleteModal
-              title="Ações Administrativas"
-              deleteLabel="Excluir tarefa"
-              showConfirm={showConfirmDelete}
-              loading={isDeleting}
-              onPressDelete={handleDeleteTask}
-              onCancelConfirm={handleCancelDelete}
-            />
-          )}
-        </Animated.View>
-      </Animated.ScrollView>
-
-      {canModifyTask && !isDeleting && !showConfirmDelete && (
-        <TouchableOpacity
-          style={styles.editButton}
-          onPress={() => router.push(`/(panel)/tasks/edit?id=${task.id}`)}
+        <Surface
+          tone="surface"
+          bordered
+          padded="md"
+          radiusKey="md"
+          style={{ gap: theme.spacing.xs }}
         >
-          <Feather name="edit-2" size={20} color="#fff" />
-        </TouchableOpacity>
-      )}
-    </SafeAreaView>
+          <AppText variant="monoLabel" color="inkSecondary">
+            Descrição
+          </AppText>
+          <AppText variant="body" color={task.description ? 'ink' : 'inkMuted'}>
+            {task.description || 'Nenhuma descrição fornecida.'}
+          </AppText>
+        </Surface>
+
+        <View style={{ gap: theme.spacing.xs }}>
+          <AppText variant="monoLabel" color="inkSecondary">
+            Detalhes
+          </AppText>
+
+          <Surface tone="surface" bordered style={styles.detailsSurface}>
+            <ListRow
+              title={formatDateWithTime(task.createdAt || task.created_at)}
+              subtitle="Data de criação"
+              showDivider
+              leading={
+                <Calendar size={18} strokeWidth={1.75} color={theme.colors.accent} />
+              }
+            />
+
+            <ListRow
+              title={
+                task.createdBy?.nickname || task.createdBy?.name || 'Desconhecido'
+              }
+              subtitle="Criado por"
+              showDivider
+              leading={<User size={18} strokeWidth={1.75} color={theme.colors.accent} />}
+            />
+
+            <ListRow
+              title={task.dueDate ? formatDateWithTime(task.dueDate) : 'Sem prazo'}
+              subtitle="Prazo"
+              showDivider
+              leading={<Clock size={18} strokeWidth={1.75} color={theme.colors.accent} />}
+              trailing={
+                dueStatus ? (
+                  <StatusText label={dueStatus.text} tone={dueStatus.tone} showDot />
+                ) : undefined
+              }
+            />
+
+            {task.completedAt ? (
+              <ListRow
+                title={formatDateWithTime(task.completedAt)}
+                subtitle="Concluída em"
+                showDivider
+                leading={
+                  <CheckCircle2
+                    size={18}
+                    strokeWidth={1.75}
+                    color={theme.colors.success}
+                  />
+                }
+              />
+            ) : null}
+
+            <ListRow
+              title={task.category || 'Sem categoria'}
+              subtitle="Categoria"
+              leading={<Tag size={18} strokeWidth={1.75} color={theme.colors.accent} />}
+            />
+          </Surface>
+        </View>
+
+        <TaskRecurrenceCard
+          task={task}
+          canModifyTask={canModifyTask}
+          isStoppingRecurrence={isStoppingRecurrence}
+          formatDateWithTime={formatDateWithTime}
+          onNavigateToParent={handleNavigateToParent}
+          onStopRecurrence={() => void handleStopRecurrence()}
+        />
+
+        <TaskAssignedUsersCard
+          assignedUsers={task.assignedUsers}
+          currentUserId={user?.uid}
+        />
+
+        {canDeleteTask ? (
+          <ConfirmSection
+            title="Ações Administrativas"
+            deleteLabel="Excluir tarefa"
+            showConfirm={showConfirmDelete}
+            loading={isDeleting}
+            onPressDelete={() => void handleDeleteTask()}
+            onCancelConfirm={handleCancelDelete}
+          />
+        ) : null}
+      </Animated.View>
+    </Screen>
   );
 };
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#222',
-  },
-  loadingContainer: {
-    flex: 1,
+  assignedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#222',
   },
-  loadingText: {
-    color: '#fff',
-    marginTop: 16,
-    fontSize: 16,
+  bannerText: {
+    flexShrink: 1,
   },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#222',
-    padding: 20,
-  },
-  errorTitle: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  errorText: {
-    color: '#aaa',
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  retryButton: {
-    backgroundColor: 'rgba(123, 104, 238, 0.2)',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    marginBottom: 16,
-  },
-  retryButtonText: {
-    color: '#7B68EE',
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  backButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#444',
-  },
-  backButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  animatedHeader: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'rgba(34, 34, 34, 0.95)',
+  statusHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    zIndex: 1000,
-    borderBottomWidth: 1,
-    borderBottomColor: '#444',
-  },
-  headerBackButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    flex: 1,
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginLeft: 8,
-  },
-  headerRight: {
-    flexDirection: 'row',
-  },
-  headerActionButton: {
-    padding: 8,
-  },
-  scrollView: {
-    flex: 1,
-    backgroundColor: '#222',
-  },
-  scrollContent: {
-    paddingBottom: 40,
-  },
-  header: {
-    flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    flexWrap: 'wrap',
   },
-  headerActions: {
-    flexDirection: 'row',
-  },
-  headerActionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(123, 104, 238, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(123, 104, 238, 0.3)',
-    marginLeft: 8,
-  },
-  userAssignmentBanner: {
+  metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#7B68EE',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    justifyContent: 'center',
+    flexWrap: 'wrap',
   },
-  userAssignmentText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: 'bold',
-    marginLeft: 8,
-  },
-  taskContainer: {
-    backgroundColor: '#333',
-    borderRadius: 16,
-    margin: 16,
-    padding: 20,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
-  },
-  taskStatusRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    alignSelf: 'flex-start',
-  },
-  pendingBadge: {
-    backgroundColor: 'rgba(255, 193, 7, 0.2)',
-  },
-  pendingText: {
-    color: '#FFC107',
-  },
-  inProgressBadge: {
-    backgroundColor: 'rgba(33, 150, 243, 0.2)',
-  },
-  inProgressText: {
-    color: '#2196F3',
-  },
-  completedBadge: {
-    backgroundColor: 'rgba(76, 175, 80, 0.2)',
-  },
-  completedText: {
-    color: '#4CAF50',
-  },
-  overdueBadge: {
-    backgroundColor: 'rgba(244, 67, 54, 0.2)',
-  },
-  overdueText: {
-    color: '#F44336',
-  },
-  cancelledBadge: {
-    backgroundColor: 'rgba(158, 158, 158, 0.2)',
-  },
-  cancelledText: {
-    color: '#9E9E9E',
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    textTransform: 'uppercase',
-  },
-  taskUpdatedTime: {
-    color: '#aaa',
-    fontSize: 12,
-  },
-  taskTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 12,
-  },
-  recurringIndicator: {
-    color: '#4CAF50',
-  },
-  republicRow: {
+  inlineMeta: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  republicText: {
-    color: '#ccc',
-    fontSize: 14,
-    marginLeft: 6,
-  },
-  descriptionContainer: {
-    marginTop: 20,
-    padding: 16,
-    backgroundColor: '#444',
-    borderRadius: 12,
-  },
-  descriptionLabel: {
-    color: '#aaa',
-    fontSize: 14,
-    marginBottom: 8,
-  },
-  descriptionText: {
-    color: '#fff',
-    fontSize: 16,
-    lineHeight: 24,
-  },
-  sectionContainer: {
-    marginTop: 20,
-    backgroundColor: '#444',
-    borderRadius: 12,
+  detailsSurface: {
     overflow: 'hidden',
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#555',
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#7B68EE',
-  },
-  detailRow: {
-    flexDirection: 'row',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#555',
-  },
-  detailIcon: {
-    width: 35,
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    marginRight: 12,
-  },
-  detailContent: {
-    flex: 1,
-  },
-  detailLabel: {
-    color: '#aaa',
-    fontSize: 14,
-    marginBottom: 4,
-  },
-  detailValue: {
-    color: '#fff',
-    fontSize: 16,
-  },
-  dueDateContainer: {
-    flexDirection: 'column',
-  },
-  dueStatusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-    marginTop: 6,
-  },
-  dueStatusText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  editButton: {
-    position: 'absolute',
-    bottom: 20,
-    right: 20,
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#7B68EE',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#7B68EE',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4.65,
-    elevation: 8,
   },
 });
 

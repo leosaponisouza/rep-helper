@@ -1,36 +1,33 @@
-// components/TaskEdit/CategorySection.tsx
+// components/Task/TaskEdit/CategorySection.tsx
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  TouchableOpacity,
-  Modal,
-  ScrollView,
-} from 'react-native';
-import { FontAwesome5 } from '@expo/vector-icons';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Tag, X } from 'lucide-react-native';
 import { Control, UseFormSetValue, UseFormWatch } from 'react-hook-form';
+import {
+  AppText,
+  BottomSheetModal,
+  Button,
+  Chip,
+  Divider,
+  IconButton,
+  Surface,
+  TextField,
+  useTheme,
+} from '../../../src/design-system';
+import { COMMON_TASK_CATEGORIES } from '../../../src/validation/taskSchemas';
 
-// Common categories that users might want to use
-const COMMON_CATEGORIES = [
-  'Limpeza', 
-  'Compras', 
-  'Manutenção', 
-  'Contas', 
-  'Alimentação',
-  'Outros'
-];
-
-interface CategorySectionProps {
+export interface CategorySectionProps {
   control: Control<any>;
   setValue: UseFormSetValue<any>;
   watch: UseFormWatch<any>;
 }
 
-const CategorySection: React.FC<CategorySectionProps> = ({ control, setValue, watch }) => {
+const CategorySection: React.FC<CategorySectionProps> = ({ setValue, watch }) => {
+  const { theme } = useTheme();
   const [isCategoryModalVisible, setCategoryModalVisible] = useState(false);
   const [customCategory, setCustomCategory] = useState('');
+
+  const selectedCategory = (watch('category') as string | undefined) || '';
 
   const selectCategory = (category: string) => {
     setValue('category', category);
@@ -38,279 +35,177 @@ const CategorySection: React.FC<CategorySectionProps> = ({ control, setValue, wa
   };
 
   const handleCustomCategory = () => {
-    if (customCategory.trim()) {
-      setValue('category', customCategory.trim());
-      setCustomCategory('');
-      setCategoryModalVisible(false);
-    }
+    const trimmed = customCategory.trim();
+    if (!trimmed) return;
+    setValue('category', trimmed);
+    setCustomCategory('');
+    setCategoryModalVisible(false);
   };
 
-  const renderCategoryModal = () => (
-    <Modal
-      animationType="slide"
-      transparent={true}
-      visible={isCategoryModalVisible}
-      onRequestClose={() => setCategoryModalVisible(false)}
-    >
-      <View style={styles.modalContainer}>
-        <View style={styles.modalContent}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Selecionar Categoria</Text>
-            <Text style={styles.modalSubtitle}>
-              Escolha uma categoria para sua tarefa
-            </Text>
+  return (
+    <View style={{ gap: theme.spacing.xxs }}>
+      <AppText variant="bodyStrong" color="ink">
+        Categoria (opcional)
+      </AppText>
+
+      <Surface tone="surface" bordered radiusKey="md">
+        <View
+          style={[
+            styles.selectContainer,
+            {
+              paddingRight: selectedCategory ? theme.spacing.xs : theme.spacing.md,
+            },
+          ]}
+        >
+          <Pressable
+            onPress={() => setCategoryModalVisible(true)}
+            accessibilityRole="button"
+            accessibilityLabel={
+              selectedCategory
+                ? `Categoria selecionada: ${selectedCategory}. Toque para alterar`
+                : 'Selecionar categoria'
+            }
+            style={({ pressed }) => [
+              styles.selectRow,
+              {
+                paddingLeft: theme.spacing.md,
+                paddingRight: theme.spacing.xs,
+                paddingVertical: theme.spacing.sm,
+                gap: theme.spacing.sm,
+                opacity: pressed ? theme.motion.pressOpacity : 1,
+              },
+            ]}
+          >
+            <View style={styles.selectTextBlock}>
+              <AppText variant="caption" color="inkSecondary">
+                Categoria
+              </AppText>
+              <AppText
+                variant="body"
+                color={selectedCategory ? 'ink' : 'inkMuted'}
+                numberOfLines={1}
+              >
+                {selectedCategory || 'Selecione uma categoria'}
+              </AppText>
+            </View>
+            <Tag size={20} strokeWidth={1.75} color={theme.colors.accent} />
+          </Pressable>
+
+          {selectedCategory ? (
+            <IconButton
+              icon={<X size={18} strokeWidth={1.75} color={theme.colors.inkMuted} />}
+              onPress={() => setValue('category', '')}
+              accessibilityLabel="Remover categoria"
+              variant="ghost"
+            />
+          ) : null}
+        </View>
+
+        {selectedCategory ? (
+          <View
+            style={{
+              paddingHorizontal: theme.spacing.md,
+              paddingBottom: theme.spacing.sm,
+            }}
+          >
+            <Chip
+              label={selectedCategory}
+              selected
+              onPress={() => setCategoryModalVisible(true)}
+            />
           </View>
-          
-          <ScrollView style={styles.modalScrollView}>
-            <View style={styles.categoryGrid}>
-              {COMMON_CATEGORIES.map(category => (
-                <TouchableOpacity
+        ) : null}
+      </Surface>
+
+      <BottomSheetModal
+        visible={isCategoryModalVisible}
+        onClose={() => setCategoryModalVisible(false)}
+        title="Selecionar Categoria"
+        footer={
+          <Button
+            label="Concluir"
+            variant="primary"
+            fullWidth
+            onPress={() => setCategoryModalVisible(false)}
+          />
+        }
+      >
+        <View style={{ gap: theme.spacing.md }}>
+          <View style={{ gap: theme.spacing.xs }}>
+            <AppText variant="caption" color="inkSecondary">
+              Escolha uma categoria para sua tarefa
+            </AppText>
+            <View style={[styles.categoryGrid, { gap: theme.spacing.xs }]}>
+              {COMMON_TASK_CATEGORIES.map((category) => (
+                <Chip
                   key={category}
-                  style={[
-                    styles.categoryChip,
-                    watch('category') === category && styles.selectedCategoryChip
-                  ]}
+                  label={category}
+                  selected={selectedCategory === category}
                   onPress={() => selectCategory(category)}
-                >
-                  <Text 
-                    style={[
-                      styles.categoryChipText,
-                      watch('category') === category && styles.selectedCategoryChipText
-                    ]}
-                  >
-                    {category}
-                  </Text>
-                </TouchableOpacity>
+                />
               ))}
             </View>
-            
-            <View style={styles.customCategoryContainer}>
-              <Text style={styles.customCategoryLabel}>Categoria Personalizada</Text>
-              <View style={styles.customCategoryInputRow}>
-                <TextInput
-                  style={styles.customCategoryInput}
+          </View>
+
+          <Divider />
+
+          <Surface tone="subtle" bordered padded="md" radiusKey="md" style={{ gap: theme.spacing.xs }}>
+            <AppText variant="bodyStrong" color="ink">
+              Categoria Personalizada
+            </AppText>
+            <View style={[styles.customRow, { gap: theme.spacing.xs }]}>
+              <View style={styles.customInputSlot}>
+                <TextField
                   value={customCategory}
                   onChangeText={setCustomCategory}
                   placeholder="Digite uma categoria..."
-                  placeholderTextColor="#aaa"
+                  accessibilityLabel="Categoria personalizada"
+                  returnKeyType="done"
+                  onSubmitEditing={handleCustomCategory}
                 />
-                <TouchableOpacity
-                  style={[
-                    styles.customCategoryButton,
-                    !customCategory.trim() && styles.disabledButton
-                  ]}
-                  onPress={handleCustomCategory}
-                  disabled={!customCategory.trim()}
-                >
-                  <Text style={styles.customCategoryButtonText}>Aplicar</Text>
-                </TouchableOpacity>
               </View>
+              <Button
+                label="Aplicar"
+                variant="secondary"
+                size="md"
+                onPress={handleCustomCategory}
+                disabled={!customCategory.trim()}
+              />
             </View>
-          </ScrollView>
-          
-          <TouchableOpacity
-            style={styles.modalCloseButton}
-            onPress={() => setCategoryModalVisible(false)}
-          >
-            <Text style={styles.modalCloseButtonText}>Concluir</Text>
-          </TouchableOpacity>
+          </Surface>
         </View>
-      </View>
-    </Modal>
-  );
-
-  return (
-    <View style={styles.inputContainer}>
-      <Text style={styles.inputLabel}>Categoria (opcional)</Text>
-      <TouchableOpacity 
-        style={styles.selectButton}
-        onPress={() => setCategoryModalVisible(true)}
-      >
-        <View style={styles.selectButtonContent}>
-          <View style={styles.selectButtonTextContainer}>
-            <Text style={styles.selectButtonLabel}>Categoria</Text>
-            <Text style={styles.selectButtonValue}>
-              {watch('category') || 'Selecione uma categoria'}
-            </Text>
-          </View>
-          <FontAwesome5 name="tag" size={20} color="#7B68EE" />
-        </View>
-        
-        {watch('category') && (
-          <View style={styles.categoryPreview}>
-            <View style={styles.categoryPreviewBadge}>
-              <Text style={styles.categoryPreviewText}>{watch('category')}</Text>
-            </View>
-          </View>
-        )}
-      </TouchableOpacity>
-
-      {renderCategoryModal()}
+      </BottomSheetModal>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  inputContainer: {
-    marginTop: 20,
-  },
-  inputLabel: {
-    color: '#fff',
-    marginBottom: 8,
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  selectButton: {
-    backgroundColor: '#333',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#444',
-    overflow: 'hidden',
-  },
-  selectButtonContent: {
+  selectContainer: {
     flexDirection: 'row',
+    alignItems: 'center',
+  },
+  selectRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 15,
-    paddingVertical: 16,
+    minHeight: 56,
   },
-  selectButtonTextContainer: {
+  selectTextBlock: {
     flex: 1,
-  },
-  selectButtonLabel: {
-    color: '#aaa',
-    fontSize: 12,
-    marginBottom: 4,
-  },
-  selectButtonValue: {
-    color: '#fff',
-    fontSize: 16,
-  },
-  categoryPreview: {
-    padding: 12,
-    paddingTop: 0,
-    paddingLeft: 15,
-  },
-  categoryPreviewBadge: {
-    backgroundColor: 'rgba(123, 104, 238, 0.15)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    alignSelf: 'flex-start',
-  },
-  categoryPreviewText: {
-    color: '#7B68EE',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  // Modal styles
-  modalContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.7)',
-  },
-  modalContent: {
-    width: '90%',
-    backgroundColor: '#333',
-    borderRadius: 12,
-    overflow: 'hidden',
-    maxHeight: '80%',
-  },
-  modalHeader: {
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#444',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 6,
-  },
-  modalSubtitle: {
-    color: '#aaa',
-    fontSize: 14,
-  },
-  modalScrollView: {
-    maxHeight: 400,
-    padding: 16,
+    gap: 2,
   },
   categoryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
   },
-  categoryChip: {
-    backgroundColor: '#444',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    margin: 6,
-  },
-  selectedCategoryChip: {
-    backgroundColor: '#7B68EE',
-  },
-  categoryChipText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  selectedCategoryChipText: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  customCategoryContainer: {
-    marginTop: 24,
-    backgroundColor: '#2A2A2A',
-    borderRadius: 10,
-    padding: 16,
-  },
-  customCategoryLabel: {
-    color: '#fff',
-    fontSize: 14,
-    marginBottom: 12,
-  },
-  customCategoryInputRow: {
+  customRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  customCategoryInput: {
+  customInputSlot: {
     flex: 1,
-    backgroundColor: '#333',
-    color: '#fff',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: '#444',
-    marginRight: 10,
-  },
-  customCategoryButton: {
-    backgroundColor: '#7B68EE',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-  },
-  disabledButton: {
-    backgroundColor: '#555',
-  },
-  customCategoryButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  modalCloseButton: {
-    margin: 16,
-    backgroundColor: '#7B68EE',
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  modalCloseButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+    minWidth: 0,
   },
 });
 

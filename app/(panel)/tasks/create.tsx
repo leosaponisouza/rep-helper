@@ -1,39 +1,35 @@
 // app/(panel)/tasks/create.tsx
-import React, { useState, useEffect } from 'react';
-import {
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  SafeAreaView,
-  StatusBar,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useEffect, useState } from 'react';
+import { Platform, View } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ErrorHandler } from '../../../src/utils/errorHandling';
-import { useAuth } from '../../../src/context/AuthContext';
-import { useTasks } from '../../../src/hooks/useTasks';
-import { useRepublicMembers } from '../../../src/hooks/useRepublicMembers';
-import { RecurrenceType } from '../../../src/models/task.model';
+import { PlusCircle } from 'lucide-react-native';
+import { useForm } from 'react-hook-form';
 import {
-  taskFormSchema,
-  TaskFormValues,
-  getRecurrencePatternLabel,
-} from '../../../src/validation/taskSchemas';
-import {
-  HeaderBar,
+  CategorySection,
+  DateTimePickerSection,
+  RecurrenceSection,
   TitleDescriptionInputs,
   UserAssignmentSection,
-  DateTimePickerSection,
-  CategorySection,
-  RecurrenceSection,
-} from '@/components/Task/TaskEdit';
+} from '../../../components/Task/TaskEdit';
+import { useAuth } from '../../../src/context/AuthContext';
+import {
+  Button,
+  Screen,
+  ScreenHeader,
+  useFeedback,
+  useTheme,
+} from '../../../src/design-system';
+import { useRepublicMembers } from '../../../src/hooks/useRepublicMembers';
+import { useTasks } from '../../../src/hooks/useTasks';
+import { RecurrenceType } from '../../../src/models/task.model';
+import { ErrorHandler } from '../../../src/utils/errorHandling';
+import {
+  TaskFormValues,
+  getRecurrencePatternLabel,
+  taskFormSchema,
+} from '../../../src/validation/taskSchemas';
 
 const INITIAL_FORM_VALUES: TaskFormValues = {
   title: '',
@@ -46,8 +42,21 @@ const INITIAL_FORM_VALUES: TaskFormValues = {
   recurrenceEndDate: undefined,
 };
 
-const CreateTaskScreen = () => {
+const triggerSuccessHaptic = () => {
+  if (Platform.OS === 'web') return;
+  try {
+    void Promise.resolve(
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+    ).catch(() => {});
+  } catch {
+    // Ignore haptics errors on unsupported devices
+  }
+};
+
+const CreateTaskScreen: React.FC = () => {
   const router = useRouter();
+  const { theme } = useTheme();
+  const { toast } = useFeedback();
   const { user } = useAuth();
   const { createTask, assignMultipleUsers } = useTasks();
   const { members: availableUsers } = useRepublicMembers(user?.currentRepublicId);
@@ -81,20 +90,25 @@ const CreateTaskScreen = () => {
   }, [reset, user?.uid]);
 
   const onSubmit = async (data: TaskFormValues) => {
+    if (selectedUsers.length === 0) {
+      toast({
+        title: 'Atenção',
+        message: 'Selecione pelo menos um responsável para a tarefa.',
+        tone: 'warning',
+      });
+      return;
+    }
+
+    if (data.recurring && !data.dueDate) {
+      toast({
+        title: 'Atenção',
+        message: 'Para tarefas recorrentes, é necessário definir a data da primeira ocorrência.',
+        tone: 'warning',
+      });
+      return;
+    }
+
     try {
-      if (selectedUsers.length === 0) {
-        Alert.alert('Atenção', 'Selecione pelo menos um responsável para a tarefa.');
-        return;
-      }
-
-      if (data.recurring && !data.dueDate) {
-        Alert.alert(
-          'Atenção',
-          'Para tarefas recorrentes, é necessário definir a data da primeira ocorrência.'
-        );
-        return;
-      }
-
       setIsLoading(true);
 
       const taskData = {
@@ -117,6 +131,7 @@ const CreateTaskScreen = () => {
 
       if (createdTask && createdTask.id) {
         await assignMultipleUsers(createdTask.id, selectedUsers);
+        triggerSuccessHaptic();
 
         if (data.recurring) {
           const patternLabel = getRecurrencePatternLabel(
@@ -125,140 +140,84 @@ const CreateTaskScreen = () => {
             data.recurrenceInterval
           ).toLowerCase();
 
-          Alert.alert(
-            'Tarefa Recorrente Criada',
-            `A tarefa recorrente foi criada com sucesso! Após ser concluída, uma nova instância será criada automaticamente ${patternLabel}.`,
-            [{ text: 'OK', onPress: () => router.replace('/(panel)/tasks') }]
-          );
+          toast({
+            title: 'Tarefa recorrente criada',
+            message: `Nova instância será gerada automaticamente ${patternLabel} após conclusão.`,
+            tone: 'success',
+          });
         } else {
-          Alert.alert('Sucesso', 'Tarefa criada com sucesso!', [
-            { text: 'OK', onPress: () => router.replace('/(panel)/tasks') },
-          ]);
+          toast({
+            title: 'Tarefa criada',
+            message: 'Tarefa criada com sucesso!',
+            tone: 'success',
+          });
         }
+
+        router.replace('/(panel)/tasks');
       }
     } catch (error) {
-      ErrorHandler.handle(error);
+      void ErrorHandler.handle(error);
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(panel)/tasks');
+    }
+  };
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor="#222" />
+    <Screen
+      scroll
+      keyboardAvoiding
+      header={<ScreenHeader title="Criar Tarefa" onBack={handleBack} />}
+      contentContainerStyle={{
+        gap: theme.spacing.md,
+        paddingBottom: theme.spacing.xxl,
+      }}
+    >
+      <TitleDescriptionInputs control={control} errors={errors} />
 
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <HeaderBar title="Criar Tarefa" onBack={() => router.back()} />
+      <UserAssignmentSection
+        selectedUsers={selectedUsers}
+        availableUsers={availableUsers}
+        currentUserId={user?.uid}
+        onChangeSelectedUsers={setSelectedUsers}
+      />
 
-        <ScrollView
-          style={styles.scrollContainer}
-          keyboardShouldPersistTaps="handled"
-        >
-          <TitleDescriptionInputs control={control} errors={errors} />
+      <DateTimePickerSection
+        control={control}
+        setValue={setValue}
+        watch={watch}
+        isDatePickerVisible={isDatePickerVisible}
+        setDatePickerVisibility={setDatePickerVisibility}
+        datePickerMode={datePickerMode}
+        setDatePickerMode={setDatePickerMode}
+        errors={errors}
+      />
 
-          <UserAssignmentSection
-            selectedUsers={selectedUsers}
-            availableUsers={availableUsers}
-            currentUserId={user?.uid}
-            onChangeSelectedUsers={setSelectedUsers}
-          />
+      <CategorySection control={control} setValue={setValue} watch={watch} />
 
-          <DateTimePickerSection
-            control={control}
-            setValue={setValue}
-            watch={watch}
-            isDatePickerVisible={isDatePickerVisible}
-            setDatePickerVisibility={setDatePickerVisibility}
-            datePickerMode={datePickerMode}
-            setDatePickerMode={setDatePickerMode}
-            errors={errors}
-          />
+      <RecurrenceSection control={control} setValue={setValue} watch={watch} />
 
-          <CategorySection
-            control={control}
-            setValue={setValue}
-            watch={watch}
-          />
-
-          <RecurrenceSection
-            control={control}
-            setValue={setValue}
-            watch={watch}
-          />
-
-          <TouchableOpacity
-            style={[styles.submitButton, isLoading && styles.submitButtonDisabled]}
-            onPress={handleSubmit(onSubmit)}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <>
-                <Ionicons
-                  name="add-circle"
-                  size={20}
-                  color="#fff"
-                  style={styles.submitButtonIcon}
-                />
-                <Text style={styles.submitButtonText}>Criar Tarefa</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      <View style={{ marginTop: theme.spacing.sm }}>
+        <Button
+          label="Criar Tarefa"
+          variant="primary"
+          fullWidth
+          loading={isLoading}
+          leftIcon={
+            <PlusCircle size={18} strokeWidth={1.75} color={theme.colors.onAccent} />
+          }
+          onPress={handleSubmit(onSubmit)}
+        />
+      </View>
+    </Screen>
   );
 };
-
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#222',
-  },
-  container: {
-    flex: 1,
-  },
-  scrollContainer: {
-    flex: 1,
-    backgroundColor: '#222',
-    paddingHorizontal: 20,
-  },
-  submitButton: {
-    flexDirection: 'row',
-    backgroundColor: '#7B68EE',
-    height: 56,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 30,
-    marginBottom: 30,
-    shadowColor: '#7B68EE',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 4.65,
-    elevation: 8,
-  },
-  submitButtonDisabled: {
-    backgroundColor: '#5a5a5a',
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  submitButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginLeft: 10,
-  },
-  submitButtonIcon: {
-    marginRight: 5,
-  },
-});
 
 export default CreateTaskScreen;

@@ -1,34 +1,62 @@
 // components/Task/TaskEdit/RecurrenceSection.tsx
 import React, { useState } from 'react';
+import { StyleSheet, Switch, View } from 'react-native';
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Modal,
-  ScrollView,
-  Switch,
-  Platform,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
+  Calendar,
+  CalendarClock,
+  CalendarDays,
+  CalendarRange,
+  Info,
+  Minus,
+  Plus,
+  Repeat,
+  type LucideIcon,
+} from 'lucide-react-native';
 import { Control, Controller, UseFormSetValue, UseFormWatch } from 'react-hook-form';
+import {
+  AppText,
+  BottomSheetModal,
+  Button,
+  Chip,
+  Divider,
+  IconButton,
+  ListRow,
+  Surface,
+  useTheme,
+} from '../../../src/design-system';
 import { RecurrenceType } from '../../../src/models/task.model';
+import { formatShortDate } from '../../../src/utils/dateUtils';
 import {
   RECURRENCE_TYPES,
-  getRecurrencePatternLabel,
   getRecurrenceDescriptionText,
+  getRecurrencePatternLabel,
 } from '../../../src/validation/taskSchemas';
-import {
-  formatShortDate,
-  formatTime,
-  mergeDateAndTime,
-} from '../../../src/utils/dateUtils';
+import { DateTimePickerFields } from './DateTimePickerSection';
 
-interface RecurrenceSectionProps {
+export interface RecurrenceSectionProps {
   control: Control<any>;
   setValue: UseFormSetValue<any>;
   watch: UseFormWatch<any>;
+}
+
+const RECURRENCE_ICON_MAP: Record<RecurrenceType, LucideIcon> = {
+  DAILY: Calendar,
+  WEEKLY: CalendarDays,
+  MONTHLY: CalendarRange,
+  YEARLY: CalendarClock,
+};
+
+function getIntervalUnitLabel(recurrenceType: string): string {
+  switch (recurrenceType) {
+    case 'DAILY':
+      return 'dia(s)';
+    case 'WEEKLY':
+      return 'semana(s)';
+    case 'MONTHLY':
+      return 'mês(es)';
+    default:
+      return 'ano(s)';
+  }
 }
 
 const RecurrenceSection: React.FC<RecurrenceSectionProps> = ({
@@ -36,39 +64,14 @@ const RecurrenceSection: React.FC<RecurrenceSectionProps> = ({
   setValue,
   watch,
 }) => {
+  const { theme } = useTheme();
   const [isRecurrenceModalVisible, setRecurrenceModalVisible] = useState(false);
   const [isEndDatePickerVisible, setEndDatePickerVisibility] = useState(false);
   const [endDatePickerMode, setEndDatePickerMode] = useState<'date' | 'time'>('date');
 
-  const isRecurring = watch('recurring');
-  const recurrenceType = watch('recurrenceType') || 'WEEKLY';
-  const recurrenceInterval = watch('recurrenceInterval') || 1;
+  const recurrenceType = (watch('recurrenceType') as RecurrenceType) || 'WEEKLY';
+  const recurrenceInterval = Number(watch('recurrenceInterval') || 1);
   const recurrenceEndDate = watch('recurrenceEndDate') as Date | undefined;
-
-  const handleEndDatePickerChange = (_event: unknown, selectedDate?: Date) => {
-    setEndDatePickerVisibility(Platform.OS === 'ios');
-
-    if (selectedDate) {
-      const currentDate = recurrenceEndDate || new Date();
-      const merged = mergeDateAndTime(currentDate, selectedDate, endDatePickerMode);
-      setValue('recurrenceEndDate', merged);
-
-      if (endDatePickerMode === 'date' && Platform.OS === 'ios') {
-        setEndDatePickerMode('time');
-        setEndDatePickerVisibility(true);
-      }
-    }
-  };
-
-  const showEndDatePicker = () => {
-    setEndDatePickerMode('date');
-    setEndDatePickerVisibility(true);
-  };
-
-  const showEndTimePicker = () => {
-    setEndDatePickerMode('time');
-    setEndDatePickerVisibility(true);
-  };
 
   return (
     <View>
@@ -76,471 +79,244 @@ const RecurrenceSection: React.FC<RecurrenceSectionProps> = ({
         control={control}
         name="recurring"
         render={({ field: { onChange, value } }) => (
-          <View style={styles.inputContainer}>
-            <View style={styles.recurrenceToggleContainer}>
-              <View style={styles.toggleTextWrapper}>
-                <Text style={styles.inputLabel}>Tarefa Recorrente</Text>
-                <Text style={styles.recurrenceDescription}>
-                  Ative para criar uma tarefa que se repete automaticamente quando concluída
-                </Text>
+          <View style={{ gap: theme.spacing.sm }}>
+            <Surface tone="surface" bordered padded="md" radiusKey="md">
+              <View style={[styles.toggleRow, { gap: theme.spacing.sm }]}>
+                <View style={styles.toggleTextWrapper}>
+                  <AppText variant="bodyStrong" color="ink">
+                    Tarefa Recorrente
+                  </AppText>
+                  <AppText variant="caption" color="inkSecondary">
+                    Ative para criar uma tarefa que se repete automaticamente quando concluída
+                  </AppText>
+                </View>
+
+                <Switch
+                  value={Boolean(value)}
+                  onValueChange={onChange}
+                  accessibilityLabel="Tarefa recorrente"
+                  trackColor={{
+                    false: theme.colors.borderStrong,
+                    true: theme.colors.accentSoft,
+                  }}
+                  thumbColor={value ? theme.colors.accent : theme.colors.surface}
+                  ios_backgroundColor={theme.colors.subtle}
+                />
               </View>
-              <Switch
-                value={Boolean(value)}
-                onValueChange={onChange}
-                trackColor={{ false: '#444', true: 'rgba(76, 175, 80, 0.4)' }}
-                thumbColor={value ? '#4CAF50' : '#aaa'}
-              />
-            </View>
+            </Surface>
 
-            {value && (
+            {value ? (
               <>
-                <TouchableOpacity
-                  style={styles.recurrenceConfigButton}
-                  onPress={() => setRecurrenceModalVisible(true)}
-                >
-                  <View style={styles.recurrenceConfigContent}>
-                    <View>
-                      <Text style={styles.recurrenceConfigLabel}>Configurar Recorrência</Text>
-                      <Text style={styles.recurrenceConfigValue}>
-                        {getRecurrencePatternLabel(value, recurrenceType, recurrenceInterval)}
-                      </Text>
-                      {recurrenceEndDate && (
-                        <Text style={styles.recurrenceEndDateText}>
-                          Término em: {formatShortDate(recurrenceEndDate)}
-                        </Text>
-                      )}
-                    </View>
-                    <Ionicons name="repeat" size={24} color="#4CAF50" />
-                  </View>
-                </TouchableOpacity>
+                <Surface tone="surface" bordered style={styles.configSurface}>
+                  <ListRow
+                    title={getRecurrencePatternLabel(
+                      value,
+                      recurrenceType,
+                      recurrenceInterval
+                    )}
+                    subtitle={
+                      recurrenceEndDate
+                        ? `Configurar recorrência · Término em ${formatShortDate(recurrenceEndDate)}`
+                        : 'Configurar recorrência'
+                    }
+                    onPress={() => setRecurrenceModalVisible(true)}
+                    trailing={
+                      <Repeat size={20} strokeWidth={1.75} color={theme.colors.success} />
+                    }
+                  />
+                </Surface>
 
-                <View style={styles.recurrenceExplanationContainer}>
-                  <Ionicons name="information-circle" size={18} color="#aaa" />
-                  <Text style={styles.recurrenceExplanationText}>
+                <Surface
+                  tone="subtle"
+                  padded="sm"
+                  radiusKey="sm"
+                  style={[styles.infoBox, { gap: theme.spacing.xs }]}
+                >
+                  <Info size={16} strokeWidth={1.75} color={theme.colors.inkSecondary} />
+                  <AppText variant="caption" color="inkSecondary" style={styles.infoText}>
                     {getRecurrenceDescriptionText(
                       value,
                       recurrenceType,
                       recurrenceInterval,
                       recurrenceEndDate
                     )}
-                  </Text>
-                </View>
+                  </AppText>
+                </Surface>
               </>
-            )}
+            ) : null}
           </View>
         )}
       />
 
-      <Modal
-        animationType="slide"
-        transparent={true}
+      <BottomSheetModal
         visible={isRecurrenceModalVisible}
-        onRequestClose={() => setRecurrenceModalVisible(false)}
+        onClose={() => {
+          setEndDatePickerVisibility(false);
+          setRecurrenceModalVisible(false);
+        }}
+        title="Configurar Recorrência"
+        footer={
+          <Button
+            label="Concluir"
+            variant="primary"
+            fullWidth
+            onPress={() => {
+              setEndDatePickerVisibility(false);
+              setRecurrenceModalVisible(false);
+            }}
+          />
+        }
       >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Configurar Recorrência</Text>
-              <Text style={styles.modalSubtitle}>
-                Defina como esta tarefa deve se repetir após ser concluída
-              </Text>
+        <View style={{ gap: theme.spacing.md }}>
+          <View style={{ gap: theme.spacing.xs }}>
+            <AppText variant="bodyStrong" color="ink">
+              Tipo de Recorrência
+            </AppText>
+            <AppText variant="caption" color="inkSecondary">
+              Selecione com que frequência a tarefa deve se repetir
+            </AppText>
+            <View style={[styles.typeGrid, { gap: theme.spacing.xs }]}>
+              {RECURRENCE_TYPES.map((type) => {
+                const TypeIcon = RECURRENCE_ICON_MAP[type.key];
+                const isSelected = recurrenceType === type.key;
+                return (
+                  <Chip
+                    key={type.key}
+                    label={type.label}
+                    selected={isSelected}
+                    leftIcon={
+                      <TypeIcon
+                        size={16}
+                        strokeWidth={1.75}
+                        color={
+                          isSelected ? theme.colors.accent : theme.colors.inkSecondary
+                        }
+                      />
+                    }
+                    onPress={() => setValue('recurrenceType', type.key)}
+                  />
+                );
+              })}
+            </View>
+          </View>
+
+          <Divider />
+
+          <View style={{ gap: theme.spacing.xs }}>
+            <AppText variant="bodyStrong" color="ink">
+              Intervalo
+            </AppText>
+            <AppText variant="caption" color="inkSecondary">
+              Defina de quanto em quanto tempo a tarefa se repete
+            </AppText>
+
+            <View style={[styles.intervalRow, { gap: theme.spacing.sm }]}>
+              <IconButton
+                icon={<Minus size={18} strokeWidth={1.75} color={theme.colors.ink} />}
+                onPress={() =>
+                  setValue('recurrenceInterval', Math.max(1, recurrenceInterval - 1))
+                }
+                disabled={recurrenceInterval <= 1}
+                accessibilityLabel="Diminuir intervalo"
+                variant="subtle"
+              />
+
+              <AppText variant="monoValue" color="ink" style={styles.intervalValue}>
+                {recurrenceInterval}
+              </AppText>
+
+              <IconButton
+                icon={<Plus size={18} strokeWidth={1.75} color={theme.colors.ink} />}
+                onPress={() => setValue('recurrenceInterval', recurrenceInterval + 1)}
+                accessibilityLabel="Aumentar intervalo"
+                variant="subtle"
+              />
+
+              <AppText variant="body" color="inkSecondary">
+                {getIntervalUnitLabel(recurrenceType)}
+              </AppText>
             </View>
 
-            <ScrollView style={styles.modalScrollView}>
-              <View style={styles.sectionBlock}>
-                <Text style={styles.recurrenceLabel}>Tipo de Recorrência</Text>
-                <Text style={styles.recurrenceDescription}>
-                  Selecione com que frequência a tarefa deve se repetir
-                </Text>
-                <View style={styles.recurrenceTypeGrid}>
-                  {RECURRENCE_TYPES.map(type => (
-                    <TouchableOpacity
-                      key={type.key}
-                      style={[
-                        styles.recurrenceTypeChip,
-                        recurrenceType === type.key && styles.selectedRecurrenceTypeChip,
-                      ]}
-                      onPress={() => setValue('recurrenceType', type.key as RecurrenceType)}
-                    >
-                      <Ionicons
-                        name={type.icon as any}
-                        size={18}
-                        color={recurrenceType === type.key ? '#fff' : '#aaa'}
-                        style={{ marginRight: 8 }}
-                      />
-                      <Text
-                        style={[
-                          styles.recurrenceTypeText,
-                          recurrenceType === type.key && styles.selectedRecurrenceTypeText,
-                        ]}
-                      >
-                        {type.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              <View style={styles.sectionBlock}>
-                <Text style={styles.recurrenceLabel}>Intervalo</Text>
-                <Text style={styles.recurrenceDescription}>
-                  Defina com que frequência a tarefa deve se repetir
-                </Text>
-
-                <View style={styles.recurrenceIntervalRow}>
-                  <TouchableOpacity
-                    style={[
-                      styles.intervalButton,
-                      recurrenceInterval <= 1 && styles.intervalButtonDisabled,
-                    ]}
-                    onPress={() =>
-                      setValue('recurrenceInterval', Math.max(1, recurrenceInterval - 1))
-                    }
-                    disabled={recurrenceInterval <= 1}
-                  >
-                    <Ionicons name="remove" size={20} color="#fff" />
-                  </TouchableOpacity>
-
-                  <View style={styles.intervalValueContainer}>
-                    <Text style={styles.intervalValue}>{recurrenceInterval}</Text>
-                  </View>
-
-                  <TouchableOpacity
-                    style={styles.intervalButton}
-                    onPress={() => setValue('recurrenceInterval', recurrenceInterval + 1)}
-                  >
-                    <Ionicons name="add" size={20} color="#fff" />
-                  </TouchableOpacity>
-
-                  <Text style={styles.intervalText}>
-                    {recurrenceType === 'DAILY'
-                      ? 'dia(s)'
-                      : recurrenceType === 'WEEKLY'
-                      ? 'semana(s)'
-                      : recurrenceType === 'MONTHLY'
-                      ? 'mês(es)'
-                      : 'ano(s)'}
-                  </Text>
-                </View>
-
-                <Text style={styles.recurrenceHelperText}>
-                  {getRecurrenceDescriptionText(true, recurrenceType, recurrenceInterval)}
-                </Text>
-              </View>
-
-              <View style={styles.sectionBlock}>
-                <Text style={styles.recurrenceLabel}>Data de Término (opcional)</Text>
-                <Text style={styles.recurrenceDescription}>
-                  Opcionalmente, defina quando a recorrência deve parar
-                </Text>
-
-                <View style={styles.dateTimeContainer}>
-                  <TouchableOpacity style={styles.dateButton} onPress={showEndDatePicker}>
-                    <View style={styles.dateButtonContent}>
-                      <Ionicons name="calendar" size={20} color="#7B68EE" />
-                      <Text style={styles.dateTimeText}>
-                        {recurrenceEndDate ? formatShortDate(recurrenceEndDate) : 'Selecionar data'}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity style={styles.timeButton} onPress={showEndTimePicker}>
-                    <View style={styles.dateButtonContent}>
-                      <Ionicons name="time" size={20} color="#7B68EE" />
-                      <Text style={styles.dateTimeText}>
-                        {recurrenceEndDate ? formatTime(recurrenceEndDate) : 'Hora'}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                </View>
-
-                {recurrenceEndDate ? (
-                  <View>
-                    <Text style={styles.recurrenceHelperText}>
-                      A recorrência será interrompida após esta data
-                    </Text>
-                    <TouchableOpacity
-                      style={styles.clearEndDateButton}
-                      onPress={() => setValue('recurrenceEndDate', undefined)}
-                    >
-                      <Text style={styles.clearEndDateText}>Remover data de término</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <Text style={styles.recurrenceHelperText}>
-                    Sem data de término definida, a tarefa continuará se repetindo indefinidamente
-                  </Text>
-                )}
-              </View>
-
-              <View style={styles.recurrenceInfoContainer}>
-                <Ionicons name="information-circle" size={20} color="#7B68EE" />
-                <Text style={styles.recurrenceInfoText}>
-                  Quando você concluir uma tarefa recorrente, uma nova instância será
-                  automaticamente criada com a próxima data de vencimento.
-                </Text>
-              </View>
-            </ScrollView>
-
-            <TouchableOpacity
-              style={styles.modalCloseButton}
-              onPress={() => setRecurrenceModalVisible(false)}
-            >
-              <Text style={styles.modalCloseButtonText}>Concluir</Text>
-            </TouchableOpacity>
+            <AppText variant="caption" color="inkMuted">
+              {getRecurrenceDescriptionText(true, recurrenceType, recurrenceInterval)}
+            </AppText>
           </View>
-        </View>
-      </Modal>
 
-      {isEndDatePickerVisible && (
-        <DateTimePicker
-          value={recurrenceEndDate || new Date()}
-          mode={endDatePickerMode}
-          display="default"
-          onChange={handleEndDatePickerChange}
-          minimumDate={new Date()}
-        />
-      )}
+          <Divider />
+
+          <View style={{ gap: theme.spacing.xs }}>
+            <DateTimePickerFields
+              label="Data de Término (opcional)"
+              helperText="Opcionalmente, defina quando a recorrência deve parar"
+              value={recurrenceEndDate}
+              onChange={(nextDate) => setValue('recurrenceEndDate', nextDate)}
+              isVisible={isEndDatePickerVisible}
+              onVisibleChange={setEndDatePickerVisibility}
+              mode={endDatePickerMode}
+              onModeChange={setEndDatePickerMode}
+              minimumDate={new Date()}
+            />
+
+            {recurrenceEndDate ? (
+              <AppText variant="caption" color="inkSecondary">
+                A recorrência será interrompida após esta data
+              </AppText>
+            ) : (
+              <AppText variant="caption" color="inkMuted">
+                Sem data de término definida, a tarefa continuará se repetindo indefinidamente
+              </AppText>
+            )}
+          </View>
+
+          <Surface
+            tone="subtle"
+            padded="sm"
+            radiusKey="sm"
+            style={[styles.infoBox, { gap: theme.spacing.xs }]}
+          >
+            <Info size={16} strokeWidth={1.75} color={theme.colors.accent} />
+            <AppText variant="caption" color="inkSecondary" style={styles.infoText}>
+              Quando você concluir uma tarefa recorrente, uma nova instância será
+              automaticamente criada com a próxima data de vencimento.
+            </AppText>
+          </Surface>
+        </View>
+      </BottomSheetModal>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  inputContainer: {
-    marginTop: 20,
-  },
-  inputLabel: {
-    color: '#fff',
-    marginBottom: 4,
-    fontSize: 15,
-    fontWeight: '500',
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   toggleTextWrapper: {
     flex: 1,
-    paddingRight: 12,
+    gap: 2,
   },
-  recurrenceToggleContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#333',
-    borderRadius: 10,
-    padding: 15,
-    borderWidth: 1,
-    borderColor: '#444',
-  },
-  recurrenceDescription: {
-    color: '#aaa',
-    fontSize: 13,
-    marginBottom: 8,
-  },
-  recurrenceConfigButton: {
-    marginTop: 12,
-    backgroundColor: '#333',
-    borderRadius: 10,
-    padding: 15,
-    borderWidth: 1,
-    borderColor: 'rgba(76, 175, 80, 0.4)',
-  },
-  recurrenceConfigContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  recurrenceConfigLabel: {
-    color: '#aaa',
-    fontSize: 12,
-    marginBottom: 4,
-  },
-  recurrenceConfigValue: {
-    color: '#4CAF50',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  recurrenceEndDateText: {
-    color: '#aaa',
-    fontSize: 12,
-    marginTop: 4,
-  },
-  recurrenceExplanationContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 10,
-    paddingHorizontal: 4,
-  },
-  recurrenceExplanationText: {
-    color: '#aaa',
-    fontSize: 13,
-    marginLeft: 8,
-    flex: 1,
-  },
-  modalContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.7)',
-  },
-  modalContent: {
-    width: '90%',
-    backgroundColor: '#333',
-    borderRadius: 12,
+  configSurface: {
     overflow: 'hidden',
-    maxHeight: '85%',
   },
-  modalHeader: {
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#444',
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 6,
+  infoText: {
+    flex: 1,
   },
-  modalSubtitle: {
-    color: '#aaa',
-    fontSize: 14,
-  },
-  modalScrollView: {
-    maxHeight: 450,
-    padding: 16,
-  },
-  sectionBlock: {
-    marginBottom: 20,
-  },
-  recurrenceLabel: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  recurrenceTypeGrid: {
+  typeGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginTop: 8,
   },
-  recurrenceTypeChip: {
+  intervalRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#444',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 20,
-    marginRight: 8,
-    marginBottom: 8,
-  },
-  selectedRecurrenceTypeChip: {
-    backgroundColor: '#7B68EE',
-  },
-  recurrenceTypeText: {
-    color: '#fff',
-    fontSize: 14,
-  },
-  selectedRecurrenceTypeText: {
-    fontWeight: 'bold',
-  },
-  recurrenceIntervalRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  intervalButton: {
-    backgroundColor: '#7B68EE',
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  intervalButtonDisabled: {
-    backgroundColor: '#555',
-  },
-  intervalValueContainer: {
-    paddingHorizontal: 16,
   },
   intervalValue: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  intervalText: {
-    color: '#fff',
-    fontSize: 15,
-    marginLeft: 12,
-  },
-  recurrenceHelperText: {
-    color: '#aaa',
-    fontSize: 12,
-    marginTop: 8,
-  },
-  dateTimeContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 8,
-  },
-  dateButton: {
-    flex: 0.65,
-    backgroundColor: '#2A2A2A',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 14,
-    borderWidth: 1,
-    borderColor: '#444',
-    marginRight: 8,
-  },
-  timeButton: {
-    flex: 0.35,
-    backgroundColor: '#2A2A2A',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 14,
-    borderWidth: 1,
-    borderColor: '#444',
-  },
-  dateButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  dateTimeText: {
-    color: '#fff',
-    fontSize: 14,
-    marginLeft: 8,
-  },
-  clearEndDateButton: {
-    marginTop: 8,
-    alignSelf: 'flex-start',
-  },
-  clearEndDateText: {
-    color: '#FF6347',
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  recurrenceInfoContainer: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(123, 104, 238, 0.1)',
-    borderRadius: 10,
-    padding: 12,
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  recurrenceInfoText: {
-    color: '#ccc',
-    fontSize: 13,
-    marginLeft: 10,
-    flex: 1,
-  },
-  modalCloseButton: {
-    margin: 16,
-    backgroundColor: '#7B68EE',
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  modalCloseButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+    minWidth: 28,
+    textAlign: 'center',
   },
 });
 

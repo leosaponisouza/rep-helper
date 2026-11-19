@@ -1,37 +1,48 @@
 // app/(panel)/tasks/edit.tsx
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  SafeAreaView,
-  StatusBar,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-  ActivityIndicator,
-  TouchableOpacity,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useForm } from 'react-hook-form';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Platform, View } from 'react-native';
+import { isValid } from 'date-fns';
+import * as Haptics from 'expo-haptics';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ErrorHandler } from '../../../src/utils/errorHandling';
-import { useAuth } from '../../../src/context/AuthContext';
-import { useTasks } from '../../../src/hooks/useTasks';
-import { useRepublicMembers } from '../../../src/hooks/useRepublicMembers';
-import { taskFormSchema, TaskFormValues } from '../../../src/validation/taskSchemas';
+import { Save } from 'lucide-react-native';
+import { useForm } from 'react-hook-form';
 import {
-  HeaderBar,
+  CategorySection,
+  DateTimePickerSection,
   TitleDescriptionInputs,
   UserAssignmentSection,
-  DateTimePickerSection,
-  CategorySection,
-} from '@/components/Task/TaskEdit';
+} from '../../../components/Task/TaskEdit';
+import { useAuth } from '../../../src/context/AuthContext';
+import {
+  Button,
+  Screen,
+  ScreenHeader,
+  StateView,
+  useFeedback,
+  useTheme,
+} from '../../../src/design-system';
+import { useRepublicMembers } from '../../../src/hooks/useRepublicMembers';
+import { useTasks } from '../../../src/hooks/useTasks';
+import { parseISOPreservingTime } from '../../../src/utils/dateUtils';
+import { ErrorHandler } from '../../../src/utils/errorHandling';
+import { TaskFormValues, taskFormSchema } from '../../../src/validation/taskSchemas';
 
-const EditTaskScreen = () => {
+const triggerSuccessHaptic = () => {
+  if (Platform.OS === 'web') return;
+  try {
+    void Promise.resolve(
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+    ).catch(() => {});
+  } catch {
+    // Ignore haptics errors on unsupported devices
+  }
+};
+
+const EditTaskScreen: React.FC = () => {
   const router = useRouter();
+  const { theme } = useTheme();
+  const { toast } = useFeedback();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const { getTaskById, updateTask, assignMultipleUsers } = useTasks();
@@ -42,6 +53,7 @@ const EditTaskScreen = () => {
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isFetchingTask, setIsFetchingTask] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const {
     control,
@@ -59,44 +71,56 @@ const EditTaskScreen = () => {
     },
   });
 
-  useEffect(() => {
-    const fetchTaskDetails = async () => {
-      if (!id) return;
+  const fetchTaskDetails = useCallback(async () => {
+    if (!id) {
+      setLoadError('Identificador da tarefa não informado.');
+      setIsFetchingTask(false);
+      return;
+    }
 
-      try {
-        setIsFetchingTask(true);
-        const task = await getTaskById(id);
+    try {
+      setIsFetchingTask(true);
+      setLoadError(null);
+      const task = await getTaskById(id);
 
-        setValue('title', task.title);
-        setValue('description', task.description || '');
-        setValue('category', task.category || '');
+      setValue('title', task.title);
+      setValue('description', task.description || '');
+      setValue('category', task.category || '');
 
-        if (task.dueDate) {
-          setValue('dueDate', new Date(task.dueDate));
+      if (task.dueDate) {
+        const parsedDue = parseISOPreservingTime(task.dueDate);
+        if (isValid(parsedDue)) {
+          setValue('dueDate', parsedDue);
         }
-
-        if (task.assignedUsers && task.assignedUsers.length > 0) {
-          const userIds = task.assignedUsers.map(assignedUser => String(assignedUser.uid));
-          setSelectedUsers(userIds);
-        }
-      } catch (error) {
-        ErrorHandler.handle(error);
-        router.back();
-      } finally {
-        setIsFetchingTask(false);
       }
-    };
 
-    fetchTaskDetails();
-  }, [id, getTaskById, setValue, router]);
+      if (task.assignedUsers && task.assignedUsers.length > 0) {
+        const userIds = task.assignedUsers.map((assignedUser) => String(assignedUser.uid));
+        setSelectedUsers(userIds);
+      }
+    } catch (error) {
+      void ErrorHandler.handle(error);
+      setLoadError('Não foi possível carregar os dados da tarefa.');
+    } finally {
+      setIsFetchingTask(false);
+    }
+  }, [id, getTaskById, setValue]);
+
+  useEffect(() => {
+    void fetchTaskDetails();
+  }, [fetchTaskDetails]);
 
   const onSubmit = async (data: TaskFormValues) => {
-    try {
-      if (selectedUsers.length === 0) {
-        Alert.alert('Atenção', 'Selecione pelo menos um responsável para a tarefa.');
-        return;
-      }
+    if (selectedUsers.length === 0) {
+      toast({
+        title: 'Atenção',
+        message: 'Selecione pelo menos um responsável para a tarefa.',
+        tone: 'warning',
+      });
+      return;
+    }
 
+    try {
       setIsLoading(true);
 
       const taskData = {
@@ -108,152 +132,98 @@ const EditTaskScreen = () => {
 
       await updateTask(Number(id), taskData);
       await assignMultipleUsers(Number(id), selectedUsers);
+      triggerSuccessHaptic();
 
-      Alert.alert('Sucesso', 'Tarefa atualizada com sucesso!', [
-        {
-          text: 'OK',
-          onPress: () => router.replace('/(panel)/tasks'),
-        },
-      ]);
+      toast({
+        title: 'Tarefa atualizada',
+        message: 'As alterações foram salvas com sucesso.',
+        tone: 'success',
+      });
+
+      router.replace('/(panel)/tasks');
     } catch (error) {
-      ErrorHandler.handle(error);
+      void ErrorHandler.handle(error);
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(panel)/tasks');
+    }
+  };
+
+  const header = <ScreenHeader title="Editar Tarefa" onBack={handleBack} />;
+
   if (isFetchingTask) {
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle="light-content" backgroundColor="#222" />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#7B68EE" />
-          <Text style={styles.loadingText}>Carregando tarefa...</Text>
-        </View>
-      </SafeAreaView>
+      <Screen header={header}>
+        <StateView kind="loading" title="Carregando tarefa..." />
+      </Screen>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <Screen header={header}>
+        <StateView
+          kind="error"
+          title="Erro ao carregar tarefa"
+          description={loadError}
+          actionLabel="Tentar novamente"
+          onAction={() => void fetchTaskDetails()}
+        />
+      </Screen>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor="#222" />
+    <Screen
+      scroll
+      keyboardAvoiding
+      header={header}
+      contentContainerStyle={{
+        gap: theme.spacing.md,
+        paddingBottom: theme.spacing.xxl,
+      }}
+    >
+      <TitleDescriptionInputs control={control} errors={errors} />
 
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <HeaderBar title="Editar Tarefa" onBack={() => router.back()} />
+      <UserAssignmentSection
+        selectedUsers={selectedUsers}
+        availableUsers={availableUsers}
+        currentUserId={user?.uid}
+        onChangeSelectedUsers={setSelectedUsers}
+      />
 
-        <ScrollView
-          style={styles.scrollContainer}
-          keyboardShouldPersistTaps="handled"
-        >
-          <TitleDescriptionInputs control={control} errors={errors} />
+      <DateTimePickerSection
+        control={control}
+        setValue={setValue}
+        watch={watch}
+        setDatePickerVisibility={setDatePickerVisibility}
+        isDatePickerVisible={isDatePickerVisible}
+        datePickerMode={datePickerMode}
+        setDatePickerMode={setDatePickerMode}
+        errors={errors}
+      />
 
-          <UserAssignmentSection
-            selectedUsers={selectedUsers}
-            availableUsers={availableUsers}
-            currentUserId={user?.uid}
-            onChangeSelectedUsers={setSelectedUsers}
-          />
+      <CategorySection control={control} setValue={setValue} watch={watch} />
 
-          <DateTimePickerSection
-            control={control}
-            setValue={setValue}
-            watch={watch}
-            setDatePickerVisibility={setDatePickerVisibility}
-            isDatePickerVisible={isDatePickerVisible}
-            datePickerMode={datePickerMode}
-            setDatePickerMode={setDatePickerMode}
-            errors={errors}
-          />
-
-          <CategorySection
-            control={control}
-            setValue={setValue}
-            watch={watch}
-          />
-
-          <TouchableOpacity
-            style={[styles.submitButton, isLoading && styles.submitButtonDisabled]}
-            onPress={handleSubmit(onSubmit)}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <>
-                <Ionicons
-                  name="save-outline"
-                  size={20}
-                  color="#fff"
-                  style={styles.submitButtonIcon}
-                />
-                <Text style={styles.submitButtonText}>Salvar Alterações</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      <View style={{ marginTop: theme.spacing.sm }}>
+        <Button
+          label="Salvar Alterações"
+          variant="primary"
+          fullWidth
+          loading={isLoading}
+          leftIcon={<Save size={18} strokeWidth={1.75} color={theme.colors.onAccent} />}
+          onPress={handleSubmit(onSubmit)}
+        />
+      </View>
+    </Screen>
   );
 };
-
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#222',
-  },
-  container: {
-    flex: 1,
-  },
-  scrollContainer: {
-    flex: 1,
-    backgroundColor: '#222',
-    paddingHorizontal: 20,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    color: '#fff',
-    marginTop: 16,
-    fontSize: 16,
-  },
-  submitButton: {
-    flexDirection: 'row',
-    backgroundColor: '#7B68EE',
-    height: 56,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 30,
-    marginBottom: 30,
-    shadowColor: '#7B68EE',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 4.65,
-    elevation: 8,
-  },
-  submitButtonDisabled: {
-    backgroundColor: '#5a5a5a',
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  submitButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginLeft: 10,
-  },
-  submitButtonIcon: {
-    marginRight: 5,
-  },
-});
 
 export default EditTaskScreen;
