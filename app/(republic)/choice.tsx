@@ -73,7 +73,7 @@ const RepublicChoiceScreen = () => {
             const response = await republicService.joinRepublic(joinCode);
             
             // A função de login aceita o token e os dados do usuário
-            login(response.token, response.user);
+            await login(response.token, response.user);
             
             Alert.alert("Sucesso", "Você entrou na república com sucesso!")
             router.replace('/(panel)/home'); 

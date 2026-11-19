@@ -18,6 +18,7 @@ import {
   signInWithPhoneNumber
 } from 'firebase/auth';
 import { Platform } from 'react-native';
+import { logger } from '../utils/logger';
 
 /**
  * @fileoverview Serviço de autenticação para integração com API RepHelper
@@ -507,16 +508,19 @@ export const logout = async (): Promise<void> => {
     try {
       await api.post('/api/v1/auth/logout');
     } catch (apiError) {
-      console.error('Erro ao notificar backend sobre logout:', apiError);
+      logger.error('Erro ao notificar backend sobre logout:', apiError);
     }
-    
+
     // Logout do Firebase
-    await auth.signOut();
-    
-    // Limpar dados locais
+    try {
+      if (typeof (auth as any)?.signOut === 'function') {
+        await (auth as any).signOut();
+      }
+    } catch (firebaseError) {
+      logger.error('Erro ao efetuar logout no Firebase:', firebaseError);
+    }
+  } finally {
+    // Limpar dados locais sempre, mesmo que backend ou Firebase falhem
     await clearAuthData();
-  } catch (error) {
-    console.error('Erro ao efetuar logout:', error);
-    throw error;
   }
 }; 

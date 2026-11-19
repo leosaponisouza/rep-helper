@@ -34,7 +34,7 @@ const JoinRepublicScreen = () => {
       const response = await republicService.joinRepublic(code.trim());
       
       // Atualizar contexto de autenticação com os novos dados do usuário
-      login(response.token, response.user);
+      await login(response.token, response.user);
       
       Alert.alert(
         'Sucesso', 

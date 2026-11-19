@@ -10,8 +10,16 @@ const USER_KEY = 'user';
 
 const isWeb = Platform.OS === 'web';
 
+const DEFAULT_SECURE_STORE_OPTIONS: SecureStore.SecureStoreOptions = {
+  keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+};
+
+const resolveSecureStoreOptions = (
+  options?: SecureStore.SecureStoreOptions
+): SecureStore.SecureStoreOptions => options ?? DEFAULT_SECURE_STORE_OPTIONS;
+
 /**
- * Armazena um valor de forma segura usando Expo Secure Store (ou localStorage na Web).
+ * Armazena um valor de forma segura usando Expo Secure Store (ou sessionStorage na Web).
  */
 export const storeData = async (
   key: string,
@@ -24,13 +32,18 @@ export const storeData = async (
       : JSON.stringify(value);
 
     if (isWeb) {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        window.localStorage.setItem(key, stringValue);
+      if (typeof window !== 'undefined') {
+        window.sessionStorage?.setItem(key, stringValue);
+        try {
+          window.localStorage?.removeItem(key);
+        } catch {
+          // Ignorar falha ao limpar legado do localStorage
+        }
       }
       return;
     }
 
-    await SecureStore.setItemAsync(key, stringValue, options);
+    await SecureStore.setItemAsync(key, stringValue, resolveSecureStoreOptions(options));
   } catch (error) {
     logger.error('Erro ao armazenar dados:', error);
     throw new Error(`Falha ao armazenar dados para chave: ${key}`);
@@ -38,7 +51,7 @@ export const storeData = async (
 };
 
 /**
- * Recupera um valor de forma segura do Expo Secure Store (ou localStorage na Web).
+ * Recupera um valor de forma segura do Expo Secure Store (ou sessionStorage na Web).
  */
 export const getData = async (
   key: string,
@@ -46,13 +59,13 @@ export const getData = async (
 ): Promise<string | null> => {
   try {
     if (isWeb) {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        return window.localStorage.getItem(key);
+      if (typeof window !== 'undefined' && window.sessionStorage) {
+        return window.sessionStorage.getItem(key);
       }
       return null;
     }
 
-    const value = await SecureStore.getItemAsync(key, options);
+    const value = await SecureStore.getItemAsync(key, resolveSecureStoreOptions(options));
     return value;
   } catch (error) {
     logger.error('Erro ao obter dados:', error);
@@ -61,7 +74,7 @@ export const getData = async (
 };
 
 /**
- * Remove um valor de forma segura do Expo Secure Store (ou localStorage na Web).
+ * Remove um valor de forma segura do Expo Secure Store (ou sessionStorage/localStorage na Web).
  */
 export const removeData = async (
   key: string,
@@ -69,13 +82,18 @@ export const removeData = async (
 ): Promise<void> => {
   try {
     if (isWeb) {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        window.localStorage.removeItem(key);
+      if (typeof window !== 'undefined') {
+        window.sessionStorage?.removeItem(key);
+        try {
+          window.localStorage?.removeItem(key);
+        } catch {
+          // Ignorar falha ao limpar legado do localStorage
+        }
       }
       return;
     }
 
-    await SecureStore.deleteItemAsync(key, options);
+    await SecureStore.deleteItemAsync(key, resolveSecureStoreOptions(options));
   } catch (error) {
     logger.error('Erro ao remover dados:', error);
     throw new Error(`Falha ao remover dados para chave: ${key}`);

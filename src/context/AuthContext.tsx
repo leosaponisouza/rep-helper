@@ -5,7 +5,7 @@ import {
   getRefreshToken, storeRefreshToken, removeRefreshToken,
   storeData, getData, removeData, clearAuthData 
 } from '../utils/storage';
-import api from '../services/api';
+import api, { setUnauthorizedHandler } from '../services/api';
 import axios, { AxiosResponse } from 'axios';
 import { signOut } from 'firebase/auth';
 import { auth } from '../utils/firebaseClientConfig';
@@ -69,6 +69,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const clearError = () => setError(null);
 
   useEffect(() => {
+    setUnauthorizedHandler(async () => {
+      delete api.defaults.headers.common['Authorization'];
+      setUser(null);
+      setError('Sessão expirada. Por favor, faça login novamente.');
+      router.replace('/(auth)/sign-in');
+    });
+
+    return () => {
+      setUnauthorizedHandler(null);
+    };
+  }, []);
+
+  useEffect(() => {
     const loadUser = async () => {
       try {
         const token = await getToken();
@@ -93,15 +106,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
         // Verificar com o servidor
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
         try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 10000);
-
           const response: AxiosResponse<GetMeResponse> = await api.get('/api/v1/users/me', {
             signal: controller.signal
           });
-
-          clearTimeout(timeoutId);
 
           if (response.data.user) {
             logger.debug('Dados do usuário recebidos do servidor:', response.data.user);
@@ -111,7 +121,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             setError(null);
           }
         } catch (error) {
-          if (axios.isCancel(error)) {
+          if (
+            axios.isCancel(error) ||
+            (error instanceof Error && error.name === 'AbortError') ||
+            (axios.isAxiosError(error) && error.code === 'ECONNABORTED')
+          ) {
             logger.debug('Requisição cancelada por timeout');
           } else if (axios.isAxiosError(error) && error.response?.status === 401) {
             // Tentar refresh token
@@ -119,14 +133,34 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             if (!refreshSuccessful) {
               logger.error("Token expirado e não foi possível renovar");
               await clearAuthData();
+              delete api.defaults.headers.common['Authorization'];
               setUser(null);
               setError("Sessão expirada. Por favor, faça login novamente.");
             }
-          } else {
+          } else if (
+            axios.isAxiosError(error) &&
+            (error.response?.status === 403 || error.response?.status === 404)
+          ) {
+            logger.error("Sessão ou usuário inválido:", error.response.status);
+            await clearAuthData();
+            delete api.defaults.headers.common['Authorization'];
+            setUser(null);
+            setError("Sessão expirada. Por favor, faça login novamente.");
+          } else if (!(await getToken())) {
+            // Interceptor 401 já limpou os dados de autenticação após falha no refresh
+            delete api.defaults.headers.common['Authorization'];
+            setUser(null);
+            setError("Sessão expirada. Por favor, faça login novamente.");
+          } else if (axios.isAxiosError(error) && error.response) {
+            // Erro transitório do servidor (ex: 5xx): preservar cache local e token
             logger.error("Erro ao carregar usuário:", error);
-            await removeToken();
             setError("Erro ao carregar dados do usuário");
+          } else {
+            // Erro de rede/offline: preservar cache local e token para resiliência offline
+            logger.warn("Erro de rede ao validar usuário; mantendo sessão em cache:", error);
           }
+        } finally {
+          clearTimeout(timeoutId);
         }
       } catch (err) {
         logger.error("Erro ao recuperar token:", err);
@@ -327,21 +361,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logout = async (): Promise<void> => {
     try {
       setLoading(true);
-      
       await authService.logout();
-      
-      // Limpar estado
-      setUser(null);
-      delete api.defaults.headers.common['Authorization'];
-      
-      // Redirecionar para login
-      router.replace('/(auth)/sign-in');
     } catch (error) {
       const parsedError = await ErrorHandler.parseError(error);
       setError(parsedError.message);
       ErrorHandler.logError(parsedError);
     } finally {
+      // Limpar estado e redirecionar sempre, mesmo se logout remoto falhar
+      setUser(null);
+      delete api.defaults.headers.common['Authorization'];
       setLoading(false);
+      router.replace('/(auth)/sign-in');
     }
   };
 
