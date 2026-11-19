@@ -21,6 +21,8 @@ import { useAuth } from '../../../src/context/AuthContext';
 import { auth } from '../../../src/utils/firebaseClientConfig';
 import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import * as Haptics from 'expo-haptics';
+import { changePasswordSchema } from '../../../src/validation/authSchemas';
+import { logger } from '../../../src/utils/logger';
 
 const ChangePasswordScreen = () => {
   const router = useRouter();
@@ -44,43 +46,44 @@ const ChangePasswordScreen = () => {
   const handleChangePassword = async () => {
     Keyboard.dismiss();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
-    // Validação básica
-    if (!currentPassword || !newPassword || !confirmPassword) {
-      setError('Por favor, preencha todos os campos');
+
+    const validation = changePasswordSchema.safeParse({
+      currentPassword,
+      newPassword,
+      confirmPassword,
+    });
+
+    if (!validation.success) {
+      const firstIssue = validation.error.issues[0];
+      setError(firstIssue?.message || 'Dados inválidos. Verifique os campos informados.');
       return;
     }
-    
-    if (newPassword.length < 6) {
-      setError('A nova senha deve ter pelo menos 6 caracteres');
-      return;
-    }
-    
-    if (newPassword !== confirmPassword) {
-      setError('A nova senha e a confirmação não correspondem');
-      return;
-    }
-    
+
     try {
       setLoading(true);
       setError('');
-      
+
       const firebaseUser = auth.currentUser;
       if (!firebaseUser || !firebaseUser.email) {
         throw new Error('Usuário não autenticado');
       }
-      
+
       // Reautenticar usuário (exigido pelo Firebase antes de alterar senha)
       const credential = EmailAuthProvider.credential(
         firebaseUser.email,
         currentPassword
       );
-      
+
       await reauthenticateWithCredential(firebaseUser, credential);
-      
+
       // Atualizar senha
       await updatePassword(firebaseUser, newPassword);
-      
+
+      // Limpar campos sensíveis da memória/estado antes de exibir alerta
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+
       // Sucesso
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
@@ -88,22 +91,29 @@ const ChangePasswordScreen = () => {
         'Sua senha foi alterada com sucesso',
         [{ text: 'OK', onPress: () => router.back() }]
       );
-      
+
     } catch (error: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      
-      // Tratar erros comuns
-      if (error.code === 'auth/wrong-password') {
-        setError('Senha atual incorreta');
-      } else if (error.code === 'auth/too-many-requests') {
-        setError('Muitas tentativas. Tente novamente mais tarde');
-      } else if (error.code === 'auth/requires-recent-login') {
-        setError('Por favor, faça login novamente antes de alterar sua senha');
+
+      // Tratar erros comuns sem expor detalhes internos
+      const errorCode = error?.code;
+      if (errorCode === 'auth/wrong-password' || errorCode === 'auth/invalid-credential') {
+        setError('Senha atual incorreta.');
+      } else if (errorCode === 'auth/weak-password') {
+        setError('A nova senha não atende aos requisitos mínimos de segurança.');
+      } else if (errorCode === 'auth/too-many-requests') {
+        setError('Muitas tentativas. Tente novamente mais tarde.');
+      } else if (errorCode === 'auth/requires-recent-login') {
+        setError('Por favor, faça login novamente antes de alterar sua senha.');
+      } else if (errorCode === 'auth/network-request-failed') {
+        setError('Falha na conexão. Verifique sua internet e tente novamente.');
+      } else if (error?.message === 'Usuário não autenticado') {
+        setError('Sessão expirada. Faça login novamente para alterar sua senha.');
       } else {
-        setError('Erro ao alterar senha: ' + (error.message || error));
+        setError('Não foi possível alterar a senha. Tente novamente.');
       }
-      
-      console.error('Erro ao alterar senha:', error);
+
+      logger.error('Erro ao alterar senha:', error);
     } finally {
       setLoading(false);
     }
@@ -186,7 +196,7 @@ const ChangePasswordScreen = () => {
                 </TouchableOpacity>
               </View>
               <Text style={styles.passwordHint}>
-                A senha deve ter pelo menos 6 caracteres
+                Mínimo de 8 caracteres, com letra maiúscula, minúscula e número
               </Text>
             </View>
             

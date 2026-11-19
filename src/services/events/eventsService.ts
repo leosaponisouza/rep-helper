@@ -1,6 +1,7 @@
 // src/services/events/eventsService.ts
 import api from '../api';
 import { ErrorHandler } from '../../utils/errorHandling';
+import { validatePositiveIntId } from '../../utils/urlSecurity';
 import { Event, EventFormData, InvitationStatus } from './eventsTypes';
 
 /**
@@ -67,8 +68,9 @@ export class EventsService {
    * Obtém um evento específico pelo ID
    */
   static async getEventById(eventId: number | string): Promise<Event> {
+    const safeEventId = validatePositiveIntId(eventId);
     try {
-      const response = await api.get(`/api/v1/events/${eventId}`);
+      const response = await api.get(`/api/v1/events/${safeEventId}`);
       return response.data;
     } catch (err) {
       const parsedError = await ErrorHandler.parseError(err);
@@ -96,8 +98,9 @@ export class EventsService {
    * Atualiza um evento existente
    */
   static async updateEvent(eventId: number, updateData: Partial<EventFormData>): Promise<Event> {
+    const safeEventId = validatePositiveIntId(eventId);
     try {
-      const response = await api.put(`/api/v1/events/${eventId}`, updateData);
+      const response = await api.put(`/api/v1/events/${safeEventId}`, updateData);
       return response.data;
     } catch (err) {
       const parsedError = await ErrorHandler.parseError(err);
@@ -111,8 +114,9 @@ export class EventsService {
    * Exclui um evento
    */
   static async deleteEvent(eventId: number): Promise<boolean> {
+    const safeEventId = validatePositiveIntId(eventId);
     try {
-      await api.delete(`/api/v1/events/${eventId}`);
+      await api.delete(`/api/v1/events/${safeEventId}`);
       return true;
     } catch (err) {
       const parsedError = await ErrorHandler.parseError(err);
@@ -130,8 +134,9 @@ export class EventsService {
     userId: string, 
     status: InvitationStatus
   ): Promise<Event> {
+    const safeEventId = validatePositiveIntId(eventId);
     try {
-      const response = await api.put(`/api/v1/events/${eventId}/respond`, { status });
+      const response = await api.put(`/api/v1/events/${safeEventId}/respond`, { status });
       return response.data;
     } catch (err) {
       const parsedError = await ErrorHandler.parseError(err);
@@ -145,10 +150,11 @@ export class EventsService {
    * Convida usuários para um evento
    */
   static async inviteUsers(eventId: number, userIds: string[]): Promise<any> {
+    const safeEventId = validatePositiveIntId(eventId);
     try {
       if (!userIds.length) return null;
       
-      const response = await api.post(`/api/v1/events/${eventId}/invite`, { userIds });
+      const response = await api.post(`/api/v1/events/${safeEventId}/invite`, { userIds });
       return response.data;
     } catch (err) {
       const parsedError = await ErrorHandler.parseError(err);

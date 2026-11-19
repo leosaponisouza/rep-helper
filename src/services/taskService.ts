@@ -3,10 +3,12 @@ import api from './api';
 import { Task, CreateTaskDTO, UpdateTaskDTO, normalizeTask } from '../models/task.model';
 import { TaskFilterRequest } from '../models/taskFilter.model';
 import { PagedResponse } from '../models/pagedResponse.model';
+import { validatePositiveIntId } from '../utils/urlSecurity';
 
 // Obter uma tarefa específica pelo ID
 export const getTaskById = async (taskId: number | string): Promise<Task> => {
-  const response = await api.get(`/api/v1/tasks/${taskId}`);
+  const safeTaskId = validatePositiveIntId(taskId);
+  const response = await api.get(`/api/v1/tasks/${safeTaskId}`);
   return normalizeTask(response.data);
 };
 
@@ -97,43 +99,50 @@ export const createTask = async (taskData: CreateTaskDTO): Promise<Task> => {
 
 // Atualizar uma tarefa existente
 export const updateTask = async (taskId: number, updateData: UpdateTaskDTO): Promise<Task> => {
-  const response = await api.put(`/api/v1/tasks/${taskId}`, updateData);
+  const safeTaskId = validatePositiveIntId(taskId);
+  const response = await api.put(`/api/v1/tasks/${safeTaskId}`, updateData);
   return normalizeTask(response.data);
 };
 
 // Completar uma tarefa
 export const completeTask = async (taskId: number): Promise<Task> => {
-  const response = await api.post(`/api/v1/tasks/${taskId}/complete`);
+  const safeTaskId = validatePositiveIntId(taskId);
+  const response = await api.post(`/api/v1/tasks/${safeTaskId}/complete`);
   return normalizeTask(response.data);
 };
 
 // Cancelar uma tarefa
 export const cancelTask = async (taskId: number): Promise<Task> => {
-  const response = await api.post(`/api/v1/tasks/${taskId}/cancel`);
+  const safeTaskId = validatePositiveIntId(taskId);
+  const response = await api.post(`/api/v1/tasks/${safeTaskId}/cancel`);
   return normalizeTask(response.data);
 };
 
 // Excluir uma tarefa
 export const deleteTask = async (taskId: number): Promise<void> => {
-  await api.delete(`/api/v1/tasks/${taskId}`);
+  const safeTaskId = validatePositiveIntId(taskId);
+  await api.delete(`/api/v1/tasks/${safeTaskId}`);
 };
 
 // Atribuir uma tarefa a um usuário
 export const assignTask = async (taskId: number, userId: string): Promise<Task> => {
-  const response = await api.post(`/api/v1/tasks/${taskId}/assign`, { userId });
+  const safeTaskId = validatePositiveIntId(taskId);
+  const response = await api.post(`/api/v1/tasks/${safeTaskId}/assign`, { userId });
   return normalizeTask(response.data);
 };
 
 // Desatribuir uma tarefa de um usuário
 export const unassignTask = async (taskId: number, userId: string): Promise<Task> => {
-  const response = await api.post(`/api/v1/tasks/${taskId}/unassign`, { userId });
+  const safeTaskId = validatePositiveIntId(taskId);
+  const response = await api.post(`/api/v1/tasks/${safeTaskId}/unassign`, { userId });
   return normalizeTask(response.data);
 };
 
 // Atribuir múltiplos usuários a uma tarefa
 export const assignMultipleUsers = async (taskId: number, userIds: string[]): Promise<boolean> => {
+  const safeTaskId = validatePositiveIntId(taskId);
   const assignmentPromises = userIds.map(userId =>
-    api.post(`/api/v1/tasks/${taskId}/assign`, { userId })
+    api.post(`/api/v1/tasks/${safeTaskId}/assign`, { userId })
   );
 
   await Promise.all(assignmentPromises);
@@ -142,6 +151,7 @@ export const assignMultipleUsers = async (taskId: number, userIds: string[]): Pr
 
 // Parar recorrência de uma tarefa
 export const stopRecurrence = async (taskId: number): Promise<Task> => {
-  const response = await api.put(`/api/v1/tasks/${taskId}`, { recurring: false });
+  const safeTaskId = validatePositiveIntId(taskId);
+  const response = await api.put(`/api/v1/tasks/${safeTaskId}`, { recurring: false });
   return normalizeTask(response.data);
 };

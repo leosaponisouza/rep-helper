@@ -14,6 +14,7 @@ import { getFreshFirebaseToken } from '../utils/firebaseClientConfig';
 import { ErrorHandler } from '../utils/errorHandling';
 import { logger } from '../utils/logger';
 import { PagedResponse } from '../models/pagedResponse.model';
+import { encodePathSegment } from '../utils/urlSecurity';
 import axios from 'axios';
 
 /**
@@ -28,8 +29,9 @@ import axios from 'axios';
  * @returns Dados da república
  */
 export const getRepublic = async (republicId: string): Promise<Republic> => {
+  const safeRepublicId = encodePathSegment(republicId);
   try {
-    const response = await api.get<Republic>(`/api/v1/republics/${republicId}`);
+    const response = await api.get<Republic>(`/api/v1/republics/${safeRepublicId}`);
     return response.data;
   } catch (error) {
     logger.error('Erro ao obter república:', error);
@@ -76,8 +78,9 @@ export const createRepublic = async (republicData: CreateRepublicRequest): Promi
  * @returns República atualizada
  */
 export const updateRepublic = async (republicId: string, republicData: UpdateRepublicRequest): Promise<Republic> => {
+  const safeRepublicId = encodePathSegment(republicId);
   try {
-    const response = await api.put<Republic>(`/api/v1/republics/${republicId}`, republicData);
+    const response = await api.put<Republic>(`/api/v1/republics/${safeRepublicId}`, republicData);
     return response.data;
   } catch (error) {
     logger.error('Erro ao atualizar república:', error);
@@ -129,8 +132,9 @@ export const joinRepublic = async (code: string): Promise<JoinRepublicResponse> 
  * @returns Lista de membros da república
  */
 export const getRepublicMembers = async (republicId: string): Promise<RepublicMember[]> => {
+  const safeRepublicId = encodePathSegment(republicId);
   try {
-    const response = await api.get<RepublicMember[]>(`/api/v1/republics/${republicId}/members`);
+    const response = await api.get<RepublicMember[]>(`/api/v1/republics/${safeRepublicId}/members`);
     return response.data;
   } catch (error) {
     logger.error('Erro ao obter membros da república:', error);
@@ -147,8 +151,10 @@ export const getRepublicMembers = async (republicId: string): Promise<RepublicMe
  * @returns Resposta da API
  */
 export const promoteToAdmin = async (republicId: string, memberId: string): Promise<any> => {
+  const safeRepublicId = encodePathSegment(republicId);
+  const safeMemberId = encodePathSegment(memberId);
   try {
-    const response = await api.post(`/api/v1/republics/${republicId}/members/${memberId}/admin`);
+    const response = await api.post(`/api/v1/republics/${safeRepublicId}/members/${safeMemberId}/admin`);
     return response.data;
   } catch (error) {
     logger.error('Erro ao promover membro a administrador:', error);
@@ -165,8 +171,10 @@ export const promoteToAdmin = async (republicId: string, memberId: string): Prom
  * @returns Resposta da API
  */
 export const demoteFromAdmin = async (republicId: string, memberId: string): Promise<any> => {
+  const safeRepublicId = encodePathSegment(republicId);
+  const safeMemberId = encodePathSegment(memberId);
   try {
-    const response = await api.delete(`/api/v1/republics/${republicId}/members/${memberId}/admin`);
+    const response = await api.delete(`/api/v1/republics/${safeRepublicId}/members/${safeMemberId}/admin`);
     return response.data;
   } catch (error) {
     logger.error('Erro ao remover privilégios de administrador:', error);
@@ -183,8 +191,10 @@ export const demoteFromAdmin = async (republicId: string, memberId: string): Pro
  * @returns Resposta da API
  */
 export const removeMember = async (republicId: string, memberId: string): Promise<any> => {
+  const safeRepublicId = encodePathSegment(republicId);
+  const safeMemberId = encodePathSegment(memberId);
   try {
-    const response = await api.delete(`/api/v1/republics/${republicId}/members/${memberId}`);
+    const response = await api.delete(`/api/v1/republics/${safeRepublicId}/members/${safeMemberId}`);
     return response.data;
   } catch (error) {
     logger.error('Erro ao remover membro da república:', error);
@@ -201,9 +211,10 @@ export const removeMember = async (republicId: string, memberId: string): Promis
  * @returns Novo código de convite
  */
 export const regenerateInviteCode = async (republicId: string, customCode?: string): Promise<RegenerateCodeResponse> => {
+  const safeRepublicId = encodePathSegment(republicId);
   try {
     const response = await api.post<RegenerateCodeResponse>(
-      `/api/v1/republics/${republicId}/regenerate-code`,
+      `/api/v1/republics/${safeRepublicId}/regenerate-code`,
       customCode ? { code: customCode } : {}
     );
     return response.data;

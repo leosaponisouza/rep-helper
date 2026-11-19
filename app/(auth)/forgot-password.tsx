@@ -16,7 +16,7 @@ import {
   Platform,
   ScrollView
 } from 'react-native';
-import { sendPasswordResetEmail } from 'firebase/auth';
+import { Auth, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../../src/utils/firebaseClientConfig';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -40,6 +40,20 @@ const ForgotPasswordScreen = () => {
     }
   });
 
+  const showGenericResetConfirmation = () => {
+    setSuccess(true);
+    Alert.alert(
+      "Sucesso",
+      "Se existir uma conta associada a este email, enviaremos um link de redefinição de senha.",
+      [
+        {
+          text: "OK",
+          onPress: () => router.replace("/(auth)/sign-in")
+        }
+      ]
+    );
+  };
+
   const handleResetPassword = async (data: ForgotPasswordFormData) => {
     // Se já estiver carregando, não fazer nada
     if (loading) return;
@@ -49,23 +63,13 @@ const ForgotPasswordScreen = () => {
     setError('');
 
     try {
-      await sendPasswordResetEmail(auth, data.email);
-      setSuccess(true);
-      Alert.alert(
-        "Sucesso",
-        "Um email de redefinição de senha foi enviado para o seu endereço de email.",
-        [
-          { 
-            text: "OK", 
-            onPress: () => router.replace("/(auth)/sign-in") 
-          }
-        ]
-      );
+      await sendPasswordResetEmail(auth as Auth, data.email);
+      showGenericResetConfirmation();
     } catch (error: any) {
-      if (error.code === 'auth/invalid-email') {
+      if (error?.code === 'auth/invalid-email') {
         setError('Email inválido.');
-      } else if (error.code === 'auth/user-not-found') {
-        setError('Usuário não encontrado.');
+      } else if (error?.code === 'auth/user-not-found') {
+        showGenericResetConfirmation();
       } else {
         setError('Erro ao enviar email de redefinição. Tente novamente.');
       }

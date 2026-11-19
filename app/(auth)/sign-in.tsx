@@ -61,6 +61,19 @@ const LoginScreen = () => {
         webClientId: process.env.EXPO_PUBLIC_WEB_CLIENT_ID || 'web-client-id-placeholder',
     });
 
+    const activeGoogleClientId =
+        Platform.OS === 'web'
+            ? process.env.EXPO_PUBLIC_WEB_CLIENT_ID
+            : Platform.OS === 'ios'
+                ? process.env.EXPO_PUBLIC_IOS_CLIENT_ID
+                : process.env.EXPO_PUBLIC_ANDROID_CLIENT_ID;
+
+    const isGoogleAuthConfigured = Boolean(
+        activeGoogleClientId &&
+        activeGoogleClientId.trim().length > 0 &&
+        !activeGoogleClientId.trim().endsWith('-placeholder')
+    );
+
     // Sincronizar os estados de loading e erro do AuthContext com os locais
     useEffect(() => {
         setLocalLoading(loading);
@@ -222,6 +235,10 @@ const LoginScreen = () => {
 
     // Função para iniciar o login com Google
     const handleGoogleSignIn = async () => {
+        if (!isGoogleAuthConfigured) {
+            setLocalError('Login com Google não configurado neste ambiente.');
+            return;
+        }
         try {
             setGoogleLoading(true);
             await promptAsync();
@@ -369,9 +386,12 @@ const LoginScreen = () => {
 
                             {/* Botão de Login com Google */}
                             <TouchableOpacity
-                                style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
+                                style={[
+                                    styles.googleButton,
+                                    (googleLoading || !isGoogleAuthConfigured) && styles.buttonDisabled,
+                                ]}
                                 onPress={handleGoogleSignIn}
-                                disabled={googleLoading}
+                                disabled={googleLoading || !isGoogleAuthConfigured}
                             >
                                 {googleLoading ? (
                                     <ActivityIndicator size="small" color="#fff" />

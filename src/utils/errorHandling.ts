@@ -309,8 +309,8 @@ export class ErrorHandler {
     const authErrorMap: { [key: string]: string } = {
       'auth/invalid-email': 'Email inválido.',
       'auth/user-disabled': 'Esta conta foi desativada.',
-      'auth/user-not-found': 'Usuário não encontrado.',
-      'auth/wrong-password': 'Senha incorreta.',
+      'auth/user-not-found': 'Email ou senha incorretos.',
+      'auth/wrong-password': 'Email ou senha incorretos.',
       'auth/invalid-credential': 'Email ou senha incorretos.',
       'auth/email-already-in-use': 'Este email já está em uso.',
       'auth/weak-password': 'A senha é muito fraca.',

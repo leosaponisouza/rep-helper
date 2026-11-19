@@ -14,6 +14,13 @@ const errorMessages = {
   password: {
     min: 'A senha deve ter pelo menos 6 caracteres',
     max: 'A senha não pode ter mais de 50 caracteres',
+    strongMin: 'A senha deve ter pelo menos 8 caracteres',
+    strongMax: 'A senha não pode ter mais de 64 caracteres',
+    uppercase: 'A senha deve conter pelo menos uma letra maiúscula',
+    lowercase: 'A senha deve conter pelo menos uma letra minúscula',
+    number: 'A senha deve conter pelo menos um número',
+    currentRequired: 'Senha atual é obrigatória',
+    sameAsCurrent: 'A nova senha deve ser diferente da senha atual',
     required: 'Senha é obrigatória',
   },
   name: {
@@ -36,7 +43,17 @@ const errorMessages = {
   },
 };
 
-// Esquema de validação para login
+// Política de senha forte para cadastro e alteração de senha
+export const strongPasswordSchema = z
+  .string({ required_error: errorMessages.password.required })
+  .min(1, { message: errorMessages.password.required })
+  .min(8, { message: errorMessages.password.strongMin })
+  .max(64, { message: errorMessages.password.strongMax })
+  .regex(/[A-Z]/, { message: errorMessages.password.uppercase })
+  .regex(/[a-z]/, { message: errorMessages.password.lowercase })
+  .regex(/\d/, { message: errorMessages.password.number });
+
+// Esquema de validação para login (mantém min(6) para contas legadas)
 export const loginSchema = z.object({
   email: z
     .string({ required_error: errorMessages.email.required })
@@ -72,10 +89,7 @@ export const signUpSchema = z
       .min(1, { message: errorMessages.email.required })
       .email({ message: errorMessages.email.invalid })
       .regex(EMAIL_REGEX, { message: errorMessages.email.invalid }),
-    password: z
-      .string({ required_error: errorMessages.password.required })
-      .min(6, { message: errorMessages.password.min })
-      .max(50, { message: errorMessages.password.max }),
+    password: strongPasswordSchema,
     confirmPassword: z
       .string({ required_error: errorMessages.confirmPassword.required })
       .min(1, { message: errorMessages.confirmPassword.required }),
@@ -94,7 +108,28 @@ export const forgotPasswordSchema = z.object({
     .regex(EMAIL_REGEX, { message: errorMessages.email.invalid }),
 });
 
+// Esquema de validação para alteração de senha
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z
+      .string({ required_error: errorMessages.password.currentRequired })
+      .min(1, { message: errorMessages.password.currentRequired }),
+    newPassword: strongPasswordSchema,
+    confirmPassword: z
+      .string({ required_error: errorMessages.confirmPassword.required })
+      .min(1, { message: errorMessages.confirmPassword.required }),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: errorMessages.confirmPassword.match,
+    path: ['confirmPassword'],
+  })
+  .refine((data) => data.newPassword !== data.currentPassword, {
+    message: errorMessages.password.sameAsCurrent,
+    path: ['newPassword'],
+  });
+
 // Tipos derivados dos esquemas
 export type LoginFormData = z.infer<typeof loginSchema>;
 export type SignUpFormData = z.infer<typeof signUpSchema>;
 export type ForgotPasswordFormData = z.infer<typeof forgotPasswordSchema>;
+export type ChangePasswordFormData = z.infer<typeof changePasswordSchema>;
