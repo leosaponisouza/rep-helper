@@ -1,370 +1,245 @@
-// src/app/(republic)/choice.tsx
+// app/(republic)/choice.tsx
 import React, { useState, useEffect } from 'react';
-import {
-    View,
-    Text,
-    TouchableOpacity,
-    StyleSheet,
-    ActivityIndicator,
-    Alert,
-    TextInput,
-    Keyboard,
-    TouchableWithoutFeedback,
-    ScrollView,
-    KeyboardAvoidingView,
-    Platform,
-    SafeAreaView,
-    StatusBar
-} from 'react-native';
+import { Keyboard, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Home, KeyRound, LogIn, PlusCircle, WifiOff } from 'lucide-react-native';
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import api from '../../src/services/api';
 import { useAuth } from '../../src/context/AuthContext';
-import { useRouter } from 'expo-router';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { auth } from '../../src/utils/firebaseClientConfig';
 import * as republicService from '../../src/services/republicService';
 import { logger } from '../../src/utils/logger';
+import {
+  AppText,
+  Button,
+  Divider,
+  Screen,
+  Surface,
+  TextField,
+  useFeedback,
+  useTheme,
+  useThemedStyles,
+} from '../../src/design-system';
 
 const RepublicChoiceScreen = () => {
-    const { user, login } = useAuth();
-    const router = useRouter();
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [joinCode, setJoinCode] = useState(''); 
-    const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
-    const [joinCodeFocused, setJoinCodeFocused] = useState(false);
-    const [networkStatus, setNetworkStatus] = useState({ connected: true, checking: true });
+  const { theme } = useTheme();
+  const { toast } = useFeedback();
+  const { login } = useAuth();
+  const router = useRouter();
 
-    useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (user) => {
-            setFirebaseUser(user);
-        });
-        return () => unsubscribe();
-    }, []);
-
-    useEffect(() => {
-        checkNetworkConnectivity();
-    }, []);
-
-    const checkNetworkConnectivity = async () => {
-        try {
-            // Simple health check to your API
-            await api.get('/api/v1/health');
-            setNetworkStatus({ connected: true, checking: false });
-        } catch (error) {
-            setNetworkStatus({ connected: false, checking: false });
-            logger.debug('API connection check failed:', error);
-        }
-    };
-
-    const handleJoinRepublic = async () => {
-        Keyboard.dismiss();
-        if (!joinCode) {
-            Alert.alert("Erro", 'Por favor, digite o código da república.');
-            return;
-        }
-        setLoading(true);
-        setError('');
-        try {
-            if (!firebaseUser) {
-                throw new Error('Usuário não autenticado.');
-            }
-            
-            // Usar o serviço de república para entrar
-            const response = await republicService.joinRepublic(joinCode);
-            
-            // A função de login aceita o token e os dados do usuário
-            await login(response.token, response.user);
-            
-            Alert.alert("Sucesso", "Você entrou na república com sucesso!")
-            router.replace('/(panel)/home'); 
-        } catch (err: any) {
-            // O serviço já trata os erros específicos
-            setError(err.message || 'Falha ao entrar na república.');
-            Alert.alert('Erro', err.message || 'Falha ao entrar na república.');
-            logger.error('Error joining republic:', err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    return (
-        <SafeAreaView style={styles.safeArea}>
-            <StatusBar barStyle="light-content" backgroundColor="#222" />
-            <KeyboardAvoidingView 
-                behavior={Platform.OS === "ios" ? "padding" : "height"}
-                style={styles.keyboardView}
-            >
-                <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-                    <View style={styles.container}>
-                        {!networkStatus.connected && !networkStatus.checking && (
-                            <View style={styles.networkAlert}>
-                                <MaterialCommunityIcons name="wifi-off" size={18} color="white" />
-                                <Text style={styles.networkAlertText}>
-                                    Sem conexão com o servidor
-                                </Text>
-                            </View>
-                        )}
-
-                        <View style={styles.headerContainer}>
-                            <Text style={styles.title}>Bem-vindo</Text>
-                            <Text style={styles.subtitle}>
-                                Entre com um código ou crie sua república
-                            </Text>
-                        </View>
-
-                        <ScrollView 
-                            style={styles.scrollContainer} 
-                            contentContainerStyle={styles.scrollContent}
-                            showsVerticalScrollIndicator={false}
-                        >
-                            <View style={styles.illustrationContainer}>
-                                <Ionicons name="home" size={80} color="#7B68EE" />
-                            </View>
-
-                            <View style={styles.joinSectionContainer}>
-                                <View style={styles.joinSectionHeader}>
-                                    <Ionicons name="key" size={24} color="#7B68EE" />
-                                    <Text style={styles.sectionTitle}>Entrar em uma República</Text>
-                                </View>
-                                <Text style={styles.joinSectionSubtitle}>
-                                    Insira o código de convite fornecido pelo administrador da república
-                                </Text>
-                                <View style={[
-                                    styles.joinInputContainer, 
-                                    joinCodeFocused && styles.inputFocused
-                                ]}>
-                                    <Ionicons name="key" size={20} color="#7B68EE" style={styles.inputIcon} />
-                                    <TextInput
-                                        style={styles.joinInput}
-                                        placeholder="Código da República"
-                                        placeholderTextColor="#aaa"
-                                        value={joinCode}
-                                        onChangeText={setJoinCode}
-                                        autoCapitalize="characters"
-                                        onFocus={() => setJoinCodeFocused(true)}
-                                        onBlur={() => setJoinCodeFocused(false)}
-                                    />
-                                </View>
-                                <TouchableOpacity 
-                                    style={[
-                                        styles.joinButton,
-                                        (!networkStatus.connected || loading || !joinCode.trim()) && styles.buttonDisabled
-                                    ]} 
-                                    onPress={handleJoinRepublic}
-                                    disabled={!networkStatus.connected || loading || !joinCode.trim()}
-                                    activeOpacity={0.8}
-                                >
-                                    {loading ? (
-                                        <ActivityIndicator size="small" color="#fff" />
-                                    ) : (
-                                        <>
-                                            <Ionicons name="log-in" size={20} color="#fff" style={styles.buttonIcon} />
-                                            <Text style={styles.joinButtonText}>Entrar na República</Text>
-                                        </>
-                                    )}
-                                </TouchableOpacity>
-                            </View>
-
-                            <View style={styles.dividerContainer}>
-                                <View style={styles.divider} />
-                                <Text style={styles.dividerText}>OU</Text>
-                                <View style={styles.divider} />
-                            </View>
-
-                            <TouchableOpacity
-                                style={styles.createRepublicButton}
-                                onPress={() => router.push('/(republic)/new')}
-                                activeOpacity={0.8}
-                            >
-                                <Ionicons name="add-circle" size={20} color="#fff" style={styles.buttonIcon} />
-                                <Text style={styles.createRepublicButtonText}>Criar Nova República</Text>
-                            </TouchableOpacity>
-                        </ScrollView>
-                    </View>
-                </TouchableWithoutFeedback>
-            </KeyboardAvoidingView>
-        </SafeAreaView>
-    );
-};
-
-const styles = StyleSheet.create({
-    safeArea: {
-        flex: 1,
-        backgroundColor: '#222',
-    },
-    keyboardView: {
-        flex: 1,
+  const styles = useThemedStyles((t) => ({
+    screenContent: {
+      flexGrow: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingVertical: t.spacing.xl,
     },
     container: {
-        flex: 1,
-        backgroundColor: '#222',
-        padding: 20,
+      width: '100%',
+      maxWidth: 460,
+      gap: t.spacing.lg,
     },
-    headerContainer: {
-        marginBottom: 24,
-        marginTop: 16,
-        alignItems: 'center',
+    networkBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: t.spacing.xs,
+      backgroundColor: t.colors.dangerSoft,
+      borderLeftWidth: 3,
+      borderLeftColor: t.colors.danger,
     },
-    title: {
-        fontSize: 28,
-        fontWeight: 'bold',
-        color: '#fff',
-        textAlign: 'center',
-        marginBottom: 8,
+    networkBannerText: {
+      flex: 1,
     },
-    subtitle: {
-        fontSize: 16,
-        color: '#aaa',
-        textAlign: 'center',
-        marginBottom: 8,
-        paddingHorizontal: 20,
+    heroHeader: {
+      alignItems: 'center',
+      gap: t.spacing.xs,
     },
-    scrollContainer: {
-        flex: 1,
-        width: '100%',
+    heroIconBadge: {
+      width: 64,
+      height: 64,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: t.spacing.xxs,
     },
-    scrollContent: {
-        paddingBottom: 40,
-        alignItems: 'center',
+    centeredText: {
+      textAlign: 'center',
     },
-    illustrationContainer: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginVertical: 20,
-        height: 150,
-        width: 150,
-        borderRadius: 75,
-        backgroundColor: 'rgba(123, 104, 238, 0.1)',
+    joinCard: {
+      gap: t.spacing.md,
     },
-    joinSectionContainer: {
-        width: '100%',
-        marginTop: 16,
-        marginBottom: 24,
-        backgroundColor: '#333',
-        borderRadius: 12,
-        padding: 16,
-        borderWidth: 1,
-        borderColor: '#444',
+    sectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: t.spacing.xs,
     },
-    joinInputContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#2a2a2a',
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: '#444',
-        height: 56,
-        paddingHorizontal: 16,
-        marginBottom: 16,
+    dividerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: t.spacing.sm,
     },
-    inputFocused: {
-        borderColor: '#7B68EE',
-        backgroundColor: '#393939',
+    dividerLine: {
+      flex: 1,
     },
-    inputIcon: {
-        marginRight: 12,
-    },
-    joinInput: {
-        flex: 1,
-        color: '#fff',
-        fontSize: 16,
-        height: '100%',
-    },
-    joinButton: {
-        flexDirection: 'row',
-        backgroundColor: '#7B68EE',
-        height: 56,
-        borderRadius: 12,
-        justifyContent: 'center',
-        alignItems: 'center',
-        shadowColor: "#7B68EE",
-        shadowOffset: {
-            width: 0,
-            height: 4,
-        },
-        shadowOpacity: 0.3,
-        shadowRadius: 4.65,
-        elevation: 8,
-    },
-    joinButtonText: {
-        color: '#fff',
-        fontSize: 18,
-        fontWeight: 'bold',
-    },
-    createRepublicButton: {
-        flexDirection: 'row',
-        backgroundColor: '#444',
-        height: 56,
-        borderRadius: 12,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginTop: 8,
-        width: '100%',
-    },
-    buttonIcon: {
-        marginRight: 8,
-    },
-    joinSectionHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 8,
-    },
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: '600',
-        color: '#fff',
-        marginLeft: 8,
-    },
-    joinSectionSubtitle: {
-        color: '#aaa',
-        fontSize: 14,
-        marginBottom: 16,
-        lineHeight: 20,
-    },
-    createRepublicButtonText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: 'bold',
-    },
-    buttonDisabled: {
-        backgroundColor: '#5a5a5a',
-        shadowOpacity: 0,
-        elevation: 0,
-    },
-    networkAlert: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#FF4757',
-        paddingVertical: 10,
-        paddingHorizontal: 16,
-        borderRadius: 8,
-        marginTop: 60,
-        marginBottom: 16,
-        width: '100%',
-    },
-    networkAlertText: {
-        color: 'white',
-        marginLeft: 8,
-        fontWeight: '500',
-    },
-    dividerContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        width: '100%',
-        marginVertical: 20,
-    },
-    divider: {
-        flex: 1,
-        height: 1,
-        backgroundColor: '#444',
-    },
-    dividerText: {
-        color: '#aaa',
-        paddingHorizontal: 15,
-        fontSize: 14,
-        fontWeight: 'bold',
-    },
-});
+  }));
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [joinCode, setJoinCode] = useState('');
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+  const [networkStatus, setNetworkStatus] = useState({ connected: true, checking: true });
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setFirebaseUser(user);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    checkNetworkConnectivity();
+  }, []);
+
+  const checkNetworkConnectivity = async () => {
+    try {
+      await api.get('/api/v1/health');
+      setNetworkStatus({ connected: true, checking: false });
+    } catch (err) {
+      setNetworkStatus({ connected: false, checking: false });
+      logger.debug('API connection check failed:', err);
+    }
+  };
+
+  const handleJoinRepublic = async () => {
+    Keyboard.dismiss();
+    const trimmedCode = joinCode.trim();
+    if (!trimmedCode) {
+      const msg = 'Por favor, digite o código da república.';
+      setError(msg);
+      toast({
+        title: 'Erro',
+        message: msg,
+        tone: 'warning',
+      });
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    try {
+      if (!firebaseUser) {
+        throw new Error('Usuário não autenticado.');
+      }
+
+      const response = await republicService.joinRepublic(trimmedCode);
+
+      await login(response.token, response.user);
+
+      toast({
+        title: 'Sucesso',
+        message: 'Você entrou na república com sucesso!',
+        tone: 'success',
+      });
+      router.replace('/(panel)/home');
+    } catch (err: any) {
+      const message = err?.message || 'Falha ao entrar na república.';
+      setError(message);
+      toast({
+        title: 'Erro',
+        message,
+        tone: 'danger',
+      });
+      logger.error('Error joining republic:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Screen scroll keyboardAvoiding width="standard" contentContainerStyle={styles.screenContent}>
+      <View style={styles.container}>
+        {!networkStatus.connected && !networkStatus.checking ? (
+          <Surface
+            tone="surface"
+            radiusKey="sm"
+            padded="sm"
+            style={styles.networkBanner}
+            accessibilityLiveRegion="polite"
+          >
+            <WifiOff size={18} strokeWidth={1.75} color={theme.colors.danger} />
+            <AppText variant="caption" color="danger" style={styles.networkBannerText}>
+              Sem conexão com o servidor
+            </AppText>
+          </Surface>
+        ) : null}
+
+        <View style={styles.heroHeader}>
+          <Surface tone="subtle" radiusKey="full" style={styles.heroIconBadge}>
+            <Home size={28} strokeWidth={1.75} color={theme.colors.accent} />
+          </Surface>
+          <AppText variant="display" color="ink" style={styles.centeredText}>
+            Bem-vindo
+          </AppText>
+          <AppText variant="body" color="inkSecondary" style={styles.centeredText}>
+            Entre com um código ou crie sua república
+          </AppText>
+        </View>
+
+        <Surface tone="surface" bordered padded="lg" style={styles.joinCard}>
+          <View style={styles.sectionHeader}>
+            <KeyRound size={20} strokeWidth={1.75} color={theme.colors.accent} />
+            <AppText variant="heading" color="ink">
+              Entrar em uma República
+            </AppText>
+          </View>
+
+          <AppText variant="body" color="inkSecondary">
+            Insira o código de convite fornecido pelo administrador da república
+          </AppText>
+
+          <TextField
+            label="Código da República"
+            placeholder="Código da República"
+            value={joinCode}
+            onChangeText={(text) => {
+              setJoinCode(text);
+              if (error) setError('');
+            }}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            editable={!loading}
+            leftIcon={<KeyRound size={20} strokeWidth={1.75} color={theme.colors.inkMuted} />}
+            error={error || undefined}
+          />
+
+          <Button
+            label="Entrar na República"
+            variant="primary"
+            fullWidth
+            loading={loading}
+            disabled={!networkStatus.connected || !joinCode.trim()}
+            leftIcon={<LogIn size={18} strokeWidth={1.75} color={theme.colors.onAccent} />}
+            onPress={handleJoinRepublic}
+          />
+        </Surface>
+
+        <View style={styles.dividerRow}>
+          <Divider style={styles.dividerLine} />
+          <AppText variant="monoLabel" color="inkMuted">
+            OU
+          </AppText>
+          <Divider style={styles.dividerLine} />
+        </View>
+
+        <Button
+          label="Criar Nova República"
+          variant="secondary"
+          fullWidth
+          leftIcon={<PlusCircle size={18} strokeWidth={1.75} color={theme.colors.ink} />}
+          onPress={() => router.push('/(republic)/new')}
+        />
+      </View>
+    </Screen>
+  );
+};
 
 export default RepublicChoiceScreen;
