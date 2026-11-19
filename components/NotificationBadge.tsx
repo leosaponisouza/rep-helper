@@ -1,166 +1,152 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
-import { colors, createShadow } from '@/src/styles/sharedStyles';
-import notificationApiService from '@/src/services/notificationApiService';
-import { useAuth } from '@/src/context/AuthContext';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Animated, StyleSheet } from 'react-native';
+import { useAuth } from '../src/context/AuthContext';
+import { AppText, useMotion, useTheme } from '../src/design-system';
+import notificationApiService from '../src/services/notificationApiService';
 
 interface NotificationBadgeProps {
   size?: 'small' | 'medium' | 'large';
   showPulse?: boolean;
+  count?: number;
 }
 
-const NotificationBadge: React.FC<NotificationBadgeProps> = ({ 
-  size = 'medium',
-  showPulse = true
-}) => {
-  const [count, setCount] = useState<number>(0);
-  const [loading, setLoading] = useState<boolean>(true);
-  const { user } = useAuth();
-  const scaleAnim = useRef(new Animated.Value(0.6)).current;
-  const pulseAnim = useRef(new Animated.Value(1)).current;
+const SIZE_SPECS = {
+  small: { minWidth: 18, height: 18, paddingHorizontal: 4, top: -2, right: -2, fontSize: 10, lineHeight: 12 },
+  medium: { minWidth: 20, height: 20, paddingHorizontal: 5, top: -4, right: -4, fontSize: 11, lineHeight: 13 },
+  large: { minWidth: 24, height: 24, paddingHorizontal: 6, top: -6, right: -6, fontSize: 12, lineHeight: 14 },
+} as const;
 
-  // Busca a contagem de notificações não lidas
-  const fetchUnreadCount = async () => {
-    if (!user || !user.uid) return;
-    
+const NotificationBadge: React.FC<NotificationBadgeProps> = ({
+  size = 'medium',
+  count: controlledCount,
+}) => {
+  const { theme } = useTheme();
+  const motion = useMotion();
+  const { user } = useAuth();
+
+  const [fetchedCount, setFetchedCount] = useState<number>(0);
+  const [loading, setLoading] = useState<boolean>(controlledCount === undefined);
+  const previousCountRef = useRef<number>(0);
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const isControlled = controlledCount !== undefined;
+  const effectiveCount = isControlled ? controlledCount : fetchedCount;
+
+  const fetchUnreadCount = useCallback(async () => {
+    if (isControlled || !user?.uid) {
+      return;
+    }
+
     try {
       const unreadCount = await notificationApiService.countUnreadNotifications();
-      
-      // Se o contador mudou para um valor maior que 0, animar a entrada
-      if (unreadCount > 0 && count === 0) {
-        animateBadgeEntrance();
-      }
-      
-      setCount(unreadCount);
+      setFetchedCount(unreadCount);
     } catch (error) {
       console.error('Erro ao buscar contagem de notificações não lidas:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [isControlled, user?.uid]);
 
-  // Animar entrada do badge
-  const animateBadgeEntrance = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 1,
-      friction: 5,
-      tension: 300,
-      useNativeDriver: true
-    }).start(() => {
-      if (showPulse) {
-        startPulseAnimation();
-      }
-    });
-  };
-
-  // Animação de pulso para chamar atenção
-  const startPulseAnimation = () => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.2,
-          duration: 600,
-          easing: Easing.out(Easing.ease),
-          useNativeDriver: true
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 600,
-          easing: Easing.in(Easing.ease),
-          useNativeDriver: true
-        }),
-        // Pausa entre pulsos
-        Animated.delay(2000)
-      ])
-    ).start();
-  };
-
-  // Atualiza a contagem de notificações quando o componente é montado
   useEffect(() => {
-    fetchUnreadCount();
-    
-    // Intervalo para atualizações periódicas (a cada 30 segundos)
-    const interval = setInterval(() => {
-      fetchUnreadCount();
-    }, 30000);
-    
-    return () => clearInterval(interval);
-  }, [user]);
+    if (isControlled) {
+      setLoading(false);
+      return;
+    }
 
-  // Redefinir animação quando o contador muda para zero
+    let isActive = true;
+    if (user?.uid) {
+      void fetchUnreadCount();
+      const interval = setInterval(() => {
+        if (isActive) {
+          void fetchUnreadCount();
+        }
+      }, 30000);
+
+      return () => {
+        isActive = false;
+        clearInterval(interval);
+      };
+    }
+
+    setFetchedCount(0);
+    setLoading(false);
+    return undefined;
+  }, [isControlled, user?.uid, fetchUnreadCount]);
+
   useEffect(() => {
-    if (count === 0) {
-      scaleAnim.setValue(0.6);
-      pulseAnim.setValue(1);
-    }
-  }, [count]);
+    const prev = previousCountRef.current;
+    previousCountRef.current = effectiveCount;
 
-  // Definir tamanhos com base na propriedade size
-  const getBadgeSize = () => {
-    switch (size) {
-      case 'small':
-        return { width: 16, height: 16, fontSize: 10, top: -4, right: -4 };
-      case 'large':
-        return { width: 24, height: 24, fontSize: 14, top: -8, right: -8 };
-      default: // medium
-        return { width: 20, height: 20, fontSize: 12, top: -6, right: -6 };
+    if (effectiveCount <= 0) {
+      scaleAnim.setValue(0.8);
+      return;
     }
-  };
-  
-  const { width, height, fontSize, top, right } = getBadgeSize();
-  
-  // Não renderiza nada se não houver notificações não lidas ou estiver carregando
-  if ((count === 0 && !loading) || !user) {
+
+    if (prev === 0 && motion.shouldAnimate) {
+      scaleAnim.setValue(0.8);
+      const animation = Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: motion.duration(theme.motion.duration.fast),
+        easing: theme.motion.easing.standard,
+        useNativeDriver: motion.useNativeDriver,
+      });
+      animation.start();
+      return () => animation.stop();
+    }
+
+    scaleAnim.setValue(1);
+    return undefined;
+  }, [effectiveCount, motion, scaleAnim, theme.motion.duration.fast, theme.motion.easing.standard]);
+
+  if (!user || (effectiveCount <= 0 && !loading) || effectiveCount <= 0) {
     return null;
   }
-  
+
+  const spec = SIZE_SPECS[size];
+
   return (
-    <Animated.View 
+    <Animated.View
+      pointerEvents="none"
+      accessibilityElementsHidden={true}
+      importantForAccessibility="no-hide-descendants"
       style={[
-        styles.badge, 
-        { 
-          width, 
-          height, 
-          borderRadius: height / 2,
-          top,
-          right,
-          transform: [
-            { scale: scaleAnim },
-            { scale: pulseAnim }
-          ]
-        }
+        styles.badge,
+        theme.elevation.floating,
+        {
+          minWidth: spec.minWidth,
+          height: spec.height,
+          paddingHorizontal: spec.paddingHorizontal,
+          borderRadius: theme.radius.full,
+          top: spec.top,
+          right: spec.right,
+          backgroundColor: theme.colors.danger,
+          borderColor: theme.colors.surface,
+          transform: motion.shouldAnimate ? [{ scale: scaleAnim }] : undefined,
+        },
       ]}
     >
-      <Text style={[styles.badgeText, { fontSize }]}>
-        {count > 99 ? '99+' : count}
-      </Text>
+      <AppText
+        variant="monoLabel"
+        color="onDanger"
+        style={{
+          fontSize: spec.fontSize,
+          lineHeight: spec.lineHeight,
+          textAlign: 'center',
+        }}
+      >
+        {effectiveCount > 99 ? '99+' : String(effectiveCount)}
+      </AppText>
     </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
   badge: {
-    backgroundColor: colors.error.main || '#FF5252',
+    position: 'absolute',
     justifyContent: 'center',
     alignItems: 'center',
-    position: 'absolute',
-    ...createShadow(2),
-    elevation: 3,
     borderWidth: 1.5,
-    borderColor: 'rgba(0, 0, 0, 0.1)',
-    // Adicionando sombreamento interno para efeito 3D
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.5,
   },
-  badgeText: {
-    color: '#FFFFFF',
-    fontWeight: 'bold',
-    textAlign: 'center',
-    includeFontPadding: false,
-    textAlignVertical: 'center',
-  }
 });
 
-export default NotificationBadge; 
+export default NotificationBadge;

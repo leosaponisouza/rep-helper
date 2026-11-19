@@ -1,301 +1,196 @@
-// app/(panel)/quick-actions.tsx
-import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TouchableOpacity, 
-  StatusBar, 
-  ScrollView,
-  Platform,
-  ActivityIndicator
-} from 'react-native';
+import React from 'react';
+import { StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useAuth } from '@/src/context/AuthContext';
-import { colors, createShadow } from '@/src/styles/sharedStyles';
-import BackButton from '@/components/BackButton';
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
+  CalendarPlus,
+  CheckSquare,
+  ChevronRight,
+  Clock,
+  PlusCircle,
+  Settings,
+  UserPlus,
+  type LucideIcon,
+} from 'lucide-react-native';
+import {
+  AppText,
+  ListRow,
+  Screen,
+  ScreenHeader,
+  Surface,
+  useTheme,
+  type ThemeColors,
+} from '../../src/design-system';
 
-interface ActionButtonProps {
-  icon: React.ReactNode;
+interface QuickActionItem {
+  id: string;
   title: string;
   description: string;
-  onPress: () => void;
-  color?: string;
+  Icon: LucideIcon;
+  colorKey: keyof Pick<ThemeColors, 'accent' | 'danger' | 'success' | 'warning' | 'inkSecondary'>;
+  mainRoute: string;
+  detailRoute?: string;
 }
 
-const ActionButton: React.FC<ActionButtonProps> = ({ 
-  icon, 
-  title, 
-  description, 
-  onPress,
-  color = colors.primary.main
-}) => (
-  <TouchableOpacity 
-    style={[styles.actionButton, { borderLeftColor: color }]} 
-    onPress={onPress}
-    activeOpacity={0.7}
-  >
-    <View style={[styles.iconContainer, { backgroundColor: `${color}15` }]}>
-      {icon}
-    </View>
-    
-    <View style={styles.actionTextContainer}>
-      <Text style={styles.actionTitle}>{title}</Text>
-      <Text style={styles.actionDescription}>{description}</Text>
-    </View>
-    
-    <Ionicons 
-      name="chevron-forward" 
-      size={24} 
-      color={colors.text.tertiary} 
-      style={styles.actionArrow}
-    />
-  </TouchableOpacity>
-);
+const COMMON_ACTIONS: ReadonlyArray<QuickActionItem> = [
+  {
+    id: 'create-task',
+    title: 'Criar Tarefa',
+    description: 'Adicionar uma nova tarefa para a república',
+    Icon: PlusCircle,
+    colorKey: 'accent',
+    mainRoute: '/(panel)/tasks',
+    detailRoute: '/(panel)/tasks/create',
+  },
+  {
+    id: 'create-event',
+    title: 'Criar Evento',
+    description: 'Agendar um novo evento para a república',
+    Icon: CalendarPlus,
+    colorKey: 'accent',
+    mainRoute: '/(panel)/events',
+    detailRoute: '/(panel)/events/create',
+  },
+  {
+    id: 'create-expense',
+    title: 'Registrar Despesa',
+    description: 'Adicionar uma nova despesa compartilhada',
+    Icon: ArrowUpRight,
+    colorKey: 'danger',
+    mainRoute: '/(panel)/finances',
+    detailRoute: '/(panel)/finances/expenses/create',
+  },
+  {
+    id: 'create-income',
+    title: 'Registrar Receita',
+    description: 'Adicionar uma nova receita ou pagamento',
+    Icon: ArrowDownLeft,
+    colorKey: 'success',
+    mainRoute: '/(panel)/finances',
+    detailRoute: '/(panel)/finances/incomes/create',
+  },
+];
+
+const MANAGE_ACTIONS: ReadonlyArray<QuickActionItem> = [
+  {
+    id: 'invite-member',
+    title: 'Convidar Morador',
+    description: 'Adicionar uma nova pessoa à república',
+    Icon: UserPlus,
+    colorKey: 'accent',
+    mainRoute: '/(panel)/settings',
+    detailRoute: '/(panel)/settings/members',
+  },
+  {
+    id: 'my-tasks',
+    title: 'Minhas Tarefas',
+    description: 'Visualizar tarefas atribuídas a você',
+    Icon: CheckSquare,
+    colorKey: 'inkSecondary',
+    mainRoute: '/(panel)/tasks',
+  },
+  {
+    id: 'pending-approvals',
+    title: 'Aprovações Pendentes',
+    description: 'Verificar despesas aguardando aprovação',
+    Icon: Clock,
+    colorKey: 'warning',
+    mainRoute: '/(panel)/finances',
+  },
+  {
+    id: 'settings',
+    title: 'Configurações',
+    description: 'Gerenciar preferências e configurações',
+    Icon: Settings,
+    colorKey: 'inkSecondary',
+    mainRoute: '/(panel)/settings',
+  },
+];
+
+const navigateToAction = (mainRoute: string, detailRoute?: string) => {
+  router.push(mainRoute as any);
+  if (detailRoute) {
+    setTimeout(() => {
+      router.push(detailRoute as any);
+    }, 100);
+  }
+};
 
 const QuickActionsScreen = () => {
-  const { user } = useAuth();
-  const [loading, setLoading] = useState(false);
+  const { theme } = useTheme();
 
-  const handleCreateTask = () => {
-    // Navegar primeiro para o módulo de tarefas e depois para a criação
-    router.push('/(panel)/tasks');
-    // Pequeno atraso para garantir que a navegação principal foi concluída
-    setTimeout(() => {
-      router.push('/(panel)/tasks/create');
-    }, 100);
-  };
+  const renderSection = (label: string, items: ReadonlyArray<QuickActionItem>) => (
+    <View style={{ gap: theme.spacing.xs }}>
+      <AppText variant="monoLabel" color="inkSecondary">
+        {label}
+      </AppText>
+      <Surface tone="surface" bordered style={styles.sectionSurface}>
+        {items.map((item, index) => {
+          const Icon = item.Icon;
+          const iconColor = theme.colors[item.colorKey];
 
-  const handleCreateEvent = () => {
-    // Navegar primeiro para o módulo de eventos e depois para a criação
-    router.push('/(panel)/events');
-    setTimeout(() => {
-      router.push('/(panel)/events/create');
-    }, 100);
-  };
-  
-  const handleCreateExpense = () => {
-    // Navegar primeiro para o módulo de finanças e depois para a criação de despesa
-    router.push('/(panel)/finances');
-    setTimeout(() => {
-      router.push('/(panel)/finances/expenses/create');
-    }, 100);
-  };
-  
-  const handleCreateIncome = () => {
-    // Navegar primeiro para o módulo de finanças e depois para a criação de receita
-    router.push('/(panel)/finances');
-    setTimeout(() => {
-      router.push('/(panel)/finances/incomes/create');
-    }, 100);
-  };
-  
-  const handleInviteUser = () => {
-    // Navegar primeiro para o módulo de configurações e depois para membros
-    router.push('/(panel)/settings');
-    setTimeout(() => {
-      router.push('/(panel)/settings/members');
-    }, 100);
-  };
-  
-  const handleViewTasks = () => {
-    router.push('/(panel)/tasks');
-  };
-  
-  const handlePendingApprovals = () => {
-    router.push('/(panel)/finances');
-  };
-  
-  const handleSettings = () => {
-    router.push('/(panel)/settings');
-  };
-
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={colors.primary.main} />
-        <Text style={styles.loadingText}>Carregando...</Text>
-      </View>
-    );
-  }
+          return (
+            <ListRow
+              key={item.id}
+              title={item.title}
+              subtitle={item.description}
+              showDivider={index < items.length - 1}
+              onPress={() => navigateToAction(item.mainRoute, item.detailRoute)}
+              leading={
+                <View
+                  style={[
+                    styles.iconContainer,
+                    {
+                      backgroundColor: theme.colors.subtle,
+                      borderRadius: theme.radius.full,
+                    },
+                  ]}
+                >
+                  <Icon size={20} strokeWidth={1.75} color={iconColor} />
+                </View>
+              }
+              trailing={
+                <ChevronRight
+                  size={18}
+                  strokeWidth={1.75}
+                  color={theme.colors.inkMuted}
+                />
+              }
+            />
+          );
+        })}
+      </Surface>
+    </View>
+  );
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#222" />
-      
-      <View style={styles.header}>
-        <BackButton color={colors.primary.main} />
-        <Text style={styles.headerTitle}>Ações Rápidas</Text>
-      </View>
-      
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.sectionTitle}>Ações Comuns</Text>
-        
-        <View style={styles.actionsContainer}>
-          {/* Criar Tarefa */}
-          <ActionButton
-            icon={<Ionicons name="add-circle" size={30} color={colors.primary.main} />}
-            title="Criar Tarefa"
-            description="Adicionar uma nova tarefa para a república"
-            onPress={handleCreateTask}
-            color={colors.primary.main}
-          />
-          
-          {/* Criar Evento */}
-          <ActionButton
-            icon={<Ionicons name="calendar" size={30} color="#4A90E2" />}
-            title="Criar Evento"
-            description="Agendar um novo evento para a república"
-            onPress={handleCreateEvent}
-            color="#4A90E2"
-          />
-          
-          {/* Registrar Despesa */}
-          <ActionButton
-            icon={<MaterialCommunityIcons name="cash-minus" size={30} color="#FF6347" />}
-            title="Registrar Despesa"
-            description="Adicionar uma nova despesa compartilhada"
-            onPress={handleCreateExpense}
-            color="#FF6347"
-          />
-          
-          {/* Registrar Receita */}
-          <ActionButton
-            icon={<MaterialCommunityIcons name="cash-plus" size={30} color="#4CAF50" />}
-            title="Registrar Receita"
-            description="Adicionar uma nova receita ou pagamento"
-            onPress={handleCreateIncome}
-            color="#4CAF50"
-          />
-        </View>
-        
-        <Text style={styles.sectionTitle}>Gerenciar</Text>
-        
-        <View style={styles.actionsContainer}>
-          {/* Convidar Usuário */}
-          <ActionButton
-            icon={<Ionicons name="person-add" size={30} color="#9C27B0" />}
-            title="Convidar Morador"
-            description="Adicionar uma nova pessoa à república"
-            onPress={handleInviteUser}
-            color="#9C27B0"
-          />
-          
-          {/* Ver Minhas Tarefas */}
-          <ActionButton
-            icon={<Ionicons name="list" size={30} color="#FF9800" />}
-            title="Minhas Tarefas"
-            description="Visualizar tarefas atribuídas a você"
-            onPress={handleViewTasks}
-            color="#FF9800"
-          />
-          
-          {/* Aprovações Pendentes */}
-          <ActionButton
-            icon={<Ionicons name="time" size={30} color="#FFC107" />}
-            title="Aprovações Pendentes"
-            description="Verificar despesas aguardando aprovação"
-            onPress={handlePendingApprovals}
-            color="#FFC107"
-          />
-          
-          {/* Configurações */}
-          <ActionButton
-            icon={<Ionicons name="settings" size={30} color="#607D8B" />}
-            title="Configurações"
-            description="Gerenciar preferências e configurações"
-            onPress={handleSettings}
-            color="#607D8B"
-          />
-        </View>
-        
-        <View style={styles.bottomSpacing} />
-      </ScrollView>
-    </View>
+    <Screen
+      scroll
+      header={
+        <ScreenHeader
+          title="Ações Rápidas"
+          subtitle="Atalhos para o dia a dia"
+          onBack={() => router.back()}
+        />
+      }
+      contentContainerStyle={{ gap: theme.spacing.lg }}
+    >
+      {renderSection('Ações comuns', COMMON_ACTIONS)}
+      {renderSection('Gerenciar', MANAGE_ACTIONS)}
+    </Screen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background.primary,
-  },
-  header: {
-    backgroundColor: colors.background.secondary,
-    paddingTop: Platform.OS === 'ios' ? 50 : StatusBar.currentHeight || 20,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: colors.text.primary,
-    marginLeft: 16,
-  },
-  content: {
-    flex: 1,
-    padding: 20,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.text.primary,
-    marginBottom: 16,
-    marginTop: 16,
-  },
-  actionsContainer: {
-    marginBottom: 24,
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.background.secondary,
-    borderRadius: 12,
-    marginBottom: 12,
-    padding: 16,
-    borderLeftWidth: 4,
-    ...createShadow(2),
+  sectionSurface: {
+    overflow: 'hidden',
   },
   iconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  actionTextContainer: {
-    flex: 1,
-  },
-  actionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: colors.text.primary,
-    marginBottom: 4,
-  },
-  actionDescription: {
-    fontSize: 14,
-    color: colors.text.secondary,
-  },
-  actionArrow: {
-    marginLeft: 8,
-  },
-  bottomSpacing: {
+    width: 40,
     height: 40,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.background.primary,
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: colors.text.secondary,
+    justifyContent: 'center',
   },
 });
 

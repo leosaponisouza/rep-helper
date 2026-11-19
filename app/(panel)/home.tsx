@@ -1,910 +1,744 @@
-// app/(panel)/home.tsx
-import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
-  RefreshControl,
-  TouchableOpacity,
-  Image,
-  StatusBar,
-  Dimensions,
-  ActivityIndicator,
-  Animated,
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
   Platform,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  View,
 } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useAuth } from '@/src/context/AuthContext';
-import { useHome } from '@/src/hooks/useHome';
-import { useNotifications } from '@/src/hooks/useNotifications';
-import { useFinances } from '@/src/hooks/useFinances';
-import { useTasks } from '@/src/hooks/useTasks';
-import { colors, createShadow } from '@/src/styles/sharedStyles';
-import { getDisplayName } from '@/src/utils/userUtils';
-import { parseISOPreservingTime, formatLocalDate, formatTime } from '@/src/utils/dateUtils';
-import TaskItem from '@/components/TaskItem';
-import NotificationCenter from '@/components/NotificationCenter';
-import { Task } from '@/src/models/task.model';
-import api from '@/src/services/api';
-import { LinearGradient } from 'expo-linear-gradient';
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
+  Bell,
+  Calendar,
+  CheckCircle2,
+  CheckSquare,
+  ChevronRight,
+  Circle,
+  Plus,
+} from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
+import NotificationBadge from '../../components/NotificationBadge';
+import NotificationCenter from '../../components/NotificationCenter';
+import { useAuth } from '../../src/context/AuthContext';
+import {
+  AppText,
+  Avatar,
+  Button,
+  Divider,
+  IconButton,
+  ListRow,
+  Screen,
+  Skeleton,
+  StateView,
+  StatusText,
+  Surface,
+  useFeedback,
+  useMotion,
+  useTheme,
+  type StatusTone,
+} from '../../src/design-system';
+import { useHome } from '../../src/hooks/useHome';
+import { useNotifications } from '../../src/hooks/useNotifications';
+import { Task, TaskStatus } from '../../src/models/task.model';
+import * as republicService from '../../src/services/republicService';
+import * as taskService from '../../src/services/taskService';
+import { formatCurrencyBRL } from '../../src/utils/currencyUtils';
+import {
+  formatLocalDate,
+  formatTime,
+  parseISOPreservingTime,
+} from '../../src/utils/dateUtils';
+import { ErrorHandler } from '../../src/utils/errorHandling';
+import { getDisplayName } from '../../src/utils/userUtils';
 
-const { width } = Dimensions.get('window');
-
-// Função para navegar com timeout
 const navigateWithTimeout = (mainRoute: string, detailRoute?: string) => {
   router.push(mainRoute as any);
-  
+
   if (detailRoute) {
     setTimeout(() => {
       router.push(detailRoute as any);
-    }, 100); // 100ms de delay para garantir que a primeira navegação seja concluída
+    }, 100);
   }
 };
 
-// Componente simples para exibir um evento (não usa o EventItem completo)
-const SimpleEventCard = ({ 
-  title, 
-  date, 
-  onPress 
-}: { 
-  title: string; 
-  date: string; 
-  onPress: () => void;
-}) => {
-  const eventDate = parseISOPreservingTime(date);
-  
-  return (
-    <TouchableOpacity 
-      style={styles.simpleEventCard}
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
-      <View style={styles.eventDateBadge}>
-        <Text style={styles.eventDateText}>
-          {eventDate.getDate()}
-        </Text>
-        <Text style={styles.eventMonthText}>
-          {formatLocalDate(eventDate, 'MMM')}
-        </Text>
-      </View>
-      <View style={styles.eventDetails}>
-        <Text style={styles.eventTitle} numberOfLines={2}>
-          {title}
-        </Text>
-        <Text style={styles.eventTime}>
-          {formatTime(eventDate)}
-        </Text>
-      </View>
-      <Ionicons name="chevron-forward" size={20} color="#ADB5BD" />
-    </TouchableOpacity>
-  );
+const TASK_STATUS_DISPLAY: Record<TaskStatus, { label: string; tone: StatusTone }> = {
+  PENDING: { label: 'Pendente', tone: 'warning' },
+  IN_PROGRESS: { label: 'Em andamento', tone: 'accent' },
+  COMPLETED: { label: 'Concluída', tone: 'success' },
+  OVERDUE: { label: 'Atrasada', tone: 'danger' },
+  CANCELLED: { label: 'Cancelada', tone: 'neutral' },
+};
+
+const triggerSuccessHaptic = () => {
+  if (Platform.OS === 'web') return;
+  try {
+    void Promise.resolve(
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+    ).catch(() => {});
+  } catch {
+    // Ignore haptics errors on unsupported devices
+  }
 };
 
 const HomeScreen = () => {
+  const { theme } = useTheme();
+  const { reduceMotion } = useMotion();
+  const { toast } = useFeedback();
   const { user } = useAuth();
+
   const [refreshing, setRefreshing] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  
-  // Estado local para armazenar a URL da imagem de perfil
-  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(user?.profilePictureUrl || null);
-  
-  // Atualiza a URL da imagem de perfil quando o usuário ou sua URL muda
+  const [republicName, setRepublicName] = useState<string | null>(null);
+  const [completingTaskIds, setCompletingTaskIds] = useState<number[]>([]);
+  const isMountedRef = useRef(true);
+
   useEffect(() => {
-    if (user?.profilePictureUrl) {
-      setProfileImageUrl(user.profilePictureUrl);
-    }
-  }, [user, user?.profilePictureUrl]);
-  
-  // Usar o hook useHome para centralizar a lógica
-  const { 
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const {
     userTasks,
     loadingTasks,
     tasksError,
     upcomingEvents,
     loadingEvents,
     eventsError,
+    financialSummary,
+    loadingFinances,
+    financesError,
     refreshData: refreshHomeData,
+    refreshTasks,
     refreshEvents,
+    refreshFinances,
   } = useHome();
-  
-  // Usar hooks adicionais para ampliar funcionalidades
-  const { 
-    fetchNotifications, 
-    unreadCount, 
-    markAsRead 
-  } = useNotifications();
-  
-  const { completeTask } = useTasks();
-  
-  // Usar useFinances para dados financeiros precisos
-  const { 
-    dashboardSummary,
-    pendingActions,
-    loadingDashboard,
-    fetchDashboardData,
-  } = useFinances();
-  
-  // Valor animado para o cabeçalho
-  const scrollY = useRef(new Animated.Value(0)).current;
-  
-  // Calcula a altura do header baseado no scroll
-  const headerHeight = scrollY.interpolate({
-    inputRange: [0, 100],
-    outputRange: [Platform.OS === 'ios' ? 120 : 110, Platform.OS === 'ios' ? 100 : 90],
-    extrapolate: 'clamp',
-  });
-  
-  // Função para lidar com o pull-to-refresh
+
+  const { fetchNotifications, unreadCount } = useNotifications();
+
+  useEffect(() => {
+    let isActive = true;
+    const republicId = user?.currentRepublicId;
+
+    if (!republicId) {
+      setRepublicName(null);
+      return;
+    }
+
+    republicService
+      .getRepublic(republicId)
+      .then((republic) => {
+        if (isActive && republic?.name) {
+          setRepublicName(republic.name);
+        }
+      })
+      .catch(() => {
+        if (isActive) {
+          setRepublicName(null);
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [user?.currentRepublicId]);
+
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    
     try {
-      // Atualizar os dados da home
-      await refreshHomeData();
-      
-      // Atualizar dados financeiros
-      await fetchDashboardData();
-      
-      // Atualizar notificações
-      await fetchNotifications();
-      
-      // Atualizar especificamente os eventos para garantir dados atualizados
-      await refreshEvents();
-      
-      // Pequeno atraso para dar tempo à UI de reagir
-      await new Promise(resolve => setTimeout(resolve, 800));
+      await Promise.all([refreshHomeData(), fetchNotifications()]);
     } catch (error) {
       console.error('Erro ao atualizar dados da home:', error);
     } finally {
-      setRefreshing(false);
+      if (isMountedRef.current) {
+        setRefreshing(false);
+      }
     }
-  }, [refreshHomeData, fetchDashboardData, fetchNotifications, refreshEvents]);
-  
-  // Função para navegar para os detalhes das tarefas
+  }, [refreshHomeData, fetchNotifications]);
+
   const handleTaskPress = useCallback((taskId: number) => {
     navigateWithTimeout('/(panel)/tasks', `/(panel)/tasks/${taskId}`);
   }, []);
-  
-  // Controlar exibição do painel de notificações
+
   const toggleNotifications = useCallback(() => {
-    setShowNotifications(!showNotifications);
-  }, [showNotifications]);
-  
-  // Formatar valor monetário
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(value || 0);
-  };
-  
-  // Filtrar eventos para exibir apenas eventos futuros com data válida
-  const filteredEvents = upcomingEvents ? upcomingEvents.filter(event => {
-    if (!event.startDate) return false;
-    try {
-      const eventDate = parseISOPreservingTime(event.startDate);
-      const now = new Date();
-      return eventDate > now;
-    } catch (e) {
-      console.error('Erro ao analisar data do evento:', e);
-      return false;
-    }
-  }).sort((a, b) => {
-    // Ordenar por data (mais próximos primeiro)
-    const dateA = parseISOPreservingTime(a.startDate);
-    const dateB = parseISOPreservingTime(b.startDate);
-    return dateA.getTime() - dateB.getTime();
-  }) : [];
-  
-  // Função para lidar com a conclusão de uma tarefa
-  const handleToggleStatus = useCallback(async (task: Task): Promise<void> => {
-    if (task && task.id) {
-      try {
-        await completeTask(task.id);
-        // Após concluir, atualizar as tarefas
-        await refreshHomeData();
-      } catch (error) {
-        console.error('Erro ao alternar status da tarefa:', error);
-      }
-    }
-  }, [completeTask, refreshHomeData]);
-  
-  // Atualizar notificações quando o componente for montado
-  useEffect(() => {
-    fetchNotifications();
-    // Carregar os eventos ao iniciar o componente
-    refreshEvents();
-  }, [fetchNotifications, refreshEvents]);
-  
-  // Função para fechar centro de notificações e atualizar contagem
+    setShowNotifications((prev) => !prev);
+  }, []);
+
   const handleCloseNotifications = useCallback(() => {
     setShowNotifications(false);
-    // Atualizar a contagem de notificações não lidas
-    fetchNotifications();
+    void fetchNotifications();
   }, [fetchNotifications]);
-  
+
+  const handleToggleStatus = useCallback(
+    async (task: Task): Promise<void> => {
+      if (!task?.id || completingTaskIds.includes(task.id)) {
+        return;
+      }
+
+      setCompletingTaskIds((prev) => [...prev, task.id]);
+      try {
+        await taskService.completeTask(task.id);
+        triggerSuccessHaptic();
+        toast({
+          title: 'Tarefa concluída',
+          message: task.title,
+          tone: 'success',
+        });
+        await refreshTasks();
+      } catch (error) {
+        void ErrorHandler.handle(error);
+      } finally {
+        if (isMountedRef.current) {
+          setCompletingTaskIds((prev) => prev.filter((id) => id !== task.id));
+        }
+      }
+    },
+    [completingTaskIds, refreshTasks, toast]
+  );
+
+  const filteredEvents = useMemo(() => {
+    if (!upcomingEvents) return [];
+    const now = new Date();
+    return upcomingEvents
+      .filter((event) => {
+        if (!event.startDate) return false;
+        try {
+          return parseISOPreservingTime(event.startDate) > now;
+        } catch {
+          return false;
+        }
+      })
+      .sort(
+        (a, b) =>
+          parseISOPreservingTime(a.startDate).getTime() -
+          parseISOPreservingTime(b.startDate).getTime()
+      );
+  }, [upcomingEvents]);
+
+  const displayName = getDisplayName(user);
+  const firstName = getDisplayName(user, true);
+  const todayLabel = formatLocalDate(new Date(), "EEEE, d 'de' MMM");
+  const headerTitle = republicName || (firstName ? `Olá, ${firstName}` : 'RepHelper');
+  const headerSubtitle = republicName && displayName
+    ? `Bem-vindo, ${displayName}`
+    : 'Resumo da sua república';
+
+  const hasPositiveBalance = (financialSummary?.currentBalance ?? 0) >= 0;
+
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#222" />
-      
-      {/* Cabeçalho Animado */}
-      <Animated.View style={[styles.header, { height: headerHeight }]}>
-        <View style={styles.headerTop}>
-          <TouchableOpacity 
-            style={styles.profileButton}
-            onPress={() => navigateWithTimeout('/(panel)/settings', '/(panel)/settings/account')}
-          >
-            {profileImageUrl ? (
-              <Image 
-                source={{ uri: profileImageUrl }} 
-                style={styles.profilePhoto}
-              />
-            ) : (
-              <View style={styles.profilePhotoPlaceholder}>
-                <Text style={styles.profilePhotoInitial}>
-                  {getDisplayName(user, true).charAt(0).toUpperCase()}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-          
-          <View style={styles.userInfoContainer}>
-            <Text style={styles.greeting}>Bem-vindo,</Text>
-            <Text style={styles.userName}>{getDisplayName(user)}</Text>
-          </View>
-          
-          <TouchableOpacity 
-            style={styles.notificationButton}
-            onPress={toggleNotifications}
-          >
-            <Ionicons name="notifications" size={24} color="#7B68EE" />
-            {unreadCount > 0 && (
-              <View style={styles.notificationBadge}>
-                <Text style={styles.notificationCount}>
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
-      </Animated.View>
-      
-      {/* Conteúdo Principal - ScrollView animada */}
-      <Animated.ScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingTop: 15 }]}
-        showsVerticalScrollIndicator={false}
+    <View style={styles.root}>
+      <Screen
+        scroll
+        width="wide"
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
-            colors={[colors.primary.main]}
-            tintColor={colors.primary.main}
-            title="Atualizando..."
-            titleColor={colors.text.secondary}
+            colors={[theme.colors.accent]}
+            tintColor={theme.colors.accent}
           />
         }
-        scrollEventThrottle={16}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: false }
-        )}
+        contentContainerStyle={{
+          gap: theme.spacing.lg,
+          paddingBottom: 96,
+        }}
       >
-        {/* Cards de Resumo */}
-        <View style={styles.summaryCardsContainer}>
-          <TouchableOpacity 
-            style={[styles.summaryCard, {borderLeftColor: '#7B68EE'}]}
+        {/* Cabeçalho editorial */}
+        <View style={[styles.editorialHeader, { gap: theme.spacing.sm }]}>
+          <View style={styles.headerTextBlock}>
+            <AppText variant="monoLabel" color="inkMuted" numberOfLines={1}>
+              {todayLabel}
+            </AppText>
+            <AppText variant="display" color="ink" numberOfLines={2}>
+              {headerTitle}
+            </AppText>
+            <AppText variant="caption" color="inkSecondary" numberOfLines={1}>
+              {headerSubtitle}
+            </AppText>
+          </View>
+
+          <View style={[styles.headerActions, { gap: theme.spacing.xs }]}>
+            <View style={styles.notificationWrapper}>
+              <IconButton
+                icon={<Bell size={20} strokeWidth={1.75} color={theme.colors.ink} />}
+                onPress={toggleNotifications}
+                accessibilityLabel={
+                  unreadCount > 0
+                    ? `Notificações, ${unreadCount} não ${unreadCount === 1 ? 'lida' : 'lidas'}`
+                    : 'Notificações'
+                }
+                variant="subtle"
+              />
+              <NotificationBadge count={unreadCount} size="small" />
+            </View>
+
+            <Pressable
+              onPress={() => navigateWithTimeout('/(panel)/settings', '/(panel)/settings/account')}
+              accessibilityRole="button"
+              accessibilityLabel="Abrir perfil da conta"
+              style={({ pressed }) => [
+                styles.avatarButton,
+                {
+                  borderRadius: theme.radius.full,
+                  opacity: pressed ? (reduceMotion ? 0.9 : theme.motion.pressOpacity) : 1,
+                },
+              ]}
+            >
+              <Avatar
+                uri={user?.profilePictureUrl}
+                name={displayName}
+                size="md"
+              />
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Indicadores rápidos */}
+        <View style={[styles.metricsRow, { gap: theme.spacing.sm }]}>
+          <Pressable
             onPress={() => navigateWithTimeout('/(panel)/tasks')}
-            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`Ver ${userTasks?.length || 0} tarefas pendentes`}
+            style={({ pressed }) => [
+              styles.metricTouchable,
+              { opacity: pressed ? theme.motion.pressOpacity : 1 },
+            ]}
           >
-            <View style={styles.summaryCardContent}>
-              <View style={[styles.summaryIconContainer, {backgroundColor: 'rgba(123, 104, 238, 0.1)'}]}>
-                <MaterialCommunityIcons name="checkbox-marked-outline" size={18} color="#7B68EE" />
+            <Surface tone="surface" bordered padded="md" style={{ gap: theme.spacing.xs }}>
+              <View style={styles.metricTopRow}>
+                <AppText variant="monoLabel" color="inkSecondary">
+                  Tarefas
+                </AppText>
+                <CheckSquare size={18} strokeWidth={1.75} color={theme.colors.accent} />
               </View>
-              <View style={styles.summaryTextContainer}>
-                <Text style={styles.summaryCount}>{userTasks?.length || 0}</Text>
-                <Text style={styles.summaryLabel}>Tarefas pendentes</Text>
-              </View>
-            </View>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.summaryCard, {borderLeftColor: '#4A90E2'}]}
+              <AppText variant="monoHero" color="ink">
+                {userTasks?.length || 0}
+              </AppText>
+              <AppText variant="caption" color="inkMuted" numberOfLines={1}>
+                Pendentes para você
+              </AppText>
+            </Surface>
+          </Pressable>
+
+          <Pressable
             onPress={() => navigateWithTimeout('/(panel)/events')}
-            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`Ver ${filteredEvents.length} próximos eventos`}
+            style={({ pressed }) => [
+              styles.metricTouchable,
+              { opacity: pressed ? theme.motion.pressOpacity : 1 },
+            ]}
           >
-            <View style={styles.summaryCardContent}>
-              <View style={[styles.summaryIconContainer, {backgroundColor: 'rgba(74, 144, 226, 0.1)'}]}>
-                <Ionicons name="calendar" size={18} color="#4A90E2" />
+            <Surface tone="surface" bordered padded="md" style={{ gap: theme.spacing.xs }}>
+              <View style={styles.metricTopRow}>
+                <AppText variant="monoLabel" color="inkSecondary">
+                  Agenda
+                </AppText>
+                <Calendar size={18} strokeWidth={1.75} color={theme.colors.accent} />
               </View>
-              <View style={styles.summaryTextContainer}>
-                <Text style={styles.summaryCount}>{filteredEvents.length}</Text>
-                <Text style={styles.summaryLabel}>Próximos eventos</Text>
-              </View>
-            </View>
-          </TouchableOpacity>
+              <AppText variant="monoHero" color="ink">
+                {filteredEvents.length}
+              </AppText>
+              <AppText variant="caption" color="inkMuted" numberOfLines={1}>
+                Próximos eventos
+              </AppText>
+            </Surface>
+          </Pressable>
         </View>
-        
+
         {/* Resumo Financeiro */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Resumo Financeiro</Text>
-            <TouchableOpacity onPress={() => navigateWithTimeout('/(panel)/finances')}>
-              <Text style={styles.sectionAction}>Ver detalhes</Text>
-            </TouchableOpacity>
+        <View style={{ gap: theme.spacing.xs }}>
+          <View style={styles.sectionHeaderRow}>
+            <AppText variant="monoLabel" color="inkSecondary">
+              Resumo financeiro
+            </AppText>
+            <Button
+              label="Ver detalhes"
+              variant="ghost"
+              size="sm"
+              onPress={() => navigateWithTimeout('/(panel)/finances')}
+            />
           </View>
-          
-          <View style={styles.financeSummaryCard}>
-            {loadingDashboard ? (
-              <View style={styles.loadingSectionContainer}>
-                <ActivityIndicator size="small" color={colors.primary.main} />
-                <Text style={styles.loadingSectionText}>Carregando resumo...</Text>
+
+          <Surface tone="surface" bordered padded="md" style={{ gap: theme.spacing.sm }}>
+            {loadingFinances && !financialSummary ? (
+              <View style={{ gap: theme.spacing.sm }}>
+                <Skeleton width="40%" height={14} />
+                <Skeleton width="65%" height={32} />
+                <Divider />
+                <Skeleton width="100%" height={20} />
+                <Skeleton width="100%" height={20} />
               </View>
-            ) : dashboardSummary ? (
-              <View style={styles.financeSummaryContent}>
-                <View>
-                  <Text style={styles.balanceLabel}>Saldo Atual</Text>
-                  <Text style={[
-                    styles.balanceValue,
-                    dashboardSummary.currentBalance >= 0 ? styles.positiveBalance : styles.negativeBalance
-                  ]}>
-                    {formatCurrency(dashboardSummary.currentBalance)}
-                  </Text>
-                </View>
-                
-                <View style={styles.divider} />
-                
-                <View style={styles.financeStatsRow}>
-                  <View style={styles.financeStatItem}>
-                    <View style={styles.financeIconContainerRed}>
-                      <Ionicons name="arrow-up" size={14} color="#fff" />
-                    </View>
-                    <Text style={styles.financeStatText}>Despesas</Text>
-                  </View>
-                  <Text style={[styles.financeStatValue, styles.expenseValue]}>
-                    {formatCurrency(dashboardSummary.totalExpensesCurrentMonth || 0)}
-                  </Text>
-                </View>
-                
-                <View style={[styles.financeStatsRow, {marginTop: 10}]}>
-                  <View style={styles.financeStatItem}>
-                    <View style={styles.financeIconContainerGreen}>
-                      <Ionicons name="arrow-down" size={14} color="#fff" />
-                    </View>
-                    <Text style={styles.financeStatText}>Receitas</Text>
-                  </View>
-                  <Text style={[styles.financeStatValue, styles.incomeValue]}>
-                    {formatCurrency(dashboardSummary.totalIncomesCurrentMonth || 0)}
-                  </Text>
-                </View>
-              </View>
-            ) : (
-              <View style={styles.emptyState}>
-                <Ionicons name="wallet-outline" size={36} color={colors.primary.light} />
-                <Text style={styles.emptyStateText}>
-                  Sem dados financeiros disponíveis
-                </Text>
-              </View>
-            )}
-          </View>
-        </View>
-        
-        {/* Seção de Tarefas */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Minhas Tarefas</Text>
-            <TouchableOpacity onPress={() => navigateWithTimeout('/(panel)/tasks')}>
-              <Text style={styles.sectionAction}>Ver todas</Text>
-            </TouchableOpacity>
-          </View>
-          
-          <View style={styles.sectionContent}>
-            {loadingTasks ? (
-              <View style={styles.loadingSectionContainer}>
-                <ActivityIndicator size="small" color={colors.primary.main} />
-                <Text style={styles.loadingSectionText}>Carregando tarefas...</Text>
-              </View>
-            ) : userTasks && userTasks.length > 0 ? (
-              <View style={styles.tasksList}>
-                {userTasks.map(task => (
-                  <TaskItem
-                    key={`task-${task.id}`}
-                    item={task}
-                    onToggleStatus={handleToggleStatus}
-                    currentUserId={user?.uid}
-                    pendingTaskIds={[]}
-                    onPress={handleTaskPress}
-                  />
-                ))}
-              </View>
-            ) : (
-              <View style={styles.emptyState}>
-                <Ionicons name="checkbox" size={48} color={colors.primary.light} />
-                <Text style={styles.emptyStateText}>
-                  Você não tem tarefas pendentes
-                </Text>
-                <TouchableOpacity 
-                  style={styles.createButton}
-                  onPress={() => navigateWithTimeout('/(panel)/tasks', '/(panel)/tasks/new')}
-                >
-                  <Text style={styles.createButtonText}>Nova Tarefa</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-        </View>
-        
-        {/* Seção de Eventos (simplificada) */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Agenda</Text>
-            <TouchableOpacity onPress={() => navigateWithTimeout('/(panel)/events')}>
-              <Text style={styles.sectionAction}>Ver todos</Text>
-            </TouchableOpacity>
-          </View>
-          
-          <View style={styles.simpleEventsContainer}>
-            {loadingEvents ? (
-              <View style={styles.loadingSectionContainer}>
-                <ActivityIndicator size="small" color={colors.primary.main} />
-                <Text style={styles.loadingSectionText}>Carregando eventos...</Text>
-              </View>
-            ) : filteredEvents && filteredEvents.length > 0 ? (
+            ) : financesError && !financialSummary ? (
+              <StateView
+                kind="error"
+                title="Não foi possível carregar o resumo"
+                description={financesError}
+                actionLabel="Tentar novamente"
+                onAction={() => void refreshFinances()}
+              />
+            ) : financialSummary ? (
               <>
-                {filteredEvents.map(event => (
-                  <SimpleEventCard
-                    key={`event-${event.id}`}
-                    title={event.title}
-                    date={event.startDate}
-                    onPress={() => navigateWithTimeout('/(panel)/events', `/(panel)/events/${event.id}`)}
+                <View style={styles.balanceHeader}>
+                  <View style={{ gap: theme.spacing.xxs, flex: 1 }}>
+                    <AppText variant="monoLabel" color="inkMuted">
+                      Saldo atual
+                    </AppText>
+                    <AppText
+                      variant="monoHero"
+                      color={hasPositiveBalance ? 'ink' : 'danger'}
+                    >
+                      {formatCurrencyBRL(financialSummary.currentBalance)}
+                    </AppText>
+                  </View>
+                  <StatusText
+                    label={hasPositiveBalance ? 'Em dia' : 'Negativo'}
+                    tone={hasPositiveBalance ? 'success' : 'danger'}
+                    showDot
                   />
-                ))}
+                </View>
+
+                <Divider />
+
+                <View style={styles.financeRow}>
+                  <View style={[styles.financeLabelGroup, { gap: theme.spacing.xs }]}>
+                    <ArrowUpRight size={18} strokeWidth={1.75} color={theme.colors.danger} />
+                    <AppText variant="body" color="inkSecondary">
+                      Despesas do mês
+                    </AppText>
+                  </View>
+                  <AppText variant="monoValue" color="danger">
+                    {formatCurrencyBRL(financialSummary.totalExpensesCurrentMonth || 0)}
+                  </AppText>
+                </View>
+
+                <Divider />
+
+                <View style={styles.financeRow}>
+                  <View style={[styles.financeLabelGroup, { gap: theme.spacing.xs }]}>
+                    <ArrowDownLeft size={18} strokeWidth={1.75} color={theme.colors.success} />
+                    <AppText variant="body" color="inkSecondary">
+                      Receitas do mês
+                    </AppText>
+                  </View>
+                  <AppText variant="monoValue" color="success">
+                    {formatCurrencyBRL(financialSummary.totalIncomesCurrentMonth || 0)}
+                  </AppText>
+                </View>
               </>
             ) : (
-              <View style={styles.emptyState}>
-                <Ionicons name="calendar" size={48} color={colors.primary.light} />
-                <Text style={styles.emptyStateText}>
-                  Não há eventos programados
-                </Text>
-                <TouchableOpacity
-                  style={styles.createButton}
-                  onPress={() => navigateWithTimeout('/(panel)/events', '/(panel)/events/new')}
-                >
-                  <Text style={styles.createButtonText}>Novo Evento</Text>
-                </TouchableOpacity>
-              </View>
+              <StateView
+                kind="empty"
+                title="Sem dados financeiros"
+                description="Ainda não há lançamentos financeiros para exibir."
+              />
             )}
-          </View>
+          </Surface>
         </View>
-      </Animated.ScrollView>
-      
-      {/* Centro de Notificações */}
-      {showNotifications && (
-        <NotificationCenter 
-          onClose={handleCloseNotifications}
+
+        {/* Minhas Tarefas */}
+        <View style={{ gap: theme.spacing.xs }}>
+          <View style={styles.sectionHeaderRow}>
+            <AppText variant="monoLabel" color="inkSecondary">
+              Minhas tarefas
+            </AppText>
+            <Button
+              label="Ver todas"
+              variant="ghost"
+              size="sm"
+              onPress={() => navigateWithTimeout('/(panel)/tasks')}
+            />
+          </View>
+
+          <Surface tone="surface" bordered style={styles.listSurface}>
+            {loadingTasks && userTasks.length === 0 ? (
+              <View style={{ padding: theme.spacing.md, gap: theme.spacing.sm }}>
+                <Skeleton width="75%" height={18} />
+                <Skeleton width="45%" height={14} />
+                <Divider />
+                <Skeleton width="65%" height={18} />
+                <Skeleton width="50%" height={14} />
+              </View>
+            ) : tasksError && userTasks.length === 0 ? (
+              <StateView
+                kind="error"
+                title="Não foi possível carregar as tarefas"
+                description={tasksError}
+                actionLabel="Tentar novamente"
+                onAction={() => void refreshTasks()}
+              />
+            ) : userTasks && userTasks.length > 0 ? (
+              userTasks.map((task, index) => {
+                const statusInfo = TASK_STATUS_DISPLAY[task.status] ?? {
+                  label: 'Pendente',
+                  tone: 'neutral' as StatusTone,
+                };
+                const isCompleting = completingTaskIds.includes(task.id);
+                const formattedDue = task.dueDate
+                  ? formatLocalDate(parseISOPreservingTime(task.dueDate), "d 'de' MMM")
+                  : null;
+                const subtitleParts = [
+                  formattedDue ? `Vence em ${formattedDue}` : null,
+                  task.category || null,
+                ].filter(Boolean);
+
+                return (
+                  <View key={`task-${task.id}`}>
+                    <View style={[styles.taskRow, { paddingLeft: theme.spacing.xs }]}>
+                      <IconButton
+                        icon={
+                          isCompleting ? (
+                            <CheckCircle2
+                              size={20}
+                              strokeWidth={1.75}
+                              color={theme.colors.success}
+                            />
+                          ) : (
+                            <Circle
+                              size={20}
+                              strokeWidth={1.75}
+                              color={theme.colors.borderStrong}
+                            />
+                          )
+                        }
+                        onPress={() => void handleToggleStatus(task)}
+                        disabled={isCompleting}
+                        accessibilityLabel={`Concluir tarefa ${task.title}`}
+                        variant="ghost"
+                      />
+
+                      <ListRow
+                        title={task.title || 'Tarefa sem título'}
+                        subtitle={subtitleParts.join(' · ') || 'Sem prazo definido'}
+                        style={[styles.taskListRow, { paddingLeft: theme.spacing.xxs }]}
+                        onPress={() => handleTaskPress(task.id)}
+                        trailing={
+                          <StatusText
+                            label={statusInfo.label}
+                            tone={statusInfo.tone}
+                            showDot
+                          />
+                        }
+                      />
+                    </View>
+                    {index < userTasks.length - 1 ? <Divider /> : null}
+                  </View>
+                );
+              })
+            ) : (
+              <StateView
+                kind="empty"
+                title="Você não tem tarefas pendentes"
+                description="Quando houver tarefas atribuídas a você, elas aparecerão aqui."
+                actionLabel="Nova Tarefa"
+                onAction={() =>
+                  navigateWithTimeout('/(panel)/tasks', '/(panel)/tasks/create')
+                }
+              />
+            )}
+          </Surface>
+        </View>
+
+        {/* Próximos Eventos */}
+        <View style={{ gap: theme.spacing.xs }}>
+          <View style={styles.sectionHeaderRow}>
+            <AppText variant="monoLabel" color="inkSecondary">
+              Agenda
+            </AppText>
+            <Button
+              label="Ver todos"
+              variant="ghost"
+              size="sm"
+              onPress={() => navigateWithTimeout('/(panel)/events')}
+            />
+          </View>
+
+          <Surface tone="surface" bordered style={styles.listSurface}>
+            {loadingEvents && upcomingEvents.length === 0 ? (
+              <View style={{ padding: theme.spacing.md, gap: theme.spacing.sm }}>
+                <Skeleton width="70%" height={18} />
+                <Skeleton width="40%" height={14} />
+                <Divider />
+                <Skeleton width="60%" height={18} />
+                <Skeleton width="45%" height={14} />
+              </View>
+            ) : eventsError && upcomingEvents.length === 0 ? (
+              <StateView
+                kind="error"
+                title="Não foi possível carregar os eventos"
+                description={eventsError}
+                actionLabel="Tentar novamente"
+                onAction={() => void refreshEvents()}
+              />
+            ) : filteredEvents.length > 0 ? (
+              filteredEvents.map((event, index) => {
+                const eventDate = parseISOPreservingTime(event.startDate);
+                const eventTime = formatTime(eventDate);
+                const subtitle = event.location
+                  ? `${eventTime} · ${event.location}`
+                  : eventTime;
+
+                return (
+                  <ListRow
+                    key={`event-${event.id}`}
+                    title={event.title}
+                    subtitle={subtitle}
+                    showDivider={index < filteredEvents.length - 1}
+                    onPress={() =>
+                      navigateWithTimeout('/(panel)/events', `/(panel)/events/${event.id}`)
+                    }
+                    leading={
+                      <Surface
+                        tone="subtle"
+                        radiusKey="sm"
+                        style={[styles.eventDateBadge, { paddingVertical: theme.spacing.xxs }]}
+                      >
+                        <AppText variant="monoValue" color="accent">
+                          {String(eventDate.getDate()).padStart(2, '0')}
+                        </AppText>
+                        <AppText variant="monoLabel" color="inkSecondary">
+                          {formatLocalDate(eventDate, 'MMM')}
+                        </AppText>
+                      </Surface>
+                    }
+                    trailing={
+                      <ChevronRight
+                        size={18}
+                        strokeWidth={1.75}
+                        color={theme.colors.inkMuted}
+                      />
+                    }
+                  />
+                );
+              })
+            ) : (
+              <StateView
+                kind="empty"
+                title="Não há eventos programados"
+                description="Agende um novo encontro ou compromisso da república."
+                actionLabel="Novo Evento"
+                onAction={() =>
+                  navigateWithTimeout('/(panel)/events', '/(panel)/events/create')
+                }
+              />
+            )}
+          </Surface>
+        </View>
+      </Screen>
+
+      {showNotifications ? (
+        <NotificationCenter
           visible={showNotifications}
+          onClose={handleCloseNotifications}
         />
-      )}
-      
-      {/* Botão de ação flutuante (FAB) */}
-      <TouchableOpacity 
-        style={styles.fab} 
+      ) : null}
+
+      <Pressable
         onPress={() => navigateWithTimeout('/(panel)/quick-actions')}
+        accessibilityRole="button"
+        accessibilityLabel="Abrir ações rápidas"
+        style={({ pressed }) => [
+          styles.fab,
+          theme.elevation.floating,
+          {
+            backgroundColor: theme.colors.accent,
+            borderRadius: theme.radius.full,
+            bottom: theme.spacing.md,
+            right: theme.spacing.md,
+            opacity: pressed ? theme.motion.pressOpacity : 1,
+            transform:
+              pressed && !reduceMotion ? [{ scale: theme.motion.pressScale }] : undefined,
+          },
+        ]}
       >
-        <Ionicons name="add" size={30} color="#fff" />
-      </TouchableOpacity>
+        <Plus size={24} strokeWidth={2} color={theme.colors.onAccent} />
+      </Pressable>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#222', // Fundo escuro como na imagem
-  },
-  header: {
-    backgroundColor: '#2A2A2A',
-    paddingTop: Platform.OS === 'ios' ? 50 : StatusBar.currentHeight || 20,
-    paddingHorizontal: 20,
-    paddingBottom: 0,
-    ...Platform.select({
-      ios: {
-        shadowColor: 'rgba(0,0,0,0.3)',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
-    zIndex: 10,
-    overflow: 'hidden',
-  },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  userInfoContainer: {
-    flex: 1,
-    paddingHorizontal: 15,
-  },
-  greeting: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.7)',
-  },
-  userName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  notificationButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(123, 104, 238, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  notificationBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: colors.error.main,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#444',
-  },
-  notificationCount: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-  profileButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: colors.primary.light,
-  },
-  profilePhoto: {
-    width: '100%',
-    height: '100%',
-  },
-  profilePhotoPlaceholder: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: colors.primary.light,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  profilePhotoInitial: {
-    color: colors.primary.main,
-    fontSize: 22,
-    fontWeight: 'bold',
-  },
-  scrollContent: {
-    paddingTop: 20,
-    paddingBottom: 100,
-  },
-  loadingSectionContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-    backgroundColor: '#2A2A2A',
-    borderRadius: 12,
-    marginHorizontal: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: 'rgba(0,0,0,0.3)',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
-  },
-  loadingSectionText: {
-    color: '#CED4DA',
-    marginTop: 10,
-    fontSize: 14,
-  },
-  summaryCardsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    marginBottom: 20,
-  },
-  summaryCard: {
-    width: '48%',
-    backgroundColor: '#2A2A2A',
-    borderRadius: 12,
-    overflow: 'hidden',
-    borderLeftWidth: 4,
-    ...Platform.select({
-      ios: {
-        shadowColor: 'rgba(0,0,0,0.3)',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
-  },
-  summaryCardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-  },
-  summaryIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  summaryTextContainer: {
+  root: {
     flex: 1,
   },
-  summaryCount: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 2,
-  },
-  summaryLabel: {
-    fontSize: 14,
-    color: '#CED4DA',
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionHeader: {
+  editorialHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    marginBottom: 12,
+    justifyContent: 'space-between',
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
+  headerTextBlock: {
+    flex: 1,
+    gap: 2,
   },
-  sectionAction: {
-    fontSize: 14,
-    color: colors.primary.main,
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  sectionContent: {
-    // Padding já vem dentro dos componentes de item
+  notificationWrapper: {
+    position: 'relative',
   },
-  emptyState: {
+  avatarButton: {
+    minWidth: 44,
+    minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 30,
-    backgroundColor: '#2A2A2A',
-    borderRadius: 12,
-    marginHorizontal: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: 'rgba(0,0,0,0.3)',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
   },
-  emptyStateText: {
-    color: '#CED4DA',
-    fontSize: 16,
-    marginVertical: 16,
-    textAlign: 'center',
+  metricsRow: {
+    flexDirection: 'row',
   },
-  createButton: {
-    backgroundColor: '#7B68EE',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
-    ...Platform.select({
-      ios: {
-        shadowColor: 'rgba(123, 104, 238, 0.3)',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+  metricTouchable: {
+    flex: 1,
   },
-  createButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 14,
+  metricTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  
-  // Resumo financeiro
-  financeSummaryCard: {
-    backgroundColor: '#2A2A2A',
-    borderRadius: 12,
-    marginHorizontal: 16,
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  balanceHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  financeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  financeLabelGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  listSurface: {
     overflow: 'hidden',
-    borderLeftWidth: 4,
-    borderLeftColor: '#7B68EE',
-    ...Platform.select({
-      ios: {
-        shadowColor: 'rgba(0,0,0,0.3)',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
   },
-  financeSummaryContent: {
-    padding: 16,
-  },
-  balanceLabel: {
-    fontSize: 14,
-    color: '#CED4DA',
-    marginBottom: 4,
-  },
-  balanceValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  positiveBalance: {
-    color: '#4CAF50',
-  },
-  negativeBalance: {
-    color: '#FF6347',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    marginVertical: 16,
-  },
-  financeStatsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  financeStatItem: {
+  taskRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  financeIconContainerRed: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#FF6347',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 8,
-  },
-  financeIconContainerGreen: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#4CAF50',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 8,
-  },
-  financeStatText: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.7)',
-  },
-  financeStatValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  expenseValue: {
-    color: colors.error.main,
-  },
-  incomeValue: {
-    color: colors.success.main,
-  },
-  
-  // Eventos simplificados
-  simpleEventsContainer: {
-    paddingHorizontal: 16,
-  },
-  simpleEventCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#2A2A2A',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: '#4A90E2',
-    ...Platform.select({
-      ios: {
-        shadowColor: 'rgba(0,0,0,0.3)',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+  taskListRow: {
+    flex: 1,
   },
   eventDateBadge: {
-    width: 45,
-    height: 45,
-    borderRadius: 8,
-    backgroundColor: 'rgba(74, 144, 226, 0.1)',
-    justifyContent: 'center',
+    width: 48,
     alignItems: 'center',
-    marginRight: 16,
-  },
-  eventDateText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#4A90E2',
-  },
-  eventMonthText: {
-    fontSize: 12,
-    color: '#4A90E2',
-    textTransform: 'uppercase',
-  },
-  eventDetails: {
-    flex: 1,
-  },
-  eventTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  eventTime: {
-    fontSize: 13,
-    color: '#CED4DA',
+    justifyContent: 'center',
   },
   fab: {
     position: 'absolute',
-    bottom: 20,
-    right: 20,
     width: 56,
     height: 56,
-    borderRadius: 28,
-    backgroundColor: '#7B68EE',
-    justifyContent: 'center',
+    minWidth: 56,
+    minHeight: 56,
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: 'rgba(123, 104, 238, 0.5)',
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.5,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
-  },
-  tasksList: {
-    marginHorizontal: 16,
+    justifyContent: 'center',
   },
 });
 

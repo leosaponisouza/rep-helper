@@ -1,31 +1,42 @@
 import React from 'react';
+import { Linking, StyleSheet, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { ExternalLink } from 'lucide-react-native';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  SafeAreaView,
-  StatusBar,
-  Linking,
-  TouchableOpacity,
-} from 'react-native';
-import { Stack } from 'expo-router';
+  AppText,
+  Button,
+  Divider,
+  Screen,
+  ScreenHeader,
+  Surface,
+  useFeedback,
+  useTheme,
+} from '../../../src/design-system';
 
-// Lista de bibliotecas utilizadas com suas licenças
-const libraries = [
+interface LibraryLicense {
+  name: string;
+  version: string;
+  license: string;
+  website: string;
+  description: string;
+}
+
+const LIBRARIES: ReadonlyArray<LibraryLicense> = [
   {
     name: 'React Native',
     version: '0.72.6',
     license: 'MIT',
     website: 'https://reactnative.dev/',
-    description: 'Framework para desenvolvimento de aplicações móveis multiplataforma.',
+    description:
+      'Framework para desenvolvimento de aplicações móveis multiplataforma.',
   },
   {
     name: 'Expo',
     version: '~49.0.8',
     license: 'MIT',
     website: 'https://expo.dev/',
-    description: 'Plataforma para criar aplicativos React Native universais para Android, iOS e web.',
+    description:
+      'Plataforma para criar aplicativos React Native universais para Android, iOS e web.',
   },
   {
     name: 'React Navigation',
@@ -74,7 +85,8 @@ const libraries = [
     version: '4.6.3',
     license: 'MIT',
     website: 'https://github.com/th3rdwave/react-native-safe-area-context',
-    description: 'Fornece informações sobre áreas seguras para diferentes dispositivos.',
+    description:
+      'Fornece informações sobre áreas seguras para diferentes dispositivos.',
   },
   {
     name: 'React Native Gesture Handler',
@@ -100,186 +112,180 @@ const libraries = [
 ];
 
 const SoftwareLicensesScreen = () => {
+  const router = useRouter();
+  const { theme } = useTheme();
+  const { toast } = useFeedback();
+
   const openWebsite = (url: string) => {
-    Linking.openURL(url).catch((err) => console.error('Não foi possível abrir a URL:', err));
+    Linking.openURL(url).catch(() => {
+      toast({
+        title: 'Não foi possível abrir o link',
+        message: 'Tente novamente em um navegador compatível.',
+        tone: 'warning',
+      });
+    });
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor="#222" />
-      
-      <Stack.Screen
-        options={{
-          title: "Licenças de Software",
-          headerStyle: {
-            backgroundColor: "#333",
-          },
-          headerTintColor: "#fff",
-          headerShadowVisible: false,
-        }}
-      />
-      
-      <ScrollView style={styles.container}>
-        <View style={styles.content}>
-          <Text style={styles.title}>Licenças de Software</Text>
-          <Text style={styles.paragraph}>
-            O RepHelper utiliza diversas bibliotecas e ferramentas de código aberto para fornecer suas funcionalidades.
-            Esta página lista os componentes de software de terceiros utilizados no desenvolvimento deste aplicativo,
-            juntamente com suas respectivas licenças.
-          </Text>
-          
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Bibliotecas e Componentes</Text>
-            
-            {libraries.map((lib, index) => (
-              <View key={index} style={styles.libraryItem}>
+    <Screen
+      scroll
+      header={
+        <ScreenHeader
+          title="Licenças de Software"
+          subtitle="Bibliotecas e componentes de código aberto"
+          onBack={() => router.back()}
+        />
+      }
+      contentContainerStyle={{ gap: theme.spacing.lg }}
+    >
+      <Surface tone="subtle" bordered padded="md">
+        <AppText variant="body" color="inkSecondary">
+          O RepHelper utiliza diversas bibliotecas e ferramentas de código aberto para
+          fornecer suas funcionalidades. Esta página lista os componentes de software de
+          terceiros utilizados no desenvolvimento deste aplicativo, juntamente com suas
+          respectivas licenças.
+        </AppText>
+      </Surface>
+
+      {/* Bibliotecas e Componentes */}
+      <View style={{ gap: theme.spacing.xs }}>
+        <AppText variant="monoLabel" color="inkSecondary">
+          Bibliotecas e componentes
+        </AppText>
+        <Surface tone="surface" bordered style={styles.listSurface}>
+          {LIBRARIES.map((lib, index) => (
+            <View key={lib.name}>
+              <View style={{ padding: theme.spacing.md, gap: theme.spacing.xs }}>
                 <View style={styles.libraryHeader}>
-                  <Text style={styles.libraryName}>{lib.name}</Text>
-                  <Text style={styles.libraryVersion}>v{lib.version}</Text>
+                  <AppText variant="bodyStrong" color="ink" style={styles.flexText}>
+                    {lib.name}
+                  </AppText>
+                  <AppText variant="monoLabel" color="inkMuted">
+                    v{lib.version}
+                  </AppText>
                 </View>
-                <Text style={styles.libraryDescription}>{lib.description}</Text>
+
+                <AppText variant="caption" color="inkSecondary">
+                  {lib.description}
+                </AppText>
+
                 <View style={styles.libraryFooter}>
-                  <Text style={styles.licenseText}>Licença: {lib.license}</Text>
-                  <TouchableOpacity onPress={() => openWebsite(lib.website)}>
-                    <Text style={styles.websiteLink}>Visitar site</Text>
-                  </TouchableOpacity>
+                  <AppText variant="monoLabel" color="inkMuted">
+                    Licença: {lib.license}
+                  </AppText>
+                  <Button
+                    label="Visitar site"
+                    variant="ghost"
+                    size="sm"
+                    leftIcon={
+                      <ExternalLink
+                        size={14}
+                        strokeWidth={1.75}
+                        color={theme.colors.accent}
+                      />
+                    }
+                    onPress={() => openWebsite(lib.website)}
+                  />
                 </View>
               </View>
-            ))}
-          </View>
-          
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Sobre Licenças MIT</Text>
-            <Text style={styles.paragraph}>
-              A maioria das bibliotecas utilizadas neste aplicativo está sob a Licença MIT, uma licença permissiva que
-              permite o uso, cópia, modificação, fusão, publicação, distribuição, sublicenciamento e/ou venda de cópias
-              do software, desde que o aviso de copyright e este aviso de permissão sejam incluídos em todas as cópias ou
-              partes substanciais do software.
-            </Text>
-            <Text style={styles.paragraph}>
-              Texto completo da Licença MIT:
-            </Text>
-            <Text style={styles.licenseText}>
-              Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
-              associated documentation files (the "Software"), to deal in the Software without restriction, including
-              without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-              copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the
+              {index < LIBRARIES.length - 1 ? <Divider /> : null}
+            </View>
+          ))}
+        </Surface>
+      </View>
+
+      {/* Sobre Licenças MIT */}
+      <View style={{ gap: theme.spacing.xs }}>
+        <AppText variant="monoLabel" color="inkSecondary">
+          Sobre licenças MIT
+        </AppText>
+        <Surface tone="surface" bordered padded="md" style={{ gap: theme.spacing.sm }}>
+          <AppText variant="body" color="inkSecondary">
+            A maioria das bibliotecas utilizadas neste aplicativo está sob a Licença MIT,
+            uma licença permissiva que permite o uso, cópia, modificação, fusão,
+            publicação, distribuição, sublicenciamento e/ou venda de cópias do software,
+            desde que o aviso de copyright e este aviso de permissão sejam incluídos em
+            todas as cópias ou partes substanciais do software.
+          </AppText>
+          <AppText variant="bodyStrong" color="ink">
+            Texto completo da Licença MIT:
+          </AppText>
+          <Surface tone="subtle" padded="sm" radiusKey="sm" style={{ gap: theme.spacing.xs }}>
+            <AppText variant="caption" color="inkSecondary">
+              Permission is hereby granted, free of charge, to any person obtaining a
+              copy of this software and associated documentation files (the
+              &quot;Software&quot;), to deal in the Software without restriction, including
+              without limitation the rights to use, copy, modify, merge, publish,
+              distribute, sublicense, and/or sell copies of the Software, and to permit
+              persons to whom the Software is furnished to do so, subject to the
               following conditions:
-            </Text>
-            <Text style={styles.licenseText}>
-              The above copyright notice and this permission notice shall be included in all copies or substantial
-              portions of the Software.
-            </Text>
-            <Text style={styles.licenseText}>
-              THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
-              LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO
-              EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-              IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+            </AppText>
+            <AppText variant="caption" color="inkSecondary">
+              The above copyright notice and this permission notice shall be included in
+              all copies or substantial portions of the Software.
+            </AppText>
+            <AppText variant="caption" color="inkSecondary">
+              THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND,
+              EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+              MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO
+              EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+              DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+              OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
               USE OR OTHER DEALINGS IN THE SOFTWARE.
-            </Text>
-          </View>
-          
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Licenças Adicionais</Text>
-            <Text style={styles.paragraph}>
-              Para obter informações detalhadas sobre outras licenças utilizadas neste aplicativo, entre em contato com
-              nossa equipe de desenvolvimento através do e-mail dev@rephelper.com.br.
-            </Text>
-          </View>
-          
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Agradecimentos</Text>
-            <Text style={styles.paragraph}>
-              Agradecemos a todos os desenvolvedores e mantenedores das bibliotecas de código aberto que tornaram
-              possível a criação deste aplicativo. Seu trabalho e dedicação à comunidade de desenvolvimento são
-              inestimáveis.
-            </Text>
-          </View>
+            </AppText>
+          </Surface>
+        </Surface>
+      </View>
+
+      {/* Licenças Adicionais & Agradecimentos */}
+      <Surface tone="surface" bordered padded="md" style={{ gap: theme.spacing.md }}>
+        <View style={{ gap: theme.spacing.xs }}>
+          <AppText variant="heading" color="ink">
+            Licenças Adicionais
+          </AppText>
+          <AppText variant="body" color="inkSecondary">
+            Para obter informações detalhadas sobre outras licenças utilizadas neste
+            aplicativo, entre em contato com nossa equipe de desenvolvimento através do
+            e-mail dev@rephelper.com.br.
+          </AppText>
         </View>
-      </ScrollView>
-    </SafeAreaView>
+
+        <Divider />
+
+        <View style={{ gap: theme.spacing.xs }}>
+          <AppText variant="heading" color="ink">
+            Agradecimentos
+          </AppText>
+          <AppText variant="body" color="inkSecondary">
+            Agradecemos a todos os desenvolvedores e mantenedores das bibliotecas de
+            código aberto que tornaram possível a criação deste aplicativo. Seu trabalho e
+            dedicação à comunidade de desenvolvimento são inestimáveis.
+          </AppText>
+        </View>
+      </Surface>
+    </Screen>
   );
 };
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#222',
-  },
-  container: {
-    flex: 1,
-    backgroundColor: '#222',
-  },
-  content: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#7B68EE',
-    marginBottom: 16,
-  },
-  paragraph: {
-    fontSize: 15,
-    color: '#ddd',
-    marginBottom: 16,
-    lineHeight: 22,
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 12,
-    marginTop: 8,
-  },
-  libraryItem: {
-    backgroundColor: '#333',
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 12,
-    borderLeftWidth: 3,
-    borderLeftColor: '#7B68EE',
+  listSurface: {
+    overflow: 'hidden',
   },
   libraryHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
-  },
-  libraryName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  libraryVersion: {
-    fontSize: 14,
-    color: '#aaa',
-  },
-  libraryDescription: {
-    fontSize: 14,
-    color: '#ddd',
-    marginBottom: 10,
+    gap: 8,
   },
   libraryFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 8,
   },
-  licenseText: {
-    fontSize: 14,
-    color: '#bbb',
-    marginBottom: 8,
-    lineHeight: 20,
-  },
-  websiteLink: {
-    fontSize: 14,
-    color: '#7B68EE',
-    textDecorationLine: 'underline',
+  flexText: {
+    flex: 1,
   },
 });
 
-export default SoftwareLicensesScreen; 
+export default SoftwareLicensesScreen;

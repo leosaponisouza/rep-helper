@@ -1,28 +1,40 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  ActivityIndicator,
-  Alert,
-  SafeAreaView,
-  StatusBar,
-  TextInput,
-  Image,
-  Share
-} from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Platform, Share, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import {
+  ChevronRight,
+  Search,
+  Share2,
+  Shield,
+  ShieldOff,
+  Trash2,
+  Users,
+  X,
+} from 'lucide-react-native';
 import { useAuth } from '../../../src/context/AuthContext';
-import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import {
+  AppText,
+  Avatar,
+  BottomSheetModal,
+  Button,
+  IconButton,
+  ListRow,
+  Screen,
+  ScreenHeader,
+  StateView,
+  StatusText,
+  Surface,
+  TextField,
+  useFeedback,
+  useTheme,
+  type StatusTone,
+} from '../../../src/design-system';
 import api from '../../../src/services/api';
+import { formatShortDate } from '../../../src/utils/dateUtils';
 import { ErrorHandler } from '../../../src/utils/errorHandling';
 import { logger } from '../../../src/utils/logger';
-import * as Haptics from 'expo-haptics';
-import { Swipeable, GestureHandlerRootView } from 'react-native-gesture-handler';
 
-// Tipo de Membro da República (UserResponse)
 interface RepublicMember {
   uid: string;
   name: string;
@@ -42,665 +54,557 @@ interface RepublicMember {
   departureDate?: string;
 }
 
+type PendingMemberAction = 'promote' | 'demote' | 'remove' | null;
+
+const triggerHaptic = (callback: () => Promise<void> | void) => {
+  if (Platform.OS === 'web') return;
+  try {
+    void Promise.resolve(callback()).catch(() => {});
+  } catch {
+    // Ignore haptics errors on unsupported devices
+  }
+};
+
 const MembersSettingsScreen: React.FC = () => {
   const router = useRouter();
+  const { theme } = useTheme();
+  const { toast } = useFeedback();
   const { user } = useAuth();
-  
-  // Estados
+
   const [members, setMembers] = useState<RepublicMember[]>([]);
-  const [filteredMembers, setFilteredMembers] = useState<RepublicMember[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [inviteCode, setInviteCode] = useState<string>('');
   const [republicOwnerId, setRepublicOwnerId] = useState<string | null>(null);
-  
-  // Identificar o dono da república baseado no ownerId recebido da API
-  const isOwner = user && republicOwnerId && user.uid === republicOwnerId;
-  
-  // Verificar se o usuário atual é admin (incluindo owner)
-  const canManageUsers = user && (
-    (isOwner) || // É o dono
-    members.find(member => member.uid === user.uid && member.isAdmin === true) // É admin
+
+  const [selectedMember, setSelectedMember] = useState<RepublicMember | null>(null);
+  const [pendingAction, setPendingAction] = useState<PendingMemberAction>(null);
+  const [actionLoading, setActionLoading] = useState<boolean>(false);
+
+  const isOwner = Boolean(user && republicOwnerId && user.uid === republicOwnerId);
+  const canManageUsers = Boolean(
+    user && (isOwner || members.some((member) => member.uid === user.uid && member.isAdmin))
   );
 
-  // Buscar membros da república e o código de convite
   const fetchMembersAndInviteCode = useCallback(async () => {
-    if (!user?.currentRepublicId) return;
-    
+    if (!user?.currentRepublicId) {
+      setLoading(false);
+      setError('Você não está associado a nenhuma república.');
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
-      
-      // Buscar membros
-      const membersResponse = await api.get<RepublicMember[]>(`/api/v1/republics/${user.currentRepublicId}/members`);
-      const membersData = membersResponse.data;
-      
-      setMembers(membersData);
-      setFilteredMembers(membersData);
-      
-      // Buscar dados da república para obter código e ownerId
-      const republicResponse = await api.get(`/api/v1/republics/${user.currentRepublicId}`);
+
+      const membersResponse = await api.get<RepublicMember[]>(
+        `/api/v1/republics/${user.currentRepublicId}/members`
+      );
+      setMembers(membersResponse.data);
+
+      const republicResponse = await api.get<{ ownerId?: string; code?: string }>(
+        `/api/v1/republics/${user.currentRepublicId}`
+      );
       logger.debug('Resposta completa da república:', republicResponse.data);
-      
-      // Salvar o ID do dono da república
-      if (republicResponse.data && republicResponse.data.ownerId) {
+
+      if (republicResponse.data?.ownerId) {
         setRepublicOwnerId(republicResponse.data.ownerId);
-        logger.debug('ID do dono da república:', republicResponse.data.ownerId);
       } else {
-        logger.error('ID do dono da república não encontrado na resposta:', republicResponse.data);
+        logger.error(
+          'ID do dono da república não encontrado na resposta:',
+          republicResponse.data
+        );
       }
-      
-      // Acessando o código da república
-      if (republicResponse.data && republicResponse.data.code) {
+
+      if (republicResponse.data?.code) {
         setInviteCode(republicResponse.data.code);
       } else {
-        logger.error('Código da república não encontrado na resposta:', republicResponse.data);
+        logger.error(
+          'Código da república não encontrado na resposta:',
+          republicResponse.data
+        );
       }
-      
-    } catch (error) {
-      const parsedError = await ErrorHandler.parseError(error);
+    } catch (err) {
+      const parsedError = await ErrorHandler.parseError(err);
       setError(parsedError.message);
-      ErrorHandler.handle(error);
+      void ErrorHandler.handle(err);
     } finally {
       setLoading(false);
     }
-  }, [user?.currentRepublicId, user?.uid]);
-  
+  }, [user?.currentRepublicId]);
+
   useEffect(() => {
-    fetchMembersAndInviteCode();
+    void fetchMembersAndInviteCode();
   }, [fetchMembersAndInviteCode]);
-  
-  // Filtragem de membros
-  useEffect(() => {
-    if (searchQuery) {
-      const filtered = members.filter(member => 
-        member.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (member.nickname && member.nickname.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        member.email.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-      setFilteredMembers(filtered);
-    } else {
-      setFilteredMembers(members);
-    }
-  }, [searchQuery, members]);
-  
-  // Modificar o papel de um membro
-  const handleChangeRole = async (memberId: string, makeAdmin: boolean) => {
-    if (!isOwner) {
-      Alert.alert('Permissão Negada', 'Apenas o dono da república pode promover membros a administradores.');
-      return;
-    }
-    
-    if (!canManageUsers) {
-      Alert.alert('Permissão Negada', 'Você não tem permissão para gerenciar funções de membros.');
-      return;
-    }
-    
-    try {
-      const actionText = makeAdmin ? 'promover' : 'rebaixar';
-      
-      Alert.alert(
-        'Confirmar Ação',
-        `Tem certeza que deseja ${actionText} este membro?`,
-        [
-          { text: 'Cancelar', style: 'cancel' },
-          {
-            text: 'Confirmar',
-            onPress: async () => {
-              await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              
-              // Usar a API correta para adicionar ou remover administradores
-              let response;
-              if (makeAdmin) {
-                // Adicionar como administrador (POST para adicionar)
-                response = await api.post(`/api/v1/republics/${user?.currentRepublicId}/members/${memberId}/admin`);
-              } else {
-                // Remover como administrador (DELETE para remover)
-                response = await api.delete(`/api/v1/republics/${user?.currentRepublicId}/members/${memberId}/admin`);
-              }
-              
-              if (response.status === 200) {
-                // Atualizar a lista de membros
-                setMembers(prevMembers => 
-                  prevMembers.map(member => 
-                    member.uid === memberId 
-                      ? { ...member, isAdmin: makeAdmin } 
-                      : member
-                  )
-                );
-                
-                const actionMessage = makeAdmin ? 'promovido a administrador' : 'alterado para membro regular';
-                Alert.alert('Sucesso', `Membro ${actionMessage} com sucesso!`);
-                await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              }
-            }
-          }
-        ]
-      );
-    } catch (error) {
-      logger.error('Erro ao alterar papel do membro:', error);
-      ErrorHandler.handle(error);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    }
-  };
-  
-  // Remover um membro da república
-  const handleRemoveMember = async (memberId: string) => {
-    if (!canManageUsers) {
-      Alert.alert('Permissão Negada', 'Você não tem permissão para remover membros.');
-      return;
-    }
-    
-    // Não permitir que o dono seja removido
-    if (memberId === republicOwnerId) {
-      Alert.alert('Operação Inválida', 'O dono da república não pode ser removido.');
-      return;
-    }
-    
-    try {
-      Alert.alert(
-        'Confirmar Remoção',
-        'Tem certeza que deseja remover este membro da república? Esta ação não pode ser desfeita.',
-        [
-          { text: 'Cancelar', style: 'cancel' },
-          {
-            text: 'Remover',
-            style: 'destructive',
-            onPress: async () => {
-              await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-              
-              const response = await api.delete(`/api/v1/republics/${user?.currentRepublicId}/members/${memberId}`);
-              
-              if (response.status === 204) {
-                // Atualizar a lista de membros removendo o membro
-                setMembers(prevMembers => prevMembers.filter(member => member.uid !== memberId));
-                
-                Alert.alert('Sucesso', 'Membro removido da república com sucesso!');
-                await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              }
-            }
-          }
-        ]
-      );
-    } catch (error) {
-      ErrorHandler.handle(error);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    }
-  };
-  
-  // Compartilhar código de convite
-  const handleShareInviteCode = async () => {
-    if (inviteCode) {
-      try {
-        await Share.share({
-          message: `Entre na minha república no RepHelper usando o código: ${inviteCode}`,
-        });
-      } catch (error) {
-        Alert.alert('Erro', 'Houve um erro ao compartilhar o código');
-      }
-    }
-  };
-  
-  // Componente de renderização de membro
-  const MemberItem = ({ member }: { member: RepublicMember }) => {
-    const isCurrentUser = member.uid === user?.uid;
-    const isMemberOwner = member.uid === republicOwnerId;
-    
-    const handleMemberPress = () => {
-      // Apenas admins podem gerenciar membros
-      if (!canManageUsers) return;
-      
-      // Não permitir gerenciar a si mesmo ou o dono (se não for o próprio dono)
-      if (isCurrentUser || (isMemberOwner && !isOwner)) return;
-      
-      // Preparar as opções do menu com base nos privilégios
-      const actionButtons = [];
-      
-      // Apenas donos podem promover/rebaixar membros
-      if (isOwner && !isMemberOwner) {
-        actionButtons.push({
-          text: member.isAdmin ? 'Rebaixar para Membro' : 'Promover a Administrador',
-          onPress: () => handleChangeRole(member.uid, !member.isAdmin)
-        });
-      }
-      
-      // Opção para remover membro (disponível para admin se não for o dono)
-      if (!isMemberOwner) {
-        actionButtons.push({
-          text: 'Remover da República',
-          style: 'destructive' as 'destructive',
-          onPress: () => handleRemoveMember(member.uid)
-        });
-      }
-      
-      // Se não houver ações disponíveis, não mostrar o menu
-      if (actionButtons.length === 0) return;
-      
-      // Mostrar opções de gestão
-      Alert.alert(
-        `Gerenciar ${member.nickname || member.name}`,
-        `Função atual: ${isMemberOwner ? 'Proprietário' : member.isAdmin ? 'Administrador' : 'Membro'}`,
-        [
-          { text: 'Cancelar', style: 'cancel' },
-          ...actionButtons
-        ]
-      );
-    };
-    
-    const renderRightActions = () => {
-      // Não mostrar ações para si mesmo, para o dono (exceto se for o próprio dono), ou se não tiver permissão
-      if (isCurrentUser || (isMemberOwner && !isOwner) || !canManageUsers) {
-        return null;
-      }
-      
-      return (
-        <View style={styles.rightActions}>
-          {isOwner && !isMemberOwner && (
-            <TouchableOpacity 
-              style={[styles.actionButton, member.isAdmin ? styles.demoteButton : styles.promoteButton]}
-              onPress={() => handleChangeRole(member.uid, !member.isAdmin)}
-            >
-              <Ionicons 
-                name={member.isAdmin ? 'arrow-down' : 'arrow-up'} 
-                size={24} 
-                color="#fff" 
-              />
-              <Text style={styles.actionButtonText}>
-                {member.isAdmin ? 'Rebaixar' : 'Promover'}
-              </Text>
-            </TouchableOpacity>
-          )}
-          
-          {!isMemberOwner && (
-            <TouchableOpacity 
-              style={[styles.actionButton, styles.deleteButton]}
-              onPress={() => handleRemoveMember(member.uid)}
-            >
-              <Ionicons name="trash" size={24} color="#fff" />
-              <Text style={styles.actionButtonText}>Remover</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      );
-    };
-    
-    return (
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <Swipeable
-          renderRightActions={renderRightActions}
-          overshootRight={false}
-          containerStyle={styles.swipeableContainer}
-        >
-          <TouchableOpacity 
-            style={styles.memberItem}
-            onPress={handleMemberPress}
-            activeOpacity={canManageUsers && !isCurrentUser && !isMemberOwner ? 0.7 : 1}
-          >
-            <View style={styles.memberAvatarContainer}>
-              {member.profilePictureUrl ? (
-                <Image source={{ uri: member.profilePictureUrl }} style={styles.memberAvatar} />
-              ) : (
-                <View style={[styles.memberAvatarPlaceholder, 
-                  isMemberOwner
-                    ? styles.ownerAvatarBackground
-                    : member.isAdmin 
-                    ? styles.adminAvatarBackground
-                    : styles.memberAvatarBackground
-                ]}>
-                  <Text style={styles.memberAvatarText}>
-                    {member.nickname 
-                      ? member.nickname[0].toUpperCase() 
-                      : member.name.split(' ').map(n => n[0]).join('').toUpperCase()}
-                  </Text>
-                </View>
-              )}
-              
-              {/* Mostrar badge de proprietário ou admin */}
-              {(isMemberOwner || member.isAdmin) && (
-                <View style={[styles.roleBadge, 
-                  isMemberOwner ? styles.ownerBadge : styles.adminBadge
-                ]}>
-                  <MaterialIcons 
-                    name={isMemberOwner ? "star" : "security"} 
-                    size={12} 
-                    color="#fff" 
-                  />
-                </View>
-              )}
-            </View>
-            
-            <View style={styles.memberInfo}>
-              <Text style={styles.memberName}>
-                {member.nickname || member.name}
-                {isCurrentUser && <Text style={styles.currentUserText}> (Você)</Text>}
-              </Text>
-              <Text style={styles.memberEmail}>{member.email}</Text>
-              <Text style={styles.memberRole}>
-                {isMemberOwner ? 'Proprietário' : member.isAdmin ? 'Administrador' : 'Membro'}
-              </Text>
-              
-              {/* Adicionando a data de entrada para todos, mas com uma string vazia se não existir 
-                  para manter o layout consistente */}
-              <Text style={styles.memberDate}>
-                {member.entryDate ? `Desde: ${new Date(member.entryDate).toLocaleDateString()}` : ' '}
-              </Text>
-            </View>
-            
-            {/* Indicador de ação disponível para admins/owner que podem gerenciar este membro */}
-            {canManageUsers && !isCurrentUser && (!isMemberOwner || isOwner) && (
-              <Ionicons name="chevron-forward" size={20} color="#666" />
-            )}
-          </TouchableOpacity>
-        </Swipeable>
-      </GestureHandlerRootView>
+
+  const filteredMembers = useMemo(() => {
+    if (!searchQuery.trim()) return members;
+    const query = searchQuery.toLowerCase();
+    return members.filter(
+      (member) =>
+        member.name.toLowerCase().includes(query) ||
+        (member.nickname && member.nickname.toLowerCase().includes(query)) ||
+        member.email.toLowerCase().includes(query)
     );
+  }, [members, searchQuery]);
+
+  const closeMemberModal = () => {
+    if (actionLoading) return;
+    setSelectedMember(null);
+    setPendingAction(null);
   };
-  
+
+  const executeChangeRole = async (memberId: string, makeAdmin: boolean) => {
+    if (!isOwner) {
+      toast({
+        title: 'Permissão negada',
+        message: 'Apenas o dono da república pode promover membros a administradores.',
+        tone: 'warning',
+      });
+      return;
+    }
+
+    if (!canManageUsers) {
+      toast({
+        title: 'Permissão negada',
+        message: 'Você não tem permissão para gerenciar funções de membros.',
+        tone: 'warning',
+      });
+      return;
+    }
+
+    try {
+      setActionLoading(true);
+      triggerHaptic(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium));
+
+      const endpoint = `/api/v1/republics/${user?.currentRepublicId}/members/${memberId}/admin`;
+      const response = makeAdmin
+        ? await api.post(endpoint)
+        : await api.delete(endpoint);
+
+      if (response.status >= 200 && response.status < 300) {
+        setMembers((prevMembers) =>
+          prevMembers.map((member) =>
+            member.uid === memberId ? { ...member, isAdmin: makeAdmin } : member
+          )
+        );
+
+        const actionMessage = makeAdmin
+          ? 'promovido a administrador'
+          : 'alterado para membro regular';
+        toast({
+          title: 'Função atualizada',
+          message: `Membro ${actionMessage} com sucesso!`,
+          tone: 'success',
+        });
+        triggerHaptic(() =>
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+        );
+        setSelectedMember(null);
+        setPendingAction(null);
+      }
+    } catch (err) {
+      logger.error('Erro ao alterar papel do membro:', err);
+      void ErrorHandler.handle(err);
+      triggerHaptic(() =>
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
+      );
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const executeRemoveMember = async (memberId: string) => {
+    if (!canManageUsers) {
+      toast({
+        title: 'Permissão negada',
+        message: 'Você não tem permissão para remover membros.',
+        tone: 'warning',
+      });
+      return;
+    }
+
+    if (memberId === republicOwnerId) {
+      toast({
+        title: 'Operação inválida',
+        message: 'O dono da república não pode ser removido.',
+        tone: 'warning',
+      });
+      return;
+    }
+
+    try {
+      setActionLoading(true);
+      triggerHaptic(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy));
+
+      const response = await api.delete(
+        `/api/v1/republics/${user?.currentRepublicId}/members/${memberId}`
+      );
+
+      if (response.status >= 200 && response.status < 300) {
+        setMembers((prevMembers) =>
+          prevMembers.filter((member) => member.uid !== memberId)
+        );
+        toast({
+          title: 'Membro removido',
+          message: 'Membro removido da república com sucesso!',
+          tone: 'success',
+        });
+        triggerHaptic(() =>
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+        );
+        setSelectedMember(null);
+        setPendingAction(null);
+      }
+    } catch (err) {
+      void ErrorHandler.handle(err);
+      triggerHaptic(() =>
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
+      );
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleShareInviteCode = async () => {
+    if (!inviteCode) return;
+
+    try {
+      await Share.share({
+        message: `Entre na minha república no RepHelper usando o código: ${inviteCode}`,
+      });
+    } catch {
+      toast({
+        title: 'Erro',
+        message: 'Houve um erro ao compartilhar o código.',
+        tone: 'danger',
+      });
+    }
+  };
+
+  const getRoleDisplay = (
+    member: RepublicMember
+  ): { label: string; tone: StatusTone } => {
+    if (member.uid === republicOwnerId) {
+      return { label: 'Proprietário', tone: 'warning' };
+    }
+    if (member.isAdmin) {
+      return { label: 'Administrador', tone: 'accent' };
+    }
+    return { label: 'Membro', tone: 'neutral' };
+  };
+
+  const header = (
+    <ScreenHeader
+      title="Membros da República"
+      subtitle={`${members.length} ${members.length === 1 ? 'membro' : 'membros'} na república`}
+      onBack={() => router.back()}
+    />
+  );
+
+  const selectedMemberDisplayName = selectedMember
+    ? selectedMember.nickname || selectedMember.name
+    : '';
+  const isSelectedMemberOwner = selectedMember?.uid === republicOwnerId;
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor="#222" />
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Membros da República</Text>
-          <Text style={styles.headerSubtitle}>
-            {members.length} {members.length === 1 ? 'membro' : 'membros'} na república
-          </Text>
-        </View>
-        
-        {/* Barra de pesquisa */}
-        <View style={styles.searchContainer}>
-          <Ionicons name="search" size={20} color="#7B68EE" style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Pesquisar membro..."
-            placeholderTextColor="#888"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          {searchQuery ? (
-            <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <Ionicons name="close-circle" size={20} color="#888" />
-            </TouchableOpacity>
-          ) : null}
-        </View>
-        
-        {/* Código de convite para admins/donos */}
-        {(isOwner || canManageUsers) && inviteCode && (
-          <View style={styles.inviteCodeContainer}>
-            <View style={styles.inviteCodeContent}>
-              <Text style={styles.inviteCodeLabel}>Código para convidar novos membros:</Text>
-              <Text style={styles.inviteCode}>{inviteCode}</Text>
-            </View>
-            <TouchableOpacity style={styles.shareButton} onPress={handleShareInviteCode}>
-              <Ionicons name="share-social" size={20} color="#fff" />
-            </TouchableOpacity>
-          </View>
-        )}
-        
-        {/* Mensagem de carregamento ou erro */}
-        {loading ? (
-          <View style={styles.centeredContainer}>
-            <ActivityIndicator size="large" color="#7B68EE" />
-            <Text style={styles.loadingText}>Carregando membros...</Text>
-          </View>
-        ) : error ? (
-          <View style={styles.centeredContainer}>
-            <Ionicons name="alert-circle" size={48} color="#FF6347" />
-            <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity style={styles.retryButton} onPress={fetchMembersAndInviteCode}>
-              <Text style={styles.retryButtonText}>Tentar Novamente</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <>
-            {/* Lista de membros */}
-            {filteredMembers.length > 0 ? (
-              <ScrollView style={styles.membersList}>
-                {filteredMembers.map((member) => (
-                  <MemberItem key={member.uid} member={member} />
-                ))}
-              </ScrollView>
-            ) : (
-              <View style={styles.centeredContainer}>
-                <Ionicons name="people" size={48} color="#666" />
-                <Text style={styles.emptyText}>
-                  {searchQuery 
-                    ? 'Nenhum membro encontrado para esta pesquisa' 
-                    : 'Nenhum membro encontrado na república'}
-                </Text>
+    <>
+      <Screen
+        scroll
+        header={header}
+        contentContainerStyle={{ gap: theme.spacing.md }}
+      >
+        <TextField
+          placeholder="Pesquisar membro..."
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          leftIcon={<Search size={18} strokeWidth={1.75} color={theme.colors.inkMuted} />}
+          rightAccessory={
+            searchQuery ? (
+              <IconButton
+                icon={<X size={18} strokeWidth={1.75} color={theme.colors.inkMuted} />}
+                onPress={() => setSearchQuery('')}
+                accessibilityLabel="Limpar pesquisa"
+                variant="ghost"
+              />
+            ) : undefined
+          }
+        />
+
+        {(isOwner || canManageUsers) && inviteCode ? (
+          <Surface tone="surface" bordered padded="md">
+            <View style={[styles.inviteRow, { gap: theme.spacing.sm }]}>
+              <View style={styles.inviteTextBlock}>
+                <AppText variant="caption" color="inkSecondary">
+                  Código para convidar novos membros
+                </AppText>
+                <AppText variant="monoValue" color="accent" style={styles.inviteCodeText}>
+                  {inviteCode}
+                </AppText>
               </View>
-            )}
-          </>
+              <IconButton
+                icon={<Share2 size={20} strokeWidth={1.75} color={theme.colors.accent} />}
+                onPress={() => void handleShareInviteCode()}
+                accessibilityLabel="Compartilhar código de convite"
+                variant="subtle"
+              />
+            </View>
+          </Surface>
+        ) : null}
+
+        {loading ? (
+          <StateView kind="loading" title="Carregando membros..." />
+        ) : error ? (
+          <StateView
+            kind="error"
+            title="Erro ao carregar membros"
+            description={error}
+            actionLabel="Tentar Novamente"
+            onAction={() => void fetchMembersAndInviteCode()}
+          />
+        ) : filteredMembers.length === 0 ? (
+          <StateView
+            kind="empty"
+            icon={<Users size={32} strokeWidth={1.75} color={theme.colors.inkMuted} />}
+            title={
+              searchQuery
+                ? 'Nenhum membro encontrado'
+                : 'Nenhum membro na república'
+            }
+            description={
+              searchQuery
+                ? 'Nenhum membro corresponde à sua pesquisa.'
+                : 'Compartilhe o código de convite para adicionar moradores.'
+            }
+          />
+        ) : (
+          <Surface tone="surface" bordered style={styles.membersSurface}>
+            {filteredMembers.map((member, index) => {
+              const isCurrentUser = member.uid === user?.uid;
+              const isMemberOwner = member.uid === republicOwnerId;
+              const canManageTarget = Boolean(
+                canManageUsers && !isCurrentUser && !isMemberOwner
+              );
+              const roleDisplay = getRoleDisplay(member);
+              const displayName = member.nickname || member.name;
+              const titleText = isCurrentUser ? `${displayName} (Você)` : displayName;
+              const entryLabel = member.entryDate
+                ? ` · Desde ${formatShortDate(member.entryDate)}`
+                : '';
+
+              return (
+                <ListRow
+                  key={member.uid}
+                  title={titleText}
+                  subtitle={`${member.email}${entryLabel}`}
+                  showDivider={index < filteredMembers.length - 1}
+                  onPress={
+                    canManageTarget
+                      ? () => {
+                          setPendingAction(null);
+                          setSelectedMember(member);
+                        }
+                      : undefined
+                  }
+                  leading={
+                    <Avatar
+                      uri={member.profilePictureUrl}
+                      name={displayName}
+                      size="md"
+                    />
+                  }
+                  trailing={
+                    <View style={[styles.trailingRow, { gap: theme.spacing.xs }]}>
+                      <StatusText
+                        label={roleDisplay.label}
+                        tone={roleDisplay.tone}
+                        showDot
+                      />
+                      {canManageTarget ? (
+                        <ChevronRight
+                          size={18}
+                          strokeWidth={1.75}
+                          color={theme.colors.inkMuted}
+                        />
+                      ) : null}
+                    </View>
+                  }
+                />
+              );
+            })}
+          </Surface>
         )}
-      </View>
-    </SafeAreaView>
+      </Screen>
+
+      <BottomSheetModal
+        visible={selectedMember !== null}
+        onClose={closeMemberModal}
+        title={
+          selectedMember
+            ? `Gerenciar ${selectedMemberDisplayName}`
+            : 'Gerenciar membro'
+        }
+        dismissable={!actionLoading}
+        dismissOnBackdropPress={!actionLoading}
+        footer={
+          pendingAction && selectedMember ? (
+            <View style={[styles.confirmFooter, { gap: theme.spacing.sm }]}>
+              <View style={styles.flexSlot}>
+                <Button
+                  label="Cancelar"
+                  variant="secondary"
+                  disabled={actionLoading}
+                  fullWidth
+                  onPress={() => setPendingAction(null)}
+                />
+              </View>
+              <View style={styles.flexSlot}>
+                <Button
+                  label={
+                    pendingAction === 'remove' ? 'Remover' : 'Confirmar'
+                  }
+                  variant={pendingAction === 'remove' ? 'danger' : 'primary'}
+                  loading={actionLoading}
+                  fullWidth
+                  onPress={() => {
+                    if (pendingAction === 'remove') {
+                      void executeRemoveMember(selectedMember.uid);
+                    } else if (pendingAction === 'promote') {
+                      void executeChangeRole(selectedMember.uid, true);
+                    } else if (pendingAction === 'demote') {
+                      void executeChangeRole(selectedMember.uid, false);
+                    }
+                  }}
+                />
+              </View>
+            </View>
+          ) : undefined
+        }
+      >
+        {selectedMember ? (
+          pendingAction ? (
+            <View style={{ gap: theme.spacing.sm }}>
+              <AppText variant="body" color="inkSecondary">
+                {pendingAction === 'remove'
+                  ? `Tem certeza que deseja remover ${selectedMemberDisplayName} da república? Esta ação não pode ser desfeita.`
+                  : pendingAction === 'promote'
+                    ? `Tem certeza que deseja promover ${selectedMemberDisplayName} a administrador?`
+                    : `Tem certeza que deseja rebaixar ${selectedMemberDisplayName} para membro regular?`}
+              </AppText>
+            </View>
+          ) : (
+            <View style={{ gap: theme.spacing.md }}>
+              <View style={[styles.memberModalSummary, { gap: theme.spacing.sm }]}>
+                <Avatar
+                  uri={selectedMember.profilePictureUrl}
+                  name={selectedMemberDisplayName}
+                  size="md"
+                />
+                <View style={styles.flexSlot}>
+                  <AppText variant="bodyStrong" color="ink">
+                    {selectedMemberDisplayName}
+                  </AppText>
+                  <AppText variant="caption" color="inkSecondary">
+                    {selectedMember.email}
+                  </AppText>
+                </View>
+                <StatusText
+                  label={getRoleDisplay(selectedMember).label}
+                  tone={getRoleDisplay(selectedMember).tone}
+                  showDot
+                />
+              </View>
+
+              <Surface tone="surface" bordered style={styles.membersSurface}>
+                {isOwner && !isSelectedMemberOwner ? (
+                  <ListRow
+                    title={
+                      selectedMember.isAdmin
+                        ? 'Rebaixar para Membro'
+                        : 'Promover a Administrador'
+                    }
+                    subtitle={
+                      selectedMember.isAdmin
+                        ? 'Remove permissões administrativas'
+                        : 'Permite gerenciar convites e membros'
+                    }
+                    showDivider={!isSelectedMemberOwner}
+                    onPress={() =>
+                      setPendingAction(selectedMember.isAdmin ? 'demote' : 'promote')
+                    }
+                    leading={
+                      selectedMember.isAdmin ? (
+                        <ShieldOff
+                          size={20}
+                          strokeWidth={1.75}
+                          color={theme.colors.warning}
+                        />
+                      ) : (
+                        <Shield
+                          size={20}
+                          strokeWidth={1.75}
+                          color={theme.colors.accent}
+                        />
+                      )
+                    }
+                  />
+                ) : null}
+
+                {!isSelectedMemberOwner ? (
+                  <ListRow
+                    title="Remover da República"
+                    subtitle="Revoga o acesso deste morador à república"
+                    onPress={() => setPendingAction('remove')}
+                    leading={
+                      <Trash2
+                        size={20}
+                        strokeWidth={1.75}
+                        color={theme.colors.danger}
+                      />
+                    }
+                  />
+                ) : null}
+              </Surface>
+            </View>
+          )
+        ) : null}
+      </BottomSheetModal>
+    </>
   );
 };
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#222',
-  },
-  container: {
-    flex: 1,
-    backgroundColor: '#222',
-  },
-  header: {
-    padding: 20,
-    paddingBottom: 15,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 8,
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: '#aaa',
-  },
-  searchContainer: {
+  inviteRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#333',
-    borderRadius: 12,
-    margin: 16,
-    marginTop: 0,
-    padding: 10,
+    justifyContent: 'space-between',
   },
-  searchIcon: {
-    marginRight: 10,
-  },
-  searchInput: {
+  inviteTextBlock: {
     flex: 1,
-    color: '#fff',
-    fontSize: 16,
-    padding: 0,
+    gap: 2,
   },
-  inviteCodeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#333',
-    borderRadius: 12,
-    margin: 16,
-    marginTop: 0,
-    padding: 16,
+  inviteCodeText: {
+    letterSpacing: 1.5,
   },
-  inviteCodeContent: {
-    flex: 1,
+  membersSurface: {
+    overflow: 'hidden',
   },
-  inviteCodeLabel: {
-    fontSize: 14,
-    color: '#aaa',
-    marginBottom: 4,
-  },
-  inviteCode: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#7B68EE',
-    letterSpacing: 1,
-  },
-  shareButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#7B68EE',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  membersList: {
-    flex: 1,
-  },
-  swipeableContainer: {
-    backgroundColor: '#333',
-  },
-  memberItem: {
-    flexDirection: 'row',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#444',
-    backgroundColor: '#333',
-  },
-  memberAvatarContainer: {
-    position: 'relative',
-    marginRight: 16,
-    width: 50,
-    height: 50,
-  },
-  memberAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-  },
-  memberAvatarPlaceholder: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  memberAvatarBackground: {
-    backgroundColor: '#555',
-  },
-  adminAvatarBackground: {
-    backgroundColor: '#4A90E2',
-  },
-  memberAvatarText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  roleBadge: {
-    position: 'absolute',
-    bottom: -4,
-    right: -4,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#333',
-    backgroundColor: '#4A90E2',
-    zIndex: 1,
-  },
-  memberInfo: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  memberName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 4,
-  },
-  currentUserText: {
-    fontStyle: 'italic',
-    color: '#7B68EE',
-  },
-  memberEmail: {
-    fontSize: 14,
-    color: '#aaa',
-    marginBottom: 4,
-  },
-  memberRole: {
-    fontSize: 12,
-    color: '#7B68EE',
-  },
-  rightActions: {
+  trailingRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  actionButton: {
-    justifyContent: 'center',
+  memberModalSummary: {
+    flexDirection: 'row',
     alignItems: 'center',
-    width: 90,
-    height: '100%',
   },
-  promoteButton: {
-    backgroundColor: '#4CAF50',
+  confirmFooter: {
+    flexDirection: 'row',
+    width: '100%',
   },
-  demoteButton: {
-    backgroundColor: '#FF9800',
-  },
-  deleteButton: {
-    backgroundColor: '#FF5252',
-  },
-  actionButtonText: {
-    color: '#fff',
-    fontSize: 12,
-    marginTop: 4,
-  },
-  centeredContainer: {
+  flexSlot: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  loadingText: {
-    color: '#aaa',
-    marginTop: 12,
-    fontSize: 16,
-  },
-  errorText: {
-    color: '#FF6347',
-    marginTop: 12,
-    fontSize: 16,
-    textAlign: 'center',
-  },
-  emptyText: {
-    color: '#aaa',
-    marginTop: 12,
-    fontSize: 16,
-    textAlign: 'center',
-  },
-  retryButton: {
-    marginTop: 20,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    backgroundColor: '#7B68EE',
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  memberDate: {
-    fontSize: 12,
-    color: '#aaa',
-    marginTop: 4,
-  },
-  ownerAvatarBackground: {
-    backgroundColor: '#F5A623',
-  },
-  ownerBadge: {
-    backgroundColor: '#F5A623',
-  },
-  adminBadge: {
-    backgroundColor: '#4A90E2',
   },
 });
 
-export default MembersSettingsScreen; 
+export default MembersSettingsScreen;

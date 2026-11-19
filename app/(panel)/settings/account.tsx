@@ -1,656 +1,558 @@
-// app/(panel)/settings/account.tsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-    View,
-    Text,
-    StyleSheet,
-    TouchableOpacity,
-    ScrollView,
-    TextInput,
-    Image,
-    Alert,
-    ActivityIndicator,
-    SafeAreaView,
-    StatusBar,
-    KeyboardAvoidingView,
-    Platform,
-    Keyboard
+  ActivityIndicator,
+  Keyboard,
+  Platform,
+  StyleSheet,
+  View,
 } from 'react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
+import {
+  AlertCircle,
+  AtSign,
+  Camera,
+  ChevronRight,
+  Lock,
+  Mail,
+  Phone,
+  Save,
+  Trash2,
+  User as UserIcon,
+} from 'lucide-react-native';
 import { useAuth } from '../../../src/context/AuthContext';
-import { Ionicons } from '@expo/vector-icons';
+import {
+  AppText,
+  Avatar,
+  Button,
+  IconButton,
+  ListRow,
+  Screen,
+  ScreenHeader,
+  Surface,
+  TextField,
+  useFeedback,
+  useTheme,
+} from '../../../src/design-system';
 import api from '../../../src/services/api';
+import {
+  deleteImageFromSupabase,
+  uploadImageToSupabase,
+} from '../../../src/services/supabase';
 import { ErrorHandler } from '../../../src/utils/errorHandling';
 import { logger } from '../../../src/utils/logger';
-import * as ImagePicker from 'expo-image-picker';
-import * as Haptics from 'expo-haptics';
-import { updateCurrentUser } from 'firebase/auth';
-import { uploadImageToSupabase, deleteImageFromSupabase } from '../../../src/services/supabase';
+
+const triggerHaptic = (callback: () => Promise<void> | void) => {
+  if (Platform.OS === 'web') return;
+  try {
+    void Promise.resolve(callback()).catch(() => {});
+  } catch {
+    // Ignore haptics errors on unsupported devices
+  }
+};
 
 const AccountScreen = () => {
-    const router = useRouter();
-    const { user, login, updateStoredUser } = useAuth();
+  const router = useRouter();
+  const { theme } = useTheme();
+  const { toast, confirm } = useFeedback();
+  const { user, updateStoredUser } = useAuth();
 
-    const [name, setName] = useState(user?.name || '');
-    const [nickname, setNickname] = useState(user?.nickname || '');
-    const [email, setEmail] = useState(user?.email || '');
-    const [phone, setPhone] = useState(user?.phoneNumber || '');
-    const [profileImage, setProfileImage] = useState<string | null>(user?.profilePictureUrl || null);
-    const [loading, setLoading] = useState(false);
-    const [uploadingImage, setUploadingImage] = useState(false);
-    const [uploadError, setUploadError] = useState<string | null>(null);
+  const [name, setName] = useState(user?.name || '');
+  const [nickname, setNickname] = useState(user?.nickname || '');
+  const [email, setEmail] = useState(user?.email || '');
+  const [phone, setPhone] = useState(user?.phoneNumber || '');
+  const [profileImage, setProfileImage] = useState<string | null>(
+    user?.profilePictureUrl || null
+  );
+  const [nameError, setNameError] = useState<string | undefined>(undefined);
+  const [loading, setLoading] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
-    // Estados de foco para inputs
-    const [nameFocused, setNameFocused] = useState(false);
-    const [nicknameFocused, setNicknameFocused] = useState(false);
-    const [phoneFocused, setPhoneFocused] = useState(false);
+  useEffect(() => {
+    if (user) {
+      setName(user.name || '');
+      setNickname(user.nickname || '');
+      setEmail(user.email || '');
+      setPhone(user.phoneNumber || '');
+      if (user.profilePictureUrl !== undefined) {
+        setProfileImage(user.profilePictureUrl || null);
+      }
+    }
+  }, [user]);
 
-    // Atualiza os dados do usuário quando o objeto user mudar
-    useEffect(() => {
-        if (user) {
-            setName(user.name || '');
-            setNickname(user.nickname || '');
-            setEmail(user.email || '');
-            setPhone(user.phoneNumber || '');
-            if (user.profilePictureUrl) {
-                setProfileImage(user.profilePictureUrl);
-            }
-        }
-    }, [user]);
+  const handleSaveProfile = async () => {
+    Keyboard.dismiss();
+    triggerHaptic(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium));
 
-    // Função para salvar alterações no perfil
-    const handleSaveProfile = async () => {
-        Keyboard.dismiss();
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (!name.trim()) {
+      setNameError('O nome é obrigatório');
+      toast({
+        title: 'Campo obrigatório',
+        message: 'Informe seu nome completo para salvar.',
+        tone: 'warning',
+      });
+      return;
+    }
 
-        if (!name.trim()) {
-            Alert.alert('Erro', 'O nome é obrigatório');
-            return;
-        }
+    setNameError(undefined);
 
-        try {
-            setLoading(true);
+    try {
+      setLoading(true);
 
-            const userData = {
-                name,
-                nickname: nickname.trim() || null, // Garante que seja null se estiver vazio
-                phoneNumber: phone,
-                profilePictureUrl: profileImage // Enviando a URL da imagem para o backend
-            };
+      const userData = {
+        name,
+        nickname: nickname.trim() || null,
+        phoneNumber: phone,
+        profilePictureUrl: profileImage,
+      };
 
-            logger.debug('Enviando dados para atualização:', userData);
-            const response = await api.put(`/api/v1/users/${user?.uid}`, userData);
+      logger.debug('Enviando dados para atualização:', userData);
+      const response = await api.put(`/api/v1/users/${user?.uid}`, userData);
 
-            if (response.data) {
-                await updateStoredUser(response.data);
-                Alert.alert('Sucesso', 'Perfil atualizado com sucesso!');
-            }
-        } catch (error) {
-            logger.error('Erro ao salvar perfil:', error);
-            ErrorHandler.handle(error);
-        } finally {
-            setLoading(false);
-        }
-    };
+      if (response.data) {
+        await updateStoredUser(response.data);
+        toast({
+          title: 'Perfil atualizado',
+          message: 'Suas informações foram salvas com sucesso.',
+          tone: 'success',
+        });
+      }
+    } catch (error) {
+      logger.error('Erro ao salvar perfil:', error);
+      void ErrorHandler.handle(error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    // Função para selecionar imagem da galeria
-    const pickImage = async () => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        // Limpar erro anterior
-        setUploadError(null);
+  const pickImage = async () => {
+    triggerHaptic(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light));
+    setUploadError(null);
 
-        try {
-            // Solicitar permissão para acessar a galeria
-            const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    try {
+      const permissionResult =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-            if (permissionResult.granted === false) {
-                Alert.alert('Permissão Negada', 'É necessário permissão para acessar sua galeria de fotos');
-                return;
-            }
+      if (permissionResult.granted === false) {
+        toast({
+          title: 'Permissão negada',
+          message: 'É necessário permissão para acessar sua galeria de fotos.',
+          tone: 'warning',
+        });
+        return;
+      }
 
-            // Abrir seletor de imagem
-            const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                allowsEditing: true,
-                aspect: [1, 1],
-                quality: 0.7, // Reduzindo a qualidade para tamanho menor
-                allowsMultipleSelection: false,
-            });
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.7,
+        allowsMultipleSelection: false,
+      });
 
-            if (!result.canceled && result.assets && result.assets.length > 0) {
-                if (!user?.uid) {
-                    Alert.alert('Erro', 'Usuário não autenticado');
-                    return;
-                }
-
-                // Iniciar upload
-                setUploadingImage(true);
-                
-                try {
-                    logger.debug('Imagem selecionada. Iniciando upload para Supabase...');
-                    // Upload para o Supabase usando a função do serviço
-                    const asset = result.assets[0];
-                    const imageUri = asset.uri;
-                    
-                    logger.debug('Detalhes da imagem:', {
-                        uri: asset.uri,
-                        width: asset.width,
-                        height: asset.height,
-                        fileSize: asset.fileSize,
-                        type: asset.type
-                    });
-                    
-                    const { url, error } = await uploadImageToSupabase(
-                        imageUri,
-                        'avatars',
-                        user.uid,
-                        asset.fileSize
-                    );
-                    
-                    if (error || !url) {
-                        setUploadError(error?.message || 'Falha ao fazer upload da imagem');
-                        throw new Error(`Falha ao fazer upload da imagem para o Supabase: ${error?.message}`);
-                    }
-                    
-                    logger.debug('Upload concluído. URL recebida:', url);
-                    
-                    // Atualizar a imagem no estado
-                    setProfileImage(url);
-                    
-                    // Atualizar o perfil do usuário no backend com a nova URL
-                    logger.debug('Atualizando perfil no backend com nova URL...');
-                    const response = await api.put(`/api/v1/users/${user?.uid}`, {
-                        profilePictureUrl: url
-                    });
-
-                    logger.debug('Resposta da API:', response.data);
-
-                    // Atualizar usuário no contexto de autenticação
-                    if (user) {
-                        // Criar objeto com todos os dados do usuário atual + a nova URL
-                        const updatedUser = {
-                            ...user,
-                            profilePictureUrl: url
-                        };
-                        
-                        // Log para debug
-                        logger.debug('Atualizando usuário no contexto com nova imagem:', updatedUser);
-                        
-                        // Atualizar o contexto de autenticação
-                        await updateStoredUser(updatedUser);
-                        
-                        // Log para confirmar que a atualização foi concluída
-                        logger.debug('Usuário atualizado no contexto com sucesso');
-                    }
-
-                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                    Alert.alert('Sucesso', 'Foto de perfil atualizada com sucesso!');
-                } catch (error) {
-                    const message = error instanceof Error ? error.message : 'Erro desconhecido';
-                    logger.error('Erro detalhado no upload:', error);
-                    setUploadError(message);
-                    
-                    Alert.alert(
-                        'Erro ao Enviar Imagem', 
-                        `Não foi possível fazer o upload da imagem: ${message}`
-                    );
-                    
-                    ErrorHandler.handle(error);
-                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-                } finally {
-                    setUploadingImage(false);
-                }
-            }
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'Erro desconhecido';
-            logger.error('Erro ao selecionar imagem:', error);
-            setUploadError(message);
-            Alert.alert('Erro', `Não foi possível selecionar a imagem: ${message}`);
-            setUploadingImage(false);
-        }
-    };
-
-    const confirmDeleteProfilePicture = () => {
-        if (!profileImage) return;
-
-        Alert.alert(
-            'Remover Foto',
-            'Tem certeza que deseja remover sua foto de perfil?',
-            [
-                { text: 'Cancelar', style: 'cancel' },
-                {
-                    text: 'Remover',
-                    style: 'destructive',
-                    onPress: handleDeleteProfilePicture
-                }
-            ]
-        );
-    };
-
-    const handleDeleteProfilePicture = async () => {
+      if (!result.canceled && result.assets && result.assets.length > 0) {
         if (!user?.uid) {
-            Alert.alert('Erro', 'Usuário não autenticado');
-            return;
+          toast({
+            title: 'Erro',
+            message: 'Usuário não autenticado.',
+            tone: 'danger',
+          });
+          return;
         }
+
+        setUploadingImage(true);
 
         try {
-            setUploadingImage(true);
-            setUploadError(null);
+          logger.debug('Imagem selecionada. Iniciando upload para Supabase...');
+          const asset = result.assets[0];
+          const imageUri = asset.uri;
 
-            // Deletar a imagem do Supabase se tivermos uma URL válida
-            if (profileImage) {
-                logger.debug('Tentando excluir imagem do Supabase:', profileImage);
-                const { success, error } = await deleteImageFromSupabase(
-                    profileImage,
-                    'avatars',
-                    user.uid
-                );
-                
-                if (error) {
-                    logger.warn('Erro ao deletar imagem do Supabase:', error);
-                    // Continuar mesmo com erro, para pelo menos remover a referência no backend
-                }
-            }
+          logger.debug('Detalhes da imagem:', {
+            uri: asset.uri,
+            width: asset.width,
+            height: asset.height,
+            fileSize: asset.fileSize,
+            type: asset.type,
+          });
 
-            // Atualizar o perfil do usuário no backend
-            logger.debug('Atualizando perfil no backend para remover a URL da imagem');
-            const response = await api.put(`/api/v1/users/${user?.uid}`, {
-                profilePictureUrl: null
-            });
-            
-            setProfileImage(null);
+          const { url, error } = await uploadImageToSupabase(
+            imageUri,
+            'avatars',
+            user.uid,
+            asset.fileSize
+          );
 
-            // Atualizar usuário no contexto
-            if (user) {
-                const updatedUser = {
-                    ...user,
-                    profilePictureUrl: null
-                };
+          if (error || !url) {
+            const errorMsg = error?.message || 'Falha ao fazer upload da imagem';
+            setUploadError(errorMsg);
+            throw new Error(
+              `Falha ao fazer upload da imagem para o Supabase: ${error?.message}`
+            );
+          }
 
-                await updateStoredUser(updatedUser);
-                logger.debug('Usuário atualizado no contexto após remoção de imagem');
-            }
+          logger.debug('Upload concluído. URL recebida:', url);
+          setProfileImage(url);
 
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            Alert.alert('Sucesso', 'Foto de perfil removida com sucesso!');
+          logger.debug('Atualizando perfil no backend com nova URL...');
+          const response = await api.put(`/api/v1/users/${user?.uid}`, {
+            profilePictureUrl: url,
+          });
+          logger.debug('Resposta da API:', response.data);
+
+          if (user) {
+            const updatedUser = {
+              ...user,
+              profilePictureUrl: url,
+            };
+            logger.debug(
+              'Atualizando usuário no contexto com nova imagem:',
+              updatedUser
+            );
+            await updateStoredUser(updatedUser);
+            logger.debug('Usuário atualizado no contexto com sucesso');
+          }
+
+          triggerHaptic(() =>
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+          );
+          toast({
+            title: 'Foto atualizada',
+            message: 'Foto de perfil atualizada com sucesso!',
+            tone: 'success',
+          });
         } catch (error) {
-            const message = error instanceof Error ? error.message : 'Erro desconhecido';
-            logger.error('Erro ao excluir imagem:', error);
-            setUploadError(message);
-            Alert.alert('Erro', `Não foi possível remover a foto: ${message}`);
-            ErrorHandler.handle(error);
+          const message =
+            error instanceof Error ? error.message : 'Erro desconhecido';
+          logger.error('Erro detalhado no upload:', error);
+          setUploadError(message);
+          toast({
+            title: 'Erro ao enviar imagem',
+            message: `Não foi possível fazer o upload da imagem: ${message}`,
+            tone: 'danger',
+          });
+          void ErrorHandler.handle(error, { showAlert: false });
+          triggerHaptic(() =>
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
+          );
         } finally {
-            setUploadingImage(false);
+          setUploadingImage(false);
         }
-    };
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Erro desconhecido';
+      logger.error('Erro ao selecionar imagem:', error);
+      setUploadError(message);
+      toast({
+        title: 'Erro',
+        message: `Não foi possível selecionar a imagem: ${message}`,
+        tone: 'danger',
+      });
+      setUploadingImage(false);
+    }
+  };
 
-    return (
-        <SafeAreaView style={styles.safeArea}>
-            <StatusBar barStyle="light-content" backgroundColor="#222" />
-            <KeyboardAvoidingView
-                style={{ flex: 1 }}
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            >
-                <ScrollView style={styles.container}>
-                    <View style={styles.header}>
-                        <View style={styles.profileImageContainer}>
-                            {uploadingImage ? (
-                                <View style={styles.uploading}>
-                                    <ActivityIndicator size="large" color="#7B68EE" />
-                                </View>
-                            ) : profileImage ? (
-                                <Image 
-                                    source={{ uri: profileImage }} 
-                                    style={styles.profileImage}
-                                    onError={(e) => {
-                                        logger.error('Erro ao carregar imagem:', e.nativeEvent.error);
-                                        setUploadError('Não foi possível carregar a imagem');
-                                    }}
-                                />
-                            ) : (
-                                <View style={styles.placeholderImage}>
-                                    <Text style={styles.placeholderText}>
-                                        {user && user.nickname
-                                            ? user.nickname[0].toUpperCase()
-                                            : name.split(' ').map(n => n[0]).join('').toUpperCase()}
-                                    </Text>
-                                </View>
-                            )}
+  const handleDeleteProfilePicture = async () => {
+    if (!user?.uid) {
+      toast({
+        title: 'Erro',
+        message: 'Usuário não autenticado.',
+        tone: 'danger',
+      });
+      return;
+    }
 
-                            <View style={styles.imageActions}>
-                                <TouchableOpacity
-                                    style={styles.imageActionButton}
-                                    onPress={pickImage}
-                                    disabled={uploadingImage}
-                                >
-                                    <Ionicons name="camera" size={18} color="#fff" />
-                                </TouchableOpacity>
+    try {
+      setUploadingImage(true);
+      setUploadError(null);
 
-                                {profileImage && (
-                                    <TouchableOpacity
-                                        style={[styles.imageActionButton, styles.deleteImageButton]}
-                                        onPress={confirmDeleteProfilePicture}
-                                        disabled={uploadingImage}
-                                    >
-                                        <Ionicons name="trash" size={18} color="#fff" />
-                                    </TouchableOpacity>
-                                )}
-                            </View>
-                        </View>
+      if (profileImage) {
+        logger.debug('Tentando excluir imagem do Supabase:', profileImage);
+        const { error } = await deleteImageFromSupabase(
+          profileImage,
+          'avatars',
+          user.uid
+        );
 
-                        {uploadError && (
-                            <Text style={styles.errorText}>
-                                {uploadError}
-                            </Text>
-                        )}
+        if (error) {
+          logger.warn('Erro ao deletar imagem do Supabase:', error);
+        }
+      }
 
-                        <Text style={styles.userName}>
-                            {nickname || name}
-                        </Text>
-                        <Text style={styles.userEmail}>{email}</Text>
-                    </View>
+      logger.debug('Atualizando perfil no backend para remover a URL da imagem');
+      await api.put(`/api/v1/users/${user?.uid}`, {
+        profilePictureUrl: null,
+      });
 
-                    <View style={styles.formSection}>
-                        <Text style={styles.sectionTitle}>Informações Pessoais</Text>
+      setProfileImage(null);
 
-                        <View style={styles.formContainer}>
-                            <View style={styles.inputGroup}>
-                                <Text style={styles.inputLabel}>Nome Completo</Text>
-                                <View style={[
-                                    styles.inputContainer,
-                                    nameFocused && styles.inputFocused
-                                ]}>
-                                    <Ionicons name="person" size={20} color="#7B68EE" style={styles.inputIcon} />
-                                    <TextInput
-                                        style={styles.input}
-                                        value={name}
-                                        onChangeText={setName}
-                                        placeholder="Seu nome completo"
-                                        placeholderTextColor="#aaa"
-                                        onFocus={() => setNameFocused(true)}
-                                        onBlur={() => setNameFocused(false)}
-                                    />
-                                </View>
-                            </View>
+      if (user) {
+        const updatedUser = {
+          ...user,
+          profilePictureUrl: null,
+        };
+        await updateStoredUser(updatedUser);
+        logger.debug('Usuário atualizado no contexto após remoção de imagem');
+      }
 
-                            <View style={styles.inputGroup}>
-                                <Text style={styles.inputLabel}>Apelido (opcional)</Text>
-                                <View style={[
-                                    styles.inputContainer,
-                                    nicknameFocused && styles.inputFocused
-                                ]}>
-                                    <Ionicons name="at" size={20} color="#7B68EE" style={styles.inputIcon} />
-                                    <TextInput
-                                        style={styles.input}
-                                        value={nickname}
-                                        onChangeText={setNickname}
-                                        placeholder="Como você gostaria de ser chamado"
-                                        placeholderTextColor="#aaa"
-                                        onFocus={() => setNicknameFocused(true)}
-                                        onBlur={() => setNicknameFocused(false)}
-                                    />
-                                </View>
-                                <Text style={styles.helperText}>
-                                    Se definido, será usado em vez do seu nome em toda a aplicação
-                                </Text>
-                            </View>
+      triggerHaptic(() =>
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+      );
+      toast({
+        title: 'Foto removida',
+        message: 'Foto de perfil removida com sucesso!',
+        tone: 'success',
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Erro desconhecido';
+      logger.error('Erro ao excluir imagem:', error);
+      setUploadError(message);
+      toast({
+        title: 'Erro',
+        message: `Não foi possível remover a foto: ${message}`,
+        tone: 'danger',
+      });
+      void ErrorHandler.handle(error, { showAlert: false });
+    } finally {
+      setUploadingImage(false);
+    }
+  };
 
-                            <View style={styles.inputGroup}>
-                                <Text style={styles.inputLabel}>Email</Text>
-                                <View style={styles.inputContainer}>
-                                    <Ionicons name="mail" size={20} color="#7B68EE" style={styles.inputIcon} />
-                                    <TextInput
-                                        style={[styles.input, { color: '#888' }]}
-                                        value={email}
-                                        placeholder="Seu email"
-                                        placeholderTextColor="#aaa"
-                                        editable={false}
-                                    />
-                                </View>
-                                <Text style={styles.emailNote}>
-                                    O email não pode ser alterado
-                                </Text>
-                            </View>
+  const confirmDeleteProfilePicture = async () => {
+    if (!profileImage) return;
 
-                            <View style={styles.inputGroup}>
-                                <Text style={styles.inputLabel}>Telefone (opcional)</Text>
-                                <View style={[
-                                    styles.inputContainer,
-                                    phoneFocused && styles.inputFocused
-                                ]}>
-                                    <Ionicons name="call" size={20} color="#7B68EE" style={styles.inputIcon} />
-                                    <TextInput
-                                        style={styles.input}
-                                        value={phone}
-                                        onChangeText={setPhone}
-                                        placeholder="Seu número de telefone"
-                                        placeholderTextColor="#aaa"
-                                        keyboardType="phone-pad"
-                                        onFocus={() => setPhoneFocused(true)}
-                                        onBlur={() => setPhoneFocused(false)}
-                                    />
-                                </View>
-                            </View>
-                        </View>
-                    </View>
+    const confirmed = await confirm({
+      title: 'Remover Foto',
+      message: 'Tem certeza que deseja remover sua foto de perfil?',
+      confirmLabel: 'Remover',
+      cancelLabel: 'Cancelar',
+      destructive: true,
+    });
 
-                    <View style={styles.securitySection}>
-                        <Text style={styles.sectionTitle}>Segurança</Text>
+    if (confirmed) {
+      await handleDeleteProfilePicture();
+    }
+  };
 
-                        <TouchableOpacity
-                            style={styles.securityButton}
-                            onPress={() => router.push('/(panel)/settings/change-password')}
-                        >
-                            <View style={styles.securityButtonContent}>
-                                <Ionicons name="lock-closed" size={20} color="#7B68EE" />
-                                <Text style={styles.securityButtonText}>Alterar Senha</Text>
-                            </View>
-                            <Ionicons name="chevron-forward" size={20} color="#7B68EE" />
-                        </TouchableOpacity>
-                    </View>
+  const displayLabel = nickname.trim() || name.trim() || 'Usuário';
 
-                    <TouchableOpacity
-                        style={[
-                            styles.saveButton,
-                            loading && styles.buttonDisabled
-                        ]}
-                        onPress={handleSaveProfile}
-                        disabled={loading}
-                    >
-                        {loading ? (
-                            <ActivityIndicator size="small" color="#fff" />
-                        ) : (
-                            <>
-                                <Ionicons name="save" size={20} color="#fff" style={styles.saveButtonIcon} />
-                                <Text style={styles.saveButtonText}>Salvar Alterações</Text>
-                            </>
-                        )}
-                    </TouchableOpacity>
-                </ScrollView>
-            </KeyboardAvoidingView>
-        </SafeAreaView>
-    );
+  return (
+    <Screen
+      scroll
+      keyboardAvoiding
+      header={
+        <ScreenHeader
+          title="Perfil"
+          subtitle="Editar informações pessoais"
+          onBack={() => router.back()}
+        />
+      }
+      contentContainerStyle={{ gap: theme.spacing.lg }}
+    >
+      {/* Cabeçalho do perfil com avatar */}
+      <Surface tone="surface" bordered padded="md" style={{ gap: theme.spacing.md }}>
+        <View style={[styles.profileHeaderRow, { gap: theme.spacing.md }]}>
+          <View style={styles.avatarHolder}>
+            {uploadingImage ? (
+              <View
+                style={[
+                  styles.uploadingPlaceholder,
+                  {
+                    backgroundColor: theme.colors.subtle,
+                    borderColor: theme.colors.line,
+                    borderRadius: theme.radius.full,
+                  },
+                ]}
+              >
+                <ActivityIndicator size="small" color={theme.colors.accent} />
+              </View>
+            ) : (
+              <Avatar uri={profileImage} name={displayLabel} size="lg" />
+            )}
+          </View>
+
+          <View style={styles.profileIdentity}>
+            <AppText variant="heading" color="ink" numberOfLines={1}>
+              {displayLabel}
+            </AppText>
+            <AppText variant="caption" color="inkSecondary" numberOfLines={1}>
+              {email}
+            </AppText>
+          </View>
+
+          <View style={[styles.avatarActions, { gap: theme.spacing.xxs }]}>
+            <IconButton
+              icon={<Camera size={20} strokeWidth={1.75} color={theme.colors.accent} />}
+              onPress={() => void pickImage()}
+              disabled={uploadingImage}
+              accessibilityLabel="Alterar foto de perfil"
+              variant="subtle"
+            />
+            {profileImage ? (
+              <IconButton
+                icon={<Trash2 size={20} strokeWidth={1.75} color={theme.colors.danger} />}
+                onPress={() => void confirmDeleteProfilePicture()}
+                disabled={uploadingImage}
+                accessibilityLabel="Remover foto de perfil"
+                variant="danger"
+              />
+            ) : null}
+          </View>
+        </View>
+
+        {uploadError ? (
+          <View
+            style={[
+              styles.errorBanner,
+              {
+                backgroundColor: theme.colors.dangerSoft,
+                borderRadius: theme.radius.sm,
+                padding: theme.spacing.sm,
+                gap: theme.spacing.xs,
+              },
+            ]}
+          >
+            <AlertCircle size={16} strokeWidth={1.75} color={theme.colors.danger} />
+            <AppText variant="caption" color="danger" style={styles.flexText}>
+              {uploadError}
+            </AppText>
+          </View>
+        ) : null}
+      </Surface>
+
+      {/* Informações Pessoais */}
+      <View style={{ gap: theme.spacing.xs }}>
+        <AppText variant="monoLabel" color="inkSecondary">
+          Informações pessoais
+        </AppText>
+        <Surface tone="surface" bordered padded="md" style={{ gap: theme.spacing.md }}>
+          <TextField
+            label="Nome Completo"
+            value={name}
+            onChangeText={(text) => {
+              setName(text);
+              if (nameError && text.trim()) {
+                setNameError(undefined);
+              }
+            }}
+            placeholder="Seu nome completo"
+            error={nameError}
+            leftIcon={
+              <UserIcon size={18} strokeWidth={1.75} color={theme.colors.inkMuted} />
+            }
+          />
+
+          <TextField
+            label="Apelido (opcional)"
+            value={nickname}
+            onChangeText={setNickname}
+            placeholder="Como você gostaria de ser chamado"
+            helperText="Se definido, será usado em vez do seu nome em toda a aplicação"
+            leftIcon={
+              <AtSign size={18} strokeWidth={1.75} color={theme.colors.inkMuted} />
+            }
+          />
+
+          <TextField
+            label="Email"
+            value={email}
+            onChangeText={setEmail}
+            placeholder="Seu email"
+            editable={false}
+            helperText="O email não pode ser alterado"
+            leftIcon={
+              <Mail size={18} strokeWidth={1.75} color={theme.colors.inkMuted} />
+            }
+          />
+
+          <TextField
+            label="Telefone (opcional)"
+            value={phone}
+            onChangeText={setPhone}
+            placeholder="Seu número de telefone"
+            keyboardType="phone-pad"
+            leftIcon={
+              <Phone size={18} strokeWidth={1.75} color={theme.colors.inkMuted} />
+            }
+          />
+        </Surface>
+      </View>
+
+      {/* Segurança */}
+      <View style={{ gap: theme.spacing.xs }}>
+        <AppText variant="monoLabel" color="inkSecondary">
+          Segurança
+        </AppText>
+        <Surface tone="surface" bordered style={styles.sectionSurface}>
+          <ListRow
+            title="Alterar Senha"
+            subtitle="Atualize sua senha de acesso"
+            onPress={() => router.push('/(panel)/settings/change-password')}
+            leading={
+              <Lock size={20} strokeWidth={1.75} color={theme.colors.accent} />
+            }
+            trailing={
+              <ChevronRight
+                size={18}
+                strokeWidth={1.75}
+                color={theme.colors.inkMuted}
+              />
+            }
+          />
+        </Surface>
+      </View>
+
+      <Button
+        label="Salvar Alterações"
+        variant="primary"
+        fullWidth
+        loading={loading}
+        leftIcon={
+          <Save size={18} strokeWidth={1.75} color={theme.colors.onAccent} />
+        }
+        onPress={() => void handleSaveProfile()}
+      />
+    </Screen>
+  );
 };
 
 const styles = StyleSheet.create({
-    safeArea: {
-        flex: 1,
-        backgroundColor: '#222',
-    },
-    container: {
-        flex: 1,
-        backgroundColor: '#222',
-    },
-    header: {
-        alignItems: 'center',
-        paddingVertical: 24,
-        backgroundColor: '#333',
-        marginBottom: 20,
-        borderBottomWidth: 1,
-        borderBottomColor: '#444',
-    },
-    profileImageContainer: {
-        position: 'relative',
-        marginBottom: 16,
-    },
-    profileImage: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-    },
-    placeholderImage: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        backgroundColor: '#7B68EE',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    placeholderText: {
-        fontSize: 36,
-        fontWeight: 'bold',
-        color: 'white',
-    },
-    uploading: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    imageActions: {
-        flexDirection: 'row',
-        position: 'absolute',
-        bottom: -5,
-        right: -5,
-    },
-    imageActionButton: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        backgroundColor: '#7B68EE',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginLeft: 8,
-    },
-    deleteImageButton: {
-        backgroundColor: '#FF6347',
-    },
-    errorText: {
-        color: '#FF6347',
-        marginTop: 5,
-        marginBottom: 10,
-        textAlign: 'center',
-        fontSize: 12,
-    },
-    userName: {
-        fontSize: 22,
-        fontWeight: 'bold',
-        color: 'white',
-        marginBottom: 4,
-    },
-    userEmail: {
-        fontSize: 16,
-        color: '#aaa',
-    },
-    formSection: {
-        marginBottom: 24,
-        paddingHorizontal: 20,
-    },
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#7B68EE',
-        marginBottom: 16,
-    },
-    formContainer: {
-        backgroundColor: '#333',
-        borderRadius: 12,
-        padding: 16,
-    },
-    inputGroup: {
-        marginBottom: 16,
-    },
-    inputLabel: {
-        color: '#fff',
-        fontSize: 14,
-        marginBottom: 8,
-    },
-    inputContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#444',
-        borderRadius: 8,
-        paddingHorizontal: 12,
-        borderWidth: 1,
-        borderColor: '#555',
-    },
-    inputFocused: {
-        borderColor: '#7B68EE',
-    },
-    inputIcon: {
-        marginRight: 10,
-    },
-    input: {
-        flex: 1,
-        paddingVertical: 12,
-        color: 'white',
-        fontSize: 16,
-    },
-    emailNote: {
-        color: '#888',
-        fontSize: 12,
-        marginTop: 4,
-        fontStyle: 'italic',
-    },
-    helperText: {
-        color: '#aaa',
-        fontSize: 12,
-        marginTop: 4,
-    },
-    securitySection: {
-        marginBottom: 24,
-        paddingHorizontal: 20,
-    },
-    securityButton: {
-        backgroundColor: '#333',
-        borderRadius: 12,
-        padding: 16,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    securityButtonContent: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    securityButtonText: {
-        color: 'white',
-        fontSize: 16,
-        marginLeft: 12,
-    },
-    saveButton: {
-        backgroundColor: '#7B68EE',
-        borderRadius: 12,
-        padding: 16,
-        margin: 20,
-        alignItems: 'center',
-        flexDirection: 'row',
-        justifyContent: 'center',
-        marginBottom: 40,
-    },
-    buttonDisabled: {
-        opacity: 0.7,
-    },
-    saveButtonIcon: {
-        marginRight: 10,
-    },
-    saveButtonText: {
-        color: 'white',
-        fontSize: 16,
-        fontWeight: 'bold',
-    },
+  profileHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  avatarHolder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  uploadingPlaceholder: {
+    width: 56,
+    height: 56,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileIdentity: {
+    flex: 1,
+    gap: 2,
+  },
+  avatarActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  flexText: {
+    flex: 1,
+  },
+  sectionSurface: {
+    overflow: 'hidden',
+  },
 });
 
 export default AccountScreen;
