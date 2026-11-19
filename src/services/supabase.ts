@@ -228,6 +228,9 @@ export const uploadImageToSupabase = async (
 
     if (Platform.OS === 'web' && typeof fetch === 'function') {
       const blobResponse = await fetch(compressedImage.uri);
+      if (!blobResponse.ok) {
+        throw new Error('Falha ao ler imagem comprimida');
+      }
       uploadBody = await blobResponse.blob();
     }
 

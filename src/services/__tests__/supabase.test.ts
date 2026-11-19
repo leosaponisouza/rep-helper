@@ -49,6 +49,7 @@ jest.mock('../../utils/logger', () => ({
   },
 }));
 
+import { Platform } from 'react-native';
 import * as ImageManipulator from 'expo-image-manipulator';
 import {
   MAX_IMAGE_UPLOAD_BYTES,
@@ -212,6 +213,84 @@ describe('supabase storage security helpers', () => {
     expect(allowRes.success).toBe(true);
     expect(allowRes.error).toBeNull();
     expect(__mockStorage.remove).toHaveBeenCalledWith(['public/user_1/123.jpg']);
+  });
+
+  it('rejects untrusted origin and path traversal directly in deleteImageFromSupabase', async () => {
+    const evilOriginRes = await deleteImageFromSupabase(
+      'https://evil.example/storage/v1/object/public/avatars/public/user_1/123.jpg',
+      'avatars',
+      'user_1'
+    );
+    expect(evilOriginRes.success).toBe(false);
+    expect(evilOriginRes.error?.message).toBe('Origem de armazenamento inválida');
+    expect(__mockStorage.remove).not.toHaveBeenCalled();
+
+    const traversalRes = await deleteImageFromSupabase(
+      'https://demo.supabase.co/storage/v1/object/public/avatars/public/user_1/../user_2/123.jpg',
+      'avatars',
+      'user_1'
+    );
+    expect(traversalRes.success).toBe(false);
+    expect(traversalRes.error?.message).toBe('Caminho de arquivo inválido');
+    expect(__mockStorage.remove).not.toHaveBeenCalled();
+  });
+
+  it('converts compressed URI to Blob on web and rejects when fetch response is not ok', async () => {
+    const originalOS = Platform.OS;
+    const originalFetch = global.fetch;
+
+    try {
+      (Platform as any).OS = 'web';
+      const mockBlob = new Blob(['jpeg-bytes'], { type: 'image/jpeg' });
+      const mockBlobFn = jest.fn().mockResolvedValue(mockBlob);
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        blob: mockBlobFn,
+      } as any);
+
+      const webOkRes = await uploadImageToSupabase(
+        'blob:http://localhost:8081/receipt-web',
+        'receipts',
+        'user_1',
+        1024
+      );
+
+      expect(webOkRes.error).toBeNull();
+      expect(webOkRes.url).toContain('/storage/v1/object/public/');
+      expect(global.fetch).toHaveBeenCalledWith('file:///tmp/compressed.jpg');
+      expect(mockBlobFn).toHaveBeenCalledTimes(1);
+      expect(__mockStorage.upload).toHaveBeenCalledWith(
+        expect.stringMatching(/^public\/user_1\/\d+\.jpg$/),
+        mockBlob,
+        expect.objectContaining({
+          upsert: true,
+          contentType: 'image/jpeg',
+        })
+      );
+
+      jest.clearAllMocks();
+      const failBlobFn = jest.fn();
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        blob: failBlobFn,
+      } as any);
+
+      const webFailRes = await uploadImageToSupabase(
+        'blob:http://localhost:8081/receipt-web-fail',
+        'receipts',
+        'user_1',
+        1024
+      );
+
+      expect(webFailRes.url).toBeNull();
+      expect(webFailRes.error?.message).toBe('Falha ao ler imagem comprimida');
+      expect(failBlobFn).not.toHaveBeenCalled();
+      expect(__mockStorage.upload).not.toHaveBeenCalled();
+    } finally {
+      (Platform as any).OS = originalOS;
+      global.fetch = originalFetch;
+    }
   });
 
   it('does not crash on module import when Supabase config is missing and rejects upload cleanly', async () => {
