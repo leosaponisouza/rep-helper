@@ -4,12 +4,12 @@
     "slug": "rep-helper",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
+    "icon": "./assets/images/icon.png",
+    "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./assets/splash.png",
+      "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#222222"
+      "backgroundColor": "#F5F2EB"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -20,17 +20,17 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#222222"
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#F5F2EB"
       },
       "package": "com.anonymous.rephelper"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/images/favicon.png"
     },
     "scheme": "rephelper",
     "plugins": [
       "expo-router"
     ]
   }
-} 
+}

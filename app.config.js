@@ -16,7 +16,7 @@ module.exports = {
   splash: {
     image: "./assets/images/splash-icon.png",
     resizeMode: "contain",
-    backgroundColor: "#ffffff"
+    backgroundColor: "#F5F2EB"
   },
   updates: {
     url: "https://u.expo.dev/883082f7-0fde-4821-b970-bb262f455554"
@@ -24,7 +24,7 @@ module.exports = {
   android: {
     adaptiveIcon: {
       foregroundImage: "./assets/images/adaptive-icon.png",
-      backgroundColor: "#ffffff"
+      backgroundColor: "#F5F2EB"
     },
     package: IS_DEV ? "com.anonymous.rephelperfrontend.dev" : "com.anonymous.rephelperfrontend",
     runtimeVersion: "1.0.0"
