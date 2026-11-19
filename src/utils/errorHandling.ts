@@ -6,6 +6,7 @@
 import { Alert, Platform } from 'react-native';
 import axios, { AxiosError } from 'axios';
 import NetInfo from '@react-native-community/netinfo';
+import { sanitizeForLog, scrubString } from './logSanitizer';
 
 /**
  * Tipos de erros que a aplicação pode tratar
@@ -428,14 +429,14 @@ export class ErrorHandler {
       const logData = {
         code: error.code,
         timestamp: error.timestamp || new Date().toISOString(),
-        context: error.context || {},
+        context: sanitizeForLog(error.context || {}),
         platform: Platform.OS,
         appVersion: Platform.Version,
-        originalError: error.originalError
+        originalError: sanitizeForLog(error.originalError)
       };
       
       // Log no console apenas para desenvolvimento
-      console.error(`${logPrefix} ${error.message}`, logData);
+      console.error(`${logPrefix} ${scrubString(error.message)}`, logData);
     }
     
     // Aqui você poderia enviar o erro para um serviço de monitoramento

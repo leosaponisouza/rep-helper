@@ -1,4 +1,5 @@
 // src/utils/logger.ts
+import { sanitizeForLog, scrubString } from './logSanitizer';
 
 export interface Logger {
   debug: (message: string, ...meta: unknown[]) => void;
@@ -14,22 +15,22 @@ const isDevEnvironment = (): boolean => {
 export const logger: Logger = {
   debug(message: string, ...meta: unknown[]) {
     if (isDevEnvironment()) {
-      console.log(`[DEBUG] ${message}`, ...meta);
+      console.log(`[DEBUG] ${scrubString(message)}`, ...meta.map(sanitizeForLog));
     }
   },
   info(message: string, ...meta: unknown[]) {
     if (isDevEnvironment()) {
-      console.info(`[INFO] ${message}`, ...meta);
+      console.info(`[INFO] ${scrubString(message)}`, ...meta.map(sanitizeForLog));
     }
   },
   warn(message: string, ...meta: unknown[]) {
     if (isDevEnvironment()) {
-      console.warn(`[WARN] ${message}`, ...meta);
+      console.warn(`[WARN] ${scrubString(message)}`, ...meta.map(sanitizeForLog));
     }
   },
   error(message: string, ...meta: unknown[]) {
     if (isDevEnvironment()) {
-      console.error(`[ERROR] ${message}`, ...meta);
+      console.error(`[ERROR] ${scrubString(message)}`, ...meta.map(sanitizeForLog));
     }
   },
 };

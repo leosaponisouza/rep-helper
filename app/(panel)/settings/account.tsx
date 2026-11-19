@@ -21,6 +21,7 @@ import { useAuth } from '../../../src/context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../../../src/services/api';
 import { ErrorHandler } from '../../../src/utils/errorHandling';
+import { logger } from '../../../src/utils/logger';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import { updateCurrentUser } from 'firebase/auth';
@@ -77,7 +78,7 @@ const AccountScreen = () => {
                 profilePictureUrl: profileImage // Enviando a URL da imagem para o backend
             };
 
-            console.log('Enviando dados para atualização:', userData);
+            logger.debug('Enviando dados para atualização:', userData);
             const response = await api.put(`/api/v1/users/${user?.uid}`, userData);
 
             if (response.data) {
@@ -85,7 +86,7 @@ const AccountScreen = () => {
                 Alert.alert('Sucesso', 'Perfil atualizado com sucesso!');
             }
         } catch (error) {
-            console.error('Erro ao salvar perfil:', error);
+            logger.error('Erro ao salvar perfil:', error);
             ErrorHandler.handle(error);
         } finally {
             setLoading(false);
@@ -121,12 +122,12 @@ const AccountScreen = () => {
                 setUploadingImage(true);
                 
                 try {
-                    console.log('Imagem selecionada. Iniciando upload para Supabase...');
+                    logger.debug('Imagem selecionada. Iniciando upload para Supabase...');
                     // Upload para o Supabase usando a função do serviço
                     const imageUri = result.assets[0].uri;
                     const asset = result.assets[0];
                     
-                    console.log('Detalhes da imagem:', {
+                    logger.debug('Detalhes da imagem:', {
                         uri: asset.uri,
                         width: asset.width,
                         height: asset.height,
@@ -141,18 +142,18 @@ const AccountScreen = () => {
                         throw new Error(`Falha ao fazer upload da imagem para o Supabase: ${error?.message}`);
                     }
                     
-                    console.log('Upload concluído. URL recebida:', url);
+                    logger.debug('Upload concluído. URL recebida:', url);
                     
                     // Atualizar a imagem no estado
                     setProfileImage(url);
                     
                     // Atualizar o perfil do usuário no backend com a nova URL
-                    console.log('Atualizando perfil no backend com nova URL...');
+                    logger.debug('Atualizando perfil no backend com nova URL...');
                     const response = await api.put(`/api/v1/users/${user?.uid}`, {
                         profilePictureUrl: url
                     });
 
-                    console.log('Resposta da API:', response.data);
+                    logger.debug('Resposta da API:', response.data);
 
                     // Atualizar usuário no contexto de autenticação
                     if (user) {
@@ -163,20 +164,20 @@ const AccountScreen = () => {
                         };
                         
                         // Log para debug
-                        console.log('Atualizando usuário no contexto com nova imagem:', updatedUser);
+                        logger.debug('Atualizando usuário no contexto com nova imagem:', updatedUser);
                         
                         // Atualizar o contexto de autenticação
                         await updateStoredUser(updatedUser);
                         
                         // Log para confirmar que a atualização foi concluída
-                        console.log('Usuário atualizado no contexto com sucesso');
+                        logger.debug('Usuário atualizado no contexto com sucesso');
                     }
 
                     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                     Alert.alert('Sucesso', 'Foto de perfil atualizada com sucesso!');
                 } catch (error) {
                     const message = error instanceof Error ? error.message : 'Erro desconhecido';
-                    console.error('Erro detalhado no upload:', error);
+                    logger.error('Erro detalhado no upload:', error);
                     setUploadError(message);
                     
                     Alert.alert(
@@ -192,7 +193,7 @@ const AccountScreen = () => {
             }
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Erro desconhecido';
-            console.error('Erro ao selecionar imagem:', error);
+            logger.error('Erro ao selecionar imagem:', error);
             setUploadError(message);
             Alert.alert('Erro', `Não foi possível selecionar a imagem: ${message}`);
             setUploadingImage(false);
@@ -223,17 +224,17 @@ const AccountScreen = () => {
 
             // Deletar a imagem do Supabase se tivermos uma URL válida
             if (profileImage) {
-                console.log('Tentando excluir imagem do Supabase:', profileImage);
+                logger.debug('Tentando excluir imagem do Supabase:', profileImage);
                 const { success, error } = await deleteImageFromSupabase(profileImage);
                 
                 if (error) {
-                    console.warn('Erro ao deletar imagem do Supabase:', error);
+                    logger.warn('Erro ao deletar imagem do Supabase:', error);
                     // Continuar mesmo com erro, para pelo menos remover a referência no backend
                 }
             }
 
             // Atualizar o perfil do usuário no backend
-            console.log('Atualizando perfil no backend para remover a URL da imagem');
+            logger.debug('Atualizando perfil no backend para remover a URL da imagem');
             const response = await api.put(`/api/v1/users/${user?.uid}`, {
                 profilePictureUrl: null
             });
@@ -248,14 +249,14 @@ const AccountScreen = () => {
                 };
 
                 await updateStoredUser(updatedUser);
-                console.log('Usuário atualizado no contexto após remoção de imagem');
+                logger.debug('Usuário atualizado no contexto após remoção de imagem');
             }
 
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             Alert.alert('Sucesso', 'Foto de perfil removida com sucesso!');
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Erro desconhecido';
-            console.error('Erro ao excluir imagem:', error);
+            logger.error('Erro ao excluir imagem:', error);
             setUploadError(message);
             Alert.alert('Erro', `Não foi possível remover a foto: ${message}`);
             ErrorHandler.handle(error);
@@ -283,7 +284,7 @@ const AccountScreen = () => {
                                     source={{ uri: profileImage }} 
                                     style={styles.profileImage}
                                     onError={(e) => {
-                                        console.error('Erro ao carregar imagem:', e.nativeEvent.error);
+                                        logger.error('Erro ao carregar imagem:', e.nativeEvent.error);
                                         setUploadError('Não foi possível carregar a imagem');
                                     }}
                                 />

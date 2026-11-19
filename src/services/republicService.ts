@@ -12,6 +12,7 @@ import {
 import { User } from '../models/user.model';
 import { getFreshFirebaseToken } from '../utils/firebaseClientConfig';
 import { ErrorHandler } from '../utils/errorHandling';
+import { logger } from '../utils/logger';
 import { PagedResponse } from '../models/pagedResponse.model';
 import axios from 'axios';
 
@@ -31,7 +32,7 @@ export const getRepublic = async (republicId: string): Promise<Republic> => {
     const response = await api.get<Republic>(`/api/v1/republics/${republicId}`);
     return response.data;
   } catch (error) {
-    console.error('Erro ao obter república:', error);
+    logger.error('Erro ao obter república:', error);
     const parsedError = await ErrorHandler.parseError(error);
     throw parsedError;
   }
@@ -53,19 +54,15 @@ export const createRepublic = async (republicData: CreateRepublicRequest): Promi
     }
     
     // Log em desenvolvimento
-    if (__DEV__) {
-      console.log('Enviando dados para criação de república:', republicData);
-    }
+    logger.debug('Enviando dados para criação de república:', republicData);
     
     const response = await api.post<CreateRepublicResponse>('/api/v1/republics', republicData);
     
-    if (__DEV__) {
-      console.log('República criada com sucesso:', response.data);
-    }
+    logger.debug('República criada com sucesso:', response.data);
     
     return response.data;
   } catch (error) {
-    console.error('Erro ao criar república:', error);
+    logger.error('Erro ao criar república:', error);
     const parsedError = await ErrorHandler.parseError(error);
     parsedError.message = parsedError.message || 'Não foi possível criar a república';
     throw parsedError;
@@ -83,7 +80,7 @@ export const updateRepublic = async (republicId: string, republicData: UpdateRep
     const response = await api.put<Republic>(`/api/v1/republics/${republicId}`, republicData);
     return response.data;
   } catch (error) {
-    console.error('Erro ao atualizar república:', error);
+    logger.error('Erro ao atualizar república:', error);
     const parsedError = await ErrorHandler.parseError(error);
     parsedError.message = parsedError.message || 'Não foi possível atualizar a república';
     throw parsedError;
@@ -109,7 +106,7 @@ export const joinRepublic = async (code: string): Promise<JoinRepublicResponse> 
     
     return response.data;
   } catch (error) {
-    console.error('Erro ao entrar na república:', error);
+    logger.error('Erro ao entrar na república:', error);
     
     // Tratamento de erros específicos
     if (axios.isAxiosError(error) && error.response) {
@@ -136,7 +133,7 @@ export const getRepublicMembers = async (republicId: string): Promise<RepublicMe
     const response = await api.get<RepublicMember[]>(`/api/v1/republics/${republicId}/members`);
     return response.data;
   } catch (error) {
-    console.error('Erro ao obter membros da república:', error);
+    logger.error('Erro ao obter membros da república:', error);
     const parsedError = await ErrorHandler.parseError(error);
     parsedError.message = parsedError.message || 'Não foi possível listar os membros da república';
     throw parsedError;
@@ -154,7 +151,7 @@ export const promoteToAdmin = async (republicId: string, memberId: string): Prom
     const response = await api.post(`/api/v1/republics/${republicId}/members/${memberId}/admin`);
     return response.data;
   } catch (error) {
-    console.error('Erro ao promover membro a administrador:', error);
+    logger.error('Erro ao promover membro a administrador:', error);
     const parsedError = await ErrorHandler.parseError(error);
     parsedError.message = parsedError.message || 'Não foi possível promover o membro a administrador';
     throw parsedError;
@@ -172,7 +169,7 @@ export const demoteFromAdmin = async (republicId: string, memberId: string): Pro
     const response = await api.delete(`/api/v1/republics/${republicId}/members/${memberId}/admin`);
     return response.data;
   } catch (error) {
-    console.error('Erro ao remover privilégios de administrador:', error);
+    logger.error('Erro ao remover privilégios de administrador:', error);
     const parsedError = await ErrorHandler.parseError(error);
     parsedError.message = parsedError.message || 'Não foi possível remover os privilégios de administrador';
     throw parsedError;
@@ -190,7 +187,7 @@ export const removeMember = async (republicId: string, memberId: string): Promis
     const response = await api.delete(`/api/v1/republics/${republicId}/members/${memberId}`);
     return response.data;
   } catch (error) {
-    console.error('Erro ao remover membro da república:', error);
+    logger.error('Erro ao remover membro da república:', error);
     const parsedError = await ErrorHandler.parseError(error);
     parsedError.message = parsedError.message || 'Não foi possível remover o membro da república';
     throw parsedError;
@@ -211,7 +208,7 @@ export const regenerateInviteCode = async (republicId: string, customCode?: stri
     );
     return response.data;
   } catch (error) {
-    console.error('Erro ao regenerar código de convite:', error);
+    logger.error('Erro ao regenerar código de convite:', error);
     const parsedError = await ErrorHandler.parseError(error);
     parsedError.message = parsedError.message || 'Não foi possível gerar um novo código de convite';
     throw parsedError;
@@ -227,7 +224,7 @@ export const getCodeLength = async (): Promise<number> => {
     const response = await api.get<{ length: number }>('/api/v1/republics/code-length');
     return response.data.length;
   } catch (error) {
-    console.error('Erro ao obter comprimento do código:', error);
+    logger.error('Erro ao obter comprimento do código:', error);
     // Em caso de erro, retorna um valor padrão
     return 6;
   }

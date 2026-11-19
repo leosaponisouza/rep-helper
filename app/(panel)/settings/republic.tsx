@@ -21,6 +21,7 @@ import { useAuth } from '../../../src/context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../../../src/services/api';
 import { ErrorHandler } from '../../../src/utils/errorHandling';
+import { logger } from '../../../src/utils/logger';
 import * as Haptics from 'expo-haptics';
 
 // Improved type definitions
@@ -108,7 +109,7 @@ const RepublicSettingsScreen: React.FC = () => {
         const response = await api.get(`/api/v1/republics/${user.currentRepublicId}/members`);
         setRepublicMembers(response.data);
       } catch (error) {
-        console.error('Erro ao buscar membros:', error);
+        logger.error('Erro ao buscar membros:', error);
       }
     };
     
@@ -127,7 +128,7 @@ const RepublicSettingsScreen: React.FC = () => {
           setCodeLength(response.data.codeLength);
         }
       } catch (error) {
-        console.error('Erro ao obter o tamanho do código:', error);
+        logger.error('Erro ao obter o tamanho do código:', error);
       }
     };
 
@@ -261,7 +262,7 @@ const RepublicSettingsScreen: React.FC = () => {
         const response = await api.get<Republic>(`/api/v1/republics/${user.currentRepublicId}`);
         const republicData = response.data;
         
-        console.log('Dados da república recebidos:', JSON.stringify(republicData, null, 2));
+        logger.debug('Dados da república recebidos:', republicData);
         
         setRepublic(republicData);
         
@@ -270,7 +271,7 @@ const RepublicSettingsScreen: React.FC = () => {
         
         // Acessando os dados de endereço a partir da nova estrutura
         if (republicData.address) {
-          console.log('Dados de endereço encontrados:', republicData.address);
+          logger.debug('Dados de endereço encontrados:', republicData.address);
           setStreet(republicData.address.street ?? '');
           setNumber(republicData.address.number ?? '');
           setComplement(republicData.address.complement ?? '');
@@ -279,11 +280,11 @@ const RepublicSettingsScreen: React.FC = () => {
           setState(republicData.address.state ?? '');
           setZipCode(republicData.address.zipCode ?? '');
         } else {
-          console.error('Dados de endereço não encontrados na resposta:', republicData);
+          logger.error('Dados de endereço não encontrados na resposta:', republicData);
         }
         
       } catch (error) {
-        console.error('Erro ao buscar dados da república:', error);
+        logger.error('Erro ao buscar dados da república:', error);
         const parsedError = await ErrorHandler.parseError(error);
         setError(parsedError.message);
         ErrorHandler.handle(error);
@@ -326,11 +327,11 @@ const RepublicSettingsScreen: React.FC = () => {
         }
       };
       
-      console.log('Enviando dados para atualização:', JSON.stringify(republicData, null, 2));
+      logger.debug('Enviando dados para atualização:', republicData);
       
       const response = await api.put<Republic>(`/api/v1/republics/${republic?.id}`, republicData);
       
-      console.log('Resposta da atualização:', JSON.stringify(response.data, null, 2));
+      logger.debug('Resposta da atualização:', response.data);
       
       if (response.data) {
         setRepublic(response.data);
@@ -352,7 +353,7 @@ const RepublicSettingsScreen: React.FC = () => {
       }
       
     } catch (error) {
-      console.error('Erro ao salvar alterações:', error);
+      logger.error('Erro ao salvar alterações:', error);
       ErrorHandler.handle(error);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {

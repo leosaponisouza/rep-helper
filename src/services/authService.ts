@@ -97,11 +97,11 @@ export const loginWithFirebaseToken = async (firebaseToken: string): Promise<Aut
     return response.data;
   } catch (error: any) {
     // Log detalhado em desenvolvimento
-    if (__DEV__) {
-      console.log('URL completa:', api.defaults.baseURL + '/api/v1/auth/login');
-      console.log('Status do erro:', error.response?.status);
-      console.log('Dados do erro:', error.response?.data);
-    }
+    logger.debug('Erro na requisição de login:', {
+      url: api.defaults.baseURL + '/api/v1/auth/login',
+      status: error.response?.status,
+      data: error.response?.data,
+    });
     
     // Tratar erros específicos da API
     if (error.code === 'ECONNABORTED') {
@@ -116,7 +116,7 @@ export const loginWithFirebaseToken = async (firebaseToken: string): Promise<Aut
       throw new Error('Erro no servidor. Tente novamente mais tarde.');
     }
     
-    console.error('Erro ao fazer login com token Firebase:', error);
+    logger.error('Erro ao fazer login com token Firebase:', error);
     throw error;
   }
 };
@@ -196,7 +196,7 @@ export const loginWithEmailPassword = async (email: string, password: string): P
       throw apiError;
     }
   } catch (error) {
-    console.error('Erro ao fazer login com email e senha:', error);
+    logger.error('Erro ao fazer login com email e senha:', error);
     throw error;
   }
 };
@@ -214,7 +214,7 @@ export const loginWithGoogle = async (idToken: string): Promise<AuthResponse> =>
     
     return await loginWithFirebaseToken(firebaseToken);
   } catch (error) {
-    console.error('Erro ao fazer login com Google:', error);
+    logger.error('Erro ao fazer login com Google:', error);
     throw error;
   }
 };
@@ -232,7 +232,7 @@ export const loginWithFacebook = async (accessToken: string): Promise<AuthRespon
     
     return await loginWithFirebaseToken(firebaseToken);
   } catch (error) {
-    console.error('Erro ao fazer login com Facebook:', error);
+    logger.error('Erro ao fazer login com Facebook:', error);
     throw error;
   }
 };
@@ -250,7 +250,7 @@ export const loginWithGithub = async (accessToken: string): Promise<AuthResponse
     
     return await loginWithFirebaseToken(firebaseToken);
   } catch (error) {
-    console.error('Erro ao fazer login com GitHub:', error);
+    logger.error('Erro ao fazer login com GitHub:', error);
     throw error;
   }
 };
@@ -297,7 +297,7 @@ export const refreshAuthToken = async (currentToken: string): Promise<AuthRespon
     
     return response.data;
   } catch (error) {
-    console.error('Erro ao renovar token JWT:', error);
+    logger.error('Erro ao renovar token JWT:', error);
     throw error;
   }
 };
@@ -372,7 +372,7 @@ export const signUp = async (
         try {
           await userCredential.user.delete();
         } catch (deleteError) {
-          console.error('Erro ao excluir usuário Firebase após cancelamento:', deleteError);
+          logger.error('Erro ao excluir usuário Firebase após cancelamento:', deleteError);
         }
       }
       throw new Error('Operação cancelada pelo usuário');
@@ -389,7 +389,7 @@ export const signUp = async (
         try {
           await firebaseUser.delete();
         } catch (deleteError) {
-          console.error('Erro ao excluir usuário Firebase após cancelamento:', deleteError);
+          logger.error('Erro ao excluir usuário Firebase após cancelamento:', deleteError);
         }
       }
       throw new Error('Operação cancelada pelo usuário');
@@ -405,10 +405,7 @@ export const signUp = async (
     
     try {
       // Log detalhado em desenvolvimento
-      if (__DEV__) {
-        console.log('Enviando para URL:', api.defaults.baseURL + '/api/v1/auth/signup');
-        console.log('Dados de cadastro:', JSON.stringify(signupData, null, 2));
-      }
+      logger.debug('Enviando cadastro para URL:', api.defaults.baseURL + '/api/v1/auth/signup', signupData);
       
       // Verificar novamente se a operação foi cancelada
       if (cancelRef?.current) {
@@ -417,12 +414,11 @@ export const signUp = async (
           try {
             await firebaseUser.delete();
           } catch (deleteError) {
-            console.error('Erro ao excluir usuário Firebase após cancelamento:', deleteError);
+            logger.error('Erro ao excluir usuário Firebase após cancelamento:', deleteError);
           }
         }
         throw new Error('Operação cancelada pelo usuário');
       }
-      console.log(signupData);
       const response = await api.post<AuthResponse>(
         '/api/v1/auth/signup',
         signupData,
@@ -452,10 +448,10 @@ export const signUp = async (
       }
       
       // Log detalhado em desenvolvimento
-      if (__DEV__) {
-        console.log('Status do erro:', apiError.response?.status);
-        console.log('Dados do erro:', apiError.response?.data);
-      }
+      logger.debug('Erro na requisição de cadastro:', {
+        status: apiError.response?.status,
+        data: apiError.response?.data,
+      });
       
       // Se o usuário foi criado no Firebase, mas falhou no backend
       // Tentar excluir o usuário do Firebase para evitar inconsistências
@@ -463,7 +459,7 @@ export const signUp = async (
         try {
           await firebaseUser.delete();
         } catch (deleteError) {
-          console.error('Erro ao excluir usuário Firebase após falha no backend:', deleteError);
+          logger.error('Erro ao excluir usuário Firebase após falha no backend:', deleteError);
         }
       }
       
@@ -483,7 +479,7 @@ export const signUp = async (
       throw apiError;
     }
   } catch (error) {
-    console.error('Erro ao cadastrar usuário:', error);
+    logger.error('Erro ao cadastrar usuário:', error);
     throw error;
   }
 };

@@ -18,6 +18,7 @@ import { useAuth } from '../../../src/context/AuthContext';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import api from '../../../src/services/api';
 import { ErrorHandler } from '../../../src/utils/errorHandling';
+import { logger } from '../../../src/utils/logger';
 import * as Haptics from 'expo-haptics';
 import { Swipeable, GestureHandlerRootView } from 'react-native-gesture-handler';
 
@@ -80,21 +81,21 @@ const MembersSettingsScreen: React.FC = () => {
       
       // Buscar dados da república para obter código e ownerId
       const republicResponse = await api.get(`/api/v1/republics/${user.currentRepublicId}`);
-      console.log('Resposta completa da república:', republicResponse.data);
+      logger.debug('Resposta completa da república:', republicResponse.data);
       
       // Salvar o ID do dono da república
       if (republicResponse.data && republicResponse.data.ownerId) {
         setRepublicOwnerId(republicResponse.data.ownerId);
-        console.log('ID do dono da república:', republicResponse.data.ownerId);
+        logger.debug('ID do dono da república:', republicResponse.data.ownerId);
       } else {
-        console.error('ID do dono da república não encontrado na resposta:', republicResponse.data);
+        logger.error('ID do dono da república não encontrado na resposta:', republicResponse.data);
       }
       
       // Acessando o código da república
       if (republicResponse.data && republicResponse.data.code) {
         setInviteCode(republicResponse.data.code);
       } else {
-        console.error('Código da república não encontrado na resposta:', republicResponse.data);
+        logger.error('Código da república não encontrado na resposta:', republicResponse.data);
       }
       
     } catch (error) {
@@ -178,7 +179,7 @@ const MembersSettingsScreen: React.FC = () => {
         ]
       );
     } catch (error) {
-      console.error('Erro ao alterar papel do membro:', error);
+      logger.error('Erro ao alterar papel do membro:', error);
       ErrorHandler.handle(error);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }

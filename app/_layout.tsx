@@ -8,6 +8,7 @@ import { useEffect } from 'react';
 import * as SplashScreen from 'expo-splash-screen';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { configureNotifications, registerForPushNotificationsAsync } from '../src/services/notifications';
+import { logger } from '../src/utils/logger';
 
 // Manter splash screen visível enquanto inicializamos recursos
 SplashScreen.preventAutoHideAsync();
@@ -20,7 +21,7 @@ export default function RootLayout() {
     // Registrar para notificações push
     registerForPushNotificationsAsync().then(token => {
       if (token) {
-        console.log('Token de notificação:', token);
+        logger.debug('Token de notificação registrado');
         // Aqui você pode enviar o token para seu backend
       }
     });
