@@ -20,6 +20,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from '../src/context/AuthContext';
 import { NotificationProvider } from '../src/context/NotificationContext';
+import { FeedbackProvider } from '../src/design-system/feedback/FeedbackContext';
 import { ThemeProvider } from '../src/design-system/theme/ThemeContext';
 import { useTheme } from '../src/design-system/theme/useTheme';
 import {
@@ -86,11 +87,13 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <AuthProvider>
-          <NotificationProvider>
-            <RootLayoutShell fontsReady={fontsReady} />
-          </NotificationProvider>
-        </AuthProvider>
+        <FeedbackProvider>
+          <AuthProvider>
+            <NotificationProvider>
+              <RootLayoutShell fontsReady={fontsReady} />
+            </NotificationProvider>
+          </AuthProvider>
+        </FeedbackProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

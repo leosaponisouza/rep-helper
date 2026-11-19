@@ -196,6 +196,10 @@ describe('RootLayout fonts, theme wrapper, and SplashScreen gating', () => {
         ThemeProvider: ({ children }: { children: React.ReactNode }) =>
           React.createElement('MockThemeProvider', null, children),
       }));
+      jest.doMock('../feedback/FeedbackContext', () => ({
+        FeedbackProvider: ({ children }: { children: React.ReactNode }) =>
+          React.createElement('MockFeedbackProvider', null, children),
+      }));
       jest.doMock('../theme/useTheme', () => ({
         useTheme: () => ({
           ready: themeReady,
@@ -274,6 +278,7 @@ describe('RootLayout fonts, theme wrapper, and SplashScreen gating', () => {
     const json = JSON.stringify(readyRun.tree.toJSON());
     expect(json).toContain('MockSafeAreaProvider');
     expect(json).toContain('MockThemeProvider');
+    expect(json).toContain('MockFeedbackProvider');
     expect(json).toContain('MockAuthProvider');
     expect(json).toContain('MockNotificationProvider');
     expect(json).not.toContain('MockStatusBar');

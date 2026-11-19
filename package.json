@@ -25,7 +25,13 @@
     "clean:build": "cd android && .\\gradlew clean && cd .."
   },
   "jest": {
-    "preset": "jest-expo"
+    "preset": "jest-expo",
+    "setupFilesAfterEnv": [
+      "./jest.setup.js"
+    ],
+    "moduleNameMapper": {
+      "^lucide-react-native$": "<rootDir>/node_modules/lucide-react-native/dist/cjs/lucide-react-native.js"
+    }
   },
   "dependencies": {
     "@expo-google-fonts/ibm-plex-mono": "^0.4.2",

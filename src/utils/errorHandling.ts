@@ -3,7 +3,7 @@
  * @description Sistema de tratamento de erros unificado para a aplicação
  */
 
-import { Alert, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import axios, { AxiosError } from 'axios';
 import NetInfo from '@react-native-community/netinfo';
 import { sanitizeForLog, scrubString } from './logSanitizer';
@@ -50,6 +50,15 @@ export interface ErrorHandlingOptions {
   severity?: ErrorSeverity;
   context?: Record<string, any>;
 }
+
+/**
+ * Handler global de exibição de erros via Toast (registrado pelo FeedbackProvider)
+ */
+export type ErrorToastHandler = (payload: {
+  title: string;
+  message: string;
+  tone: 'info' | 'warning' | 'danger';
+}) => void;
 
 // Polyfill para DOMException em ambientes que não o suportam nativamente
 if (typeof global.DOMException === 'undefined') {
@@ -122,6 +131,18 @@ export class ErrorHandler {
   private static customHandlers: Partial<Record<ErrorType, (error: ErrorDetails) => void>> = {};
 
   /**
+   * Handler global de Toast registrado pela camada de UI (FeedbackProvider)
+   */
+  private static toastHandler: ErrorToastHandler | null = null;
+
+  /**
+   * Registra ou limpa o handler global de Toast para erros
+   */
+  static registerToastHandler(handler: ErrorToastHandler | null): void {
+    this.toastHandler = handler;
+  }
+
+  /**
    * Registra um handler personalizado para um tipo específico de erro
    */
   static registerCustomHandler(type: ErrorType, handler: (error: ErrorDetails) => void): void {
@@ -143,7 +164,7 @@ export class ErrorHandler {
     const isConnected = netInfo.isConnected;
 
     // Erro de timeout/abort
-    if (error.name === 'AbortError' || error.name === 'TimeoutError' || 
+    if (error?.name === 'AbortError' || error?.name === 'TimeoutError' || 
         (error instanceof DOMException && error.name === 'AbortError')) {
       return {
         type: 'timeout',
@@ -161,13 +182,13 @@ export class ErrorHandler {
     }
 
     // Erros do Firebase Authentication
-    if (error.code && typeof error.code === 'string' && error.code.startsWith('auth/')) {
+    if (error?.code && typeof error.code === 'string' && error.code.startsWith('auth/')) {
       return this.handleFirebaseAuthError(error);
     }
 
     // Erros de rede
-    if (!isConnected || error.message === 'Network Error' || 
-        (typeof error.message === 'string' && error.message.toLowerCase().includes('network'))) {
+    if (!isConnected || error?.message === 'Network Error' || 
+        (typeof error?.message === 'string' && error.message.toLowerCase().includes('network'))) {
       return {
         type: 'network',
         message: this.messages[this.currentLanguage].network,
@@ -181,8 +202,8 @@ export class ErrorHandler {
     // Erros gerais
     return {
       type: 'unknown',
-      message: error.message || this.messages[this.currentLanguage].unknown,
-      code: error.code || 'UNKNOWN_ERROR',
+      message: error?.message || (typeof error === 'string' ? error : this.messages[this.currentLanguage].unknown),
+      code: error?.code || 'UNKNOWN_ERROR',
       severity: 'error',
       timestamp: new Date().toISOString(),
       originalError: error
@@ -374,15 +395,29 @@ export class ErrorHandler {
     return null;
   }
 
+  private static mapSeverityToTone(severity?: ErrorSeverity): 'info' | 'warning' | 'danger' {
+    if (severity === 'info') {
+      return 'info';
+    }
+    if (severity === 'warning') {
+      return 'warning';
+    }
+    return 'danger';
+  }
+
   /**
-   * Método para exibir erro em um alerta
+   * Método para exibir erro via Toast registrado pelo FeedbackProvider (no-op seguro se null)
    */
-  static showAlert(error: ErrorDetails, options?: { title?: string, buttonText?: string }): void {
-    Alert.alert(
-      options?.title || this.getAlertTitle(error.type),
-      error.message,
-      [{ text: options?.buttonText || 'OK' }]
-    );
+  static showAlert(error: ErrorDetails, options?: { title?: string; buttonText?: string }): void {
+    if (!this.toastHandler) {
+      return;
+    }
+
+    this.toastHandler({
+      title: options?.title || this.getAlertTitle(error.type),
+      message: error.message,
+      tone: this.mapSeverityToTone(error.severity),
+    });
   }
 
   /**
@@ -489,6 +524,13 @@ export class ErrorHandler {
     }
 
     return parsedError;
+  }
+
+  /**
+   * Alias de ErrorHandler.handle para compatibilidade com chamadas legadas/novas
+   */
+  static handleError(error: any, options?: ErrorHandlingOptions): Promise<ErrorDetails> {
+    return this.handle(error, options);
   }
 
   /**

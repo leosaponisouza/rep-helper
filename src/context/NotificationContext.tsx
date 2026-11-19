@@ -2,18 +2,29 @@
 // Um contexto que gerencia as notificações em toda a aplicação
 // Permite adicionar, remover e controlar notificações de qualquer componente
 
-import React, { createContext, useContext, useReducer, ReactNode, useState, useEffect } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useReducer,
+  ReactNode,
+  useMemo,
+} from 'react';
 import { View, StyleSheet } from 'react-native';
-import NotificationToast, { ToastNotification, NotificationType } from '@/components/NotificationToast';
+import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context';
+import NotificationToast, {
+  ToastNotification,
+  NotificationType,
+} from '@/components/NotificationToast';
+import { useTheme } from '@/src/design-system/theme/useTheme';
 
 // Interface para o estado do contexto
 interface NotificationContextState {
   notifications: ToastNotification[];
   // Funções que compõem a API do contexto
   showNotification: (
-    title: string, 
-    message: string, 
-    type?: NotificationType, 
+    title: string,
+    message: string,
+    type?: NotificationType,
     options?: Partial<ToastNotification>
   ) => string;
   hideNotification: (id: string) => void;
@@ -33,7 +44,7 @@ type NotificationAction =
 
 // Reducer para gerenciar o estado das notificações
 const notificationReducer = (
-  state: ToastNotification[], 
+  state: ToastNotification[],
   action: NotificationAction
 ): ToastNotification[] => {
   switch (action.type) {
@@ -42,7 +53,7 @@ const notificationReducer = (
       return [action.notification, ...state];
     case 'REMOVE_NOTIFICATION':
       // Remove a notificação com o ID específico
-      return state.filter(notif => notif.id !== action.id);
+      return state.filter((notif) => notif.id !== action.id);
     case 'CLEAR_ALL':
       // Remove todas as notificações
       return [];
@@ -51,26 +62,34 @@ const notificationReducer = (
   }
 };
 
+const MAX_VISIBLE_NOTIFICATIONS = 3;
+const ZERO_INSETS: EdgeInsets = { top: 0, right: 0, bottom: 0, left: 0 };
+
+function useSafeInsets(): EdgeInsets {
+  try {
+    return useSafeAreaInsets();
+  } catch {
+    return ZERO_INSETS;
+  }
+}
+
 // Cria o contexto
 const NotificationContext = createContext<NotificationContextState | undefined>(undefined);
 
 // Componente provedor do contexto
 export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [notifications, dispatch] = useReducer(notificationReducer, []);
-  const [activeNotifications, setActiveNotifications] = useState<ToastNotification[]>([]);
+  const { theme } = useTheme();
+  const insets = useSafeInsets();
 
-  // Limita o número de notificações visíveis simultaneamente
-  const MAX_VISIBLE_NOTIFICATIONS = 3;
-
-  // Atualiza as notificações ativas quando o estado muda
-  useEffect(() => {
-    // Limita ao número máximo de notificações visíveis
-    setActiveNotifications(notifications.slice(0, MAX_VISIBLE_NOTIFICATIONS));
-  }, [notifications]);
+  const activeNotifications = useMemo(
+    () => notifications.slice(0, MAX_VISIBLE_NOTIFICATIONS),
+    [notifications]
+  );
 
   // Gera um ID único para cada notificação
   const generateId = (): string => {
-    return `notification-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return `notification-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
   };
 
   // Função para exibir uma nova notificação
@@ -81,7 +100,7 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
     options: Partial<ToastNotification> = {}
   ): string => {
     const id = options.id || generateId();
-    
+
     const notification: ToastNotification = {
       id,
       title,
@@ -91,9 +110,9 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
       duration: options.duration || 3000,
       onPress: options.onPress,
     };
-    
+
     dispatch({ type: 'ADD_NOTIFICATION', notification });
-    
+
     return id;
   };
 
@@ -109,40 +128,35 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
 
   // Funções de conveniência
   const showSuccess = (
-    title: string, 
-    message: string, 
+    title: string,
+    message: string,
     options: Partial<ToastNotification> = {}
   ): string => {
     return showNotification(title, message, 'success', options);
   };
 
   const showError = (
-    title: string, 
-    message: string, 
+    title: string,
+    message: string,
     options: Partial<ToastNotification> = {}
   ): string => {
     return showNotification(title, message, 'error', options);
   };
 
   const showWarning = (
-    title: string, 
-    message: string, 
+    title: string,
+    message: string,
     options: Partial<ToastNotification> = {}
   ): string => {
     return showNotification(title, message, 'warning', options);
   };
 
   const showInfo = (
-    title: string, 
-    message: string, 
+    title: string,
+    message: string,
     options: Partial<ToastNotification> = {}
   ): string => {
     return showNotification(title, message, 'info', options);
-  };
-
-  // Calcula o deslocamento vertical para cada notificação
-  const getVerticalOffset = (index: number): number => {
-    return index * 85; // Ajuste este valor de acordo com a altura da sua notificação
   };
 
   return (
@@ -159,21 +173,29 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
       }}
     >
       {children}
-      
-      {/* Renderiza as notificações ativas */}
-      <View style={styles.notificationContainer}>
-        {activeNotifications.map((notification, index) => (
-          <View 
-            key={notification.id} 
-            style={[styles.toastContainer, { top: getVerticalOffset(index) }]}
-          >
-            <NotificationToast
-              notification={notification}
-              onDismiss={hideNotification}
-            />
+
+      {activeNotifications.length > 0 ? (
+        <View
+          pointerEvents="box-none"
+          style={[
+            styles.notificationContainer,
+            {
+              paddingTop: insets.top + theme.spacing.sm,
+              paddingHorizontal: theme.spacing.md,
+            },
+          ]}
+        >
+          <View pointerEvents="box-none" style={[styles.stack, { gap: theme.spacing.xs }]}>
+            {activeNotifications.map((notification) => (
+              <NotificationToast
+                key={notification.id}
+                notification={notification}
+                onDismiss={hideNotification}
+              />
+            ))}
           </View>
-        ))}
-      </View>
+        </View>
+      ) : null}
     </NotificationContext.Provider>
   );
 };
@@ -181,11 +203,11 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
 // Hook personalizado para usar o contexto
 export const useNotification = (): NotificationContextState => {
   const context = useContext(NotificationContext);
-  
+
   if (context === undefined) {
     throw new Error('useNotification must be used within a NotificationProvider');
   }
-  
+
   return context;
 };
 
@@ -196,13 +218,11 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 9999,
-    pointerEvents: 'box-none',
+    alignItems: 'center',
   },
-  toastContainer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    zIndex: 9999,
+  stack: {
+    width: '100%',
+    maxWidth: 520,
   },
 });
 
