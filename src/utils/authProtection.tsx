@@ -23,10 +23,7 @@ export function resolveAuthRedirect(state: AuthRouteState): string | null {
   const inPanelGroup = segs[0] === '(panel)';
 
   if (!state.isAuthenticated) {
-    if (inPanelGroup || inRepublicGroup) {
-      return '/(auth)/sign-in';
-    }
-    return null;
+    return inAuthGroup ? null : '/(auth)/sign-in';
   }
 
   if (inAuthGroup) {
@@ -71,11 +68,12 @@ export function useProtectedRoute(): { redirectTo: string | null; loading: boole
 export function AuthProtection({ children }: { children: React.ReactNode }): React.ReactElement {
   const { redirectTo, loading } = useProtectedRoute();
   const segments = useSegments() as readonly string[];
-  const inAuthGroup = segments[0] === '(auth)';
+  const firstSegment = segments?.[0];
+  const inAuthGroup = firstSegment === '(auth)';
 
-  // Em telas de autenticação, não mostramos o loading global;
-  // o loading e erros serão tratados por cada tela específica.
-  if (loading && !inAuthGroup) {
+  // Enquanto os segmentos da rota hidratam ou o estado de autenticação carrega fora de (auth),
+  // exibimos o spinner global para impedir montagem prematura dos filhos protegidos.
+  if (!firstSegment || (loading && !inAuthGroup)) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#222' }}>
         <ActivityIndicator size="large" color="#7B68EE" />
