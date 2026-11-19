@@ -199,7 +199,6 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch (refreshError) {
         pendingQueueError = refreshError;
-        processQueue(refreshError, null);
         delete api.defaults.headers.common['Authorization'];
 
         try {
@@ -207,6 +206,8 @@ api.interceptors.response.use(
         } catch (clearError) {
           logger.error('Erro ao limpar dados de autenticação:', clearError);
         }
+
+        processQueue(refreshError, null);
 
         if (unauthorizedHandler && !isHandlingUnauthorized) {
           isHandlingUnauthorized = true;

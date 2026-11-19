@@ -79,36 +79,63 @@ describe('api security interceptors', () => {
         })
     );
 
+    const events: string[] = [];
+    let resolveClear!: () => void;
+    (clearAuthData as jest.Mock).mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveClear = () => {
+            events.push('clear:done');
+            resolve();
+          };
+        })
+    );
+
     const onUnauthorized = jest.fn().mockResolvedValue(undefined);
     setUnauthorizedHandler(onUnauthorized);
 
-    const resHandler = (api.interceptors.response as any).handlers[0].rejected;
-    const err1 = {
-      response: { status: 401 },
-      config: { url: '/api/v1/tasks', headers: {} },
-    };
-    const err2 = {
-      response: { status: 401 },
-      config: { url: '/api/v1/events', headers: {} },
-    };
+    try {
+      const resHandler = (api.interceptors.response as any).handlers[0].rejected;
+      const err1 = {
+        response: { status: 401 },
+        config: { url: '/api/v1/tasks', headers: {} },
+      };
+      const err2 = {
+        response: { status: 401 },
+        config: { url: '/api/v1/events', headers: {} },
+      };
 
-    const p1 = resHandler(err1);
-    // Allow p1 to await getToken() and enter axios.post so isRefreshing === true
-    await Promise.resolve();
-    await Promise.resolve();
-    const p2 = resHandler(err2);
+      const p1 = resHandler(err1);
+      // Allow p1 to await getToken() and enter axios.post so isRefreshing === true
+      await new Promise((resolve) => setTimeout(resolve, 0));
 
-    resolveRefresh({ data: {} });
+      let p2Settled = false;
+      const p2 = resHandler(err2).catch((err: unknown) => {
+        p2Settled = true;
+        events.push('p2:rejected');
+        throw err;
+      });
 
-    const [r1, r2] = await Promise.allSettled([p1, p2]);
-    expect(r1.status).toBe('rejected');
-    expect(r2.status).toBe('rejected');
-    expect(postSpy).toHaveBeenCalledTimes(1);
-    expect(clearAuthData).toHaveBeenCalledTimes(1);
-    expect(api.defaults.headers.common['Authorization']).toBeUndefined();
-    expect(onUnauthorized).toHaveBeenCalledTimes(1);
+      resolveRefresh({ data: {} });
+      // Drain all microtasks while clearAuthData() is still pending
+      await new Promise((resolve) => setTimeout(resolve, 0));
 
-    postSpy.mockRestore();
+      expect(clearAuthData).toHaveBeenCalledTimes(1);
+      expect(api.defaults.headers.common['Authorization']).toBeUndefined();
+      expect(p2Settled).toBe(false);
+
+      resolveClear();
+
+      const [r1, r2] = await Promise.allSettled([p1, p2]);
+      expect(r1.status).toBe('rejected');
+      expect(r2.status).toBe('rejected');
+      expect(events).toEqual(['clear:done', 'p2:rejected']);
+      expect(postSpy).toHaveBeenCalledTimes(1);
+      expect(onUnauthorized).toHaveBeenCalledTimes(1);
+    } finally {
+      resolveClear?.();
+      postSpy.mockRestore();
+    }
   });
 
   it('does not recurse unauthorizedHandler when logout endpoint returns 401', async () => {
