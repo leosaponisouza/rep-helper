@@ -118,14 +118,19 @@ const AccountScreen = () => {
             });
 
             if (!result.canceled && result.assets && result.assets.length > 0) {
+                if (!user?.uid) {
+                    Alert.alert('Erro', 'Usuário não autenticado');
+                    return;
+                }
+
                 // Iniciar upload
                 setUploadingImage(true);
                 
                 try {
                     logger.debug('Imagem selecionada. Iniciando upload para Supabase...');
                     // Upload para o Supabase usando a função do serviço
-                    const imageUri = result.assets[0].uri;
                     const asset = result.assets[0];
+                    const imageUri = asset.uri;
                     
                     logger.debug('Detalhes da imagem:', {
                         uri: asset.uri,
@@ -135,7 +140,12 @@ const AccountScreen = () => {
                         type: asset.type
                     });
                     
-                    const { url, error } = await uploadImageToSupabase(imageUri);
+                    const { url, error } = await uploadImageToSupabase(
+                        imageUri,
+                        'avatars',
+                        user.uid,
+                        asset.fileSize
+                    );
                     
                     if (error || !url) {
                         setUploadError(error?.message || 'Falha ao fazer upload da imagem');
@@ -218,6 +228,11 @@ const AccountScreen = () => {
     };
 
     const handleDeleteProfilePicture = async () => {
+        if (!user?.uid) {
+            Alert.alert('Erro', 'Usuário não autenticado');
+            return;
+        }
+
         try {
             setUploadingImage(true);
             setUploadError(null);
@@ -225,7 +240,11 @@ const AccountScreen = () => {
             // Deletar a imagem do Supabase se tivermos uma URL válida
             if (profileImage) {
                 logger.debug('Tentando excluir imagem do Supabase:', profileImage);
-                const { success, error } = await deleteImageFromSupabase(profileImage);
+                const { success, error } = await deleteImageFromSupabase(
+                    profileImage,
+                    'avatars',
+                    user.uid
+                );
                 
                 if (error) {
                     logger.warn('Erro ao deletar imagem do Supabase:', error);

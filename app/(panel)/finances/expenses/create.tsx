@@ -24,6 +24,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { useFinances } from '../../../../src/hooks/useFinances';
 import { useAuth } from '../../../../src/context/AuthContext';
 import { CreateExpenseRequest, ExpenseFormData } from '../../../../src/models/finances.model';
+import { uploadImageToSupabase } from '../../../../src/services/supabase';
+import { logger } from '../../../../src/utils/logger';
 
 // Expense categories
 const expenseCategories = [
@@ -190,7 +192,7 @@ const CreateExpenseScreen = () => {
           setReceiptUrl(expense.receiptUrl);
           
         } catch (error) {
-          console.error('Erro ao carregar detalhes da despesa:', error);
+          logger.error('Erro ao carregar detalhes da despesa:', error);
           Alert.alert('Erro', 'Não foi possível carregar os detalhes da despesa.');
           router.back();
         } finally {
@@ -272,27 +274,36 @@ const CreateExpenseScreen = () => {
       
       return true;
     } catch (error) {
-      console.error(`Erro ao solicitar permissão de ${permissionType}:`, error);
+      logger.error(`Erro ao solicitar permissão de ${permissionType}:`, error);
       return false;
     }
   };
 
-  const uploadImage = async (uri: string) => {
-    // In a real app, you would implement an actual upload to your server/storage
-    // For now, we'll simulate an upload
+  const uploadImage = async (uri: string, fileSizeBytes?: number) => {
+    if (!user?.uid) {
+      Alert.alert('Erro', 'Usuário não autenticado.');
+      return null;
+    }
+
     setUploadingImage(true);
-    
+
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Set the receipt URL to the local URI
-      // In a real app, this would be the URL returned by your server
-      setReceiptUrl(uri);
-      
-      return uri;
+      const receiptsBucket = process.env.EXPO_PUBLIC_SUPABASE_RECEIPTS_BUCKET || 'receipts';
+      const { url, error } = await uploadImageToSupabase(
+        uri,
+        receiptsBucket,
+        user.uid,
+        fileSizeBytes
+      );
+
+      if (error || !url) {
+        throw error || new Error('Falha ao fazer upload da imagem');
+      }
+
+      setReceiptUrl(url);
+      return url;
     } catch (error) {
-      console.error('Erro ao fazer upload da imagem:', error);
+      logger.error('Erro ao fazer upload da imagem:', error);
       Alert.alert('Erro', 'Falha ao fazer upload da imagem. Tente novamente.');
       return null;
     } finally {
@@ -301,6 +312,11 @@ const CreateExpenseScreen = () => {
   };
 
   const pickImage = async () => {
+    if (!user?.uid) {
+      Alert.alert('Erro', 'Usuário não autenticado.');
+      return;
+    }
+
     // Check permissions
     const hasPermission = await checkPermission('mediaLibrary');
     if (!hasPermission) return;
@@ -314,18 +330,21 @@ const CreateExpenseScreen = () => {
       });
       
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        setUploadingImage(true);
-        await uploadImage(result.assets[0].uri);
+        const asset = result.assets[0];
+        await uploadImage(asset.uri, asset.fileSize);
       }
     } catch (error) {
-      console.error('Erro ao selecionar imagem:', error);
+      logger.error('Erro ao selecionar imagem:', error);
       Alert.alert('Erro', 'Não foi possível selecionar a imagem. Tente novamente.');
-    } finally {
-      setUploadingImage(false);
     }
   };
 
   const takePhoto = async () => {
+    if (!user?.uid) {
+      Alert.alert('Erro', 'Usuário não autenticado.');
+      return;
+    }
+
     // Check permissions
     const hasPermission = await checkPermission('camera');
     if (!hasPermission) return;
@@ -339,14 +358,12 @@ const CreateExpenseScreen = () => {
       });
       
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        setUploadingImage(true);
-        await uploadImage(result.assets[0].uri);
+        const asset = result.assets[0];
+        await uploadImage(asset.uri, asset.fileSize);
       }
     } catch (error) {
-      console.error('Erro ao capturar foto:', error);
+      logger.error('Erro ao capturar foto:', error);
       Alert.alert('Erro', 'Não foi possível capturar a foto. Tente novamente.');
-    } finally {
-      setUploadingImage(false);
     }
   };
 
@@ -395,12 +412,15 @@ const CreateExpenseScreen = () => {
     setLoading(true);
     
     try {
+      const safeReceiptUrl =
+        receiptUrl && /^https?:\/\//i.test(receiptUrl) ? receiptUrl : undefined;
+
       const expenseData: CreateExpenseRequest = {
         description: formData.description,
         amount: parseInt(formData.amount.toString(), 10) / 100,
         expenseDate: formData.date,
         category: formData.category,
-        receiptUrl,
+        receiptUrl: safeReceiptUrl,
         republicId: user.currentRepublicId,
         notes: formData.notes
       };
@@ -421,7 +441,7 @@ const CreateExpenseScreen = () => {
         );
       }
     } catch (error) {
-      console.error('Erro ao salvar despesa:', error);
+      logger.error('Erro ao salvar despesa:', error);
       Alert.alert(
         'Erro', 
         'Ocorreu um erro ao salvar a despesa. Por favor, tente novamente.'
