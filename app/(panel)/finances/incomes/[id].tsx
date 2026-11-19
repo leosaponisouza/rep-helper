@@ -486,7 +486,6 @@ const IncomeDetailsScreen: React.FC = () => {
                 isContributor ? ' (Você)' : ''
               }`}
               subtitle="Registrado por"
-              showDivider={Boolean(income.notes)}
               leading={
                 <User
                   size={18}
@@ -497,17 +496,34 @@ const IncomeDetailsScreen: React.FC = () => {
             />
 
             {income.notes ? (
-              <ListRow
-                title={income.notes}
-                subtitle="Observações"
-                leading={
+              <>
+                <Divider />
+                <View
+                  style={[
+                    styles.notesRow,
+                    {
+                      paddingHorizontal: theme.spacing.md,
+                      paddingVertical: theme.spacing.sm,
+                      gap: theme.spacing.sm,
+                    },
+                  ]}
+                >
                   <FileText
                     size={18}
                     strokeWidth={1.75}
                     color={theme.colors.success}
+                    style={styles.notesIcon}
                   />
-                }
-              />
+                  <View style={styles.notesContent}>
+                    <AppText variant="caption" color="inkSecondary">
+                      Observações
+                    </AppText>
+                    <AppText variant="body" color="ink">
+                      {income.notes}
+                    </AppText>
+                  </View>
+                </View>
+              </>
             ) : null}
           </Surface>
         </View>
@@ -569,6 +585,18 @@ const styles = StyleSheet.create({
   },
   detailsSurface: {
     overflow: 'hidden',
+  },
+  notesRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  notesIcon: {
+    marginTop: 2,
+  },
+  notesContent: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
   },
   timelineItem: {
     flexDirection: 'row',

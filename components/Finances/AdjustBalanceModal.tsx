@@ -6,6 +6,7 @@ import {
   AppText,
   BottomSheetModal,
   Button,
+  Chip,
   Surface,
   TextField,
   useFeedback,
@@ -20,11 +21,18 @@ interface AdjustBalanceModalProps {
   onSubmit: (newBalance: number, description: string) => Promise<boolean>;
 }
 
-const formatCentavosInput = (value: number): string => {
+const getInitialBalanceState = (
+  value: number
+): { formatted: string; negative: boolean } => {
   const safe = Number.isFinite(value) ? value : 0;
-  const sign = safe < 0 ? '-' : '';
-  const absFormatted = Math.abs(safe).toFixed(2).replace('.', ',');
-  return `${sign}${absFormatted}`;
+  const cents = Math.round(safe * 100);
+  if (cents === 0) {
+    return { formatted: '0,00', negative: false };
+  }
+  return {
+    formatted: (Math.abs(cents) / 100).toFixed(2).replace('.', ','),
+    negative: cents < 0,
+  };
 };
 
 const triggerImpactHaptic = () => {
@@ -57,41 +65,52 @@ const AdjustBalanceModal: React.FC<AdjustBalanceModalProps> = ({
   const { toast } = useFeedback();
 
   const [balance, setBalance] = useState<string>('');
+  const [isNegative, setIsNegative] = useState<boolean>(false);
   const [balanceError, setBalanceError] = useState<string | undefined>(undefined);
   const [description, setDescription] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
 
   useEffect(() => {
     if (visible) {
-      setBalance(formatCentavosInput(currentBalance));
+      const initial = getInitialBalanceState(currentBalance);
+      setBalance(initial.formatted);
+      setIsNegative(initial.negative);
       setBalanceError(undefined);
       setDescription('');
     }
   }, [visible, currentBalance]);
 
   const handleChangeBalance = (text: string) => {
-    const isNegative = text.trim().startsWith('-');
-    const numericDigits = text.replace(/\D/g, '');
-    if (!numericDigits) {
-      setBalance(isNegative ? '-' : '');
+    const trimmed = text.trim();
+    const hasMinus = trimmed.includes('-');
+    const hasPlus = trimmed.includes('+');
+    const numericDigits = trimmed.replace(/\D/g, '').slice(0, 12);
+    const parsedCents = numericDigits ? parseInt(numericDigits, 10) : 0;
+
+    if (!numericDigits || !Number.isFinite(parsedCents) || parsedCents === 0) {
+      setBalance('');
+      setIsNegative(hasMinus && !hasPlus && trimmed === '-');
       if (balanceError) setBalanceError(undefined);
       return;
     }
 
-    const cappedDigits = numericDigits.slice(0, 12);
-    const floatValue = parseInt(cappedDigits, 10) / 100;
-    const formattedValue = floatValue.toFixed(2).replace('.', ',');
-    setBalance(`${isNegative ? '-' : ''}${formattedValue}`);
+    if (hasMinus) {
+      setIsNegative(true);
+    } else if (hasPlus) {
+      setIsNegative(false);
+    }
+
+    const formattedValue = (parsedCents / 100).toFixed(2).replace('.', ',');
+    setBalance(formattedValue);
     if (balanceError) setBalanceError(undefined);
   };
 
   const handleSubmit = async () => {
     triggerImpactHaptic();
 
-    const normalized = balance.replace(',', '.');
-    const newBalance = parseFloat(normalized);
+    const parsedAbs = parseFloat(balance.replace(',', '.'));
 
-    if (!Number.isFinite(newBalance)) {
+    if (!balance || !Number.isFinite(parsedAbs)) {
       const message = 'Por favor, insira um valor válido.';
       setBalanceError(message);
       toast({
@@ -101,6 +120,10 @@ const AdjustBalanceModal: React.FC<AdjustBalanceModalProps> = ({
       });
       return;
     }
+
+    const parsedCents = Math.round(parsedAbs * 100);
+    const newBalance =
+      parsedCents === 0 ? 0 : isNegative ? -Math.abs(parsedAbs) : Math.abs(parsedAbs);
 
     try {
       setLoading(true);
@@ -173,20 +196,40 @@ const AdjustBalanceModal: React.FC<AdjustBalanceModalProps> = ({
           </AppText>
         </Surface>
 
-        <TextField
-          label="Novo Saldo"
-          value={balance}
-          onChangeText={handleChangeBalance}
-          keyboardType="numeric"
-          placeholder="0,00"
-          error={balanceError}
-          editable={!loading}
-          leftIcon={
-            <AppText variant="monoValue" color="inkSecondary">
-              R$
-            </AppText>
-          }
-        />
+        <View style={{ gap: theme.spacing.xs }}>
+          <View style={[styles.signRow, { gap: theme.spacing.xs }]}>
+            <Chip
+              label="Positivo (+)"
+              selected={!isNegative}
+              disabled={loading}
+              onPress={() => setIsNegative(false)}
+            />
+            <Chip
+              label="Negativo (-)"
+              selected={isNegative}
+              disabled={loading}
+              onPress={() => setIsNegative(true)}
+            />
+          </View>
+
+          <TextField
+            label="Novo Saldo"
+            value={balance}
+            onChangeText={handleChangeBalance}
+            keyboardType="numeric"
+            placeholder="0,00"
+            error={balanceError}
+            editable={!loading}
+            leftIcon={
+              <AppText
+                variant="monoValue"
+                color={isNegative ? 'danger' : 'inkSecondary'}
+              >
+                {isNegative ? 'R$ -' : 'R$'}
+              </AppText>
+            }
+          />
+        </View>
 
         <TextField
           label="Descrição (opcional)"
@@ -203,6 +246,10 @@ const AdjustBalanceModal: React.FC<AdjustBalanceModalProps> = ({
 };
 
 const styles = StyleSheet.create({
+  signRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
   footerRow: {
     flexDirection: 'row',
   },

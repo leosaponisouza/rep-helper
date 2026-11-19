@@ -31,6 +31,7 @@ import {
   BottomSheetModal,
   Button,
   ConfirmSection,
+  Divider,
   IconButton,
   ListRow,
   Screen,
@@ -622,9 +623,7 @@ const ExpenseDetailsScreen: React.FC = () => {
               }`}
               subtitle="Criado por"
               showDivider={Boolean(
-                expense.approvalDate ||
-                  expense.reimbursementDate ||
-                  expense.notes
+                expense.approvalDate || expense.reimbursementDate
               )}
               leading={
                 <User size={18} strokeWidth={1.75} color={theme.colors.accent} />
@@ -635,9 +634,7 @@ const ExpenseDetailsScreen: React.FC = () => {
               <ListRow
                 title={formatDateWithTime(expense.approvalDate)}
                 subtitle="Aprovada em"
-                showDivider={Boolean(
-                  expense.reimbursementDate || expense.notes
-                )}
+                showDivider={Boolean(expense.reimbursementDate)}
                 leading={
                   <CheckCircle2
                     size={18}
@@ -652,7 +649,6 @@ const ExpenseDetailsScreen: React.FC = () => {
               <ListRow
                 title={formatDateWithTime(expense.reimbursementDate)}
                 subtitle="Reembolsada em"
-                showDivider={Boolean(expense.notes)}
                 leading={
                   <Banknote
                     size={18}
@@ -664,17 +660,34 @@ const ExpenseDetailsScreen: React.FC = () => {
             ) : null}
 
             {expense.notes ? (
-              <ListRow
-                title={expense.notes}
-                subtitle="Observações"
-                leading={
+              <>
+                <Divider />
+                <View
+                  style={[
+                    styles.notesRow,
+                    {
+                      paddingHorizontal: theme.spacing.md,
+                      paddingVertical: theme.spacing.sm,
+                      gap: theme.spacing.sm,
+                    },
+                  ]}
+                >
                   <FileText
                     size={18}
                     strokeWidth={1.75}
                     color={theme.colors.accent}
+                    style={styles.notesIcon}
                   />
-                }
-              />
+                  <View style={styles.notesContent}>
+                    <AppText variant="caption" color="inkSecondary">
+                      Observações
+                    </AppText>
+                    <AppText variant="body" color="ink">
+                      {expense.notes}
+                    </AppText>
+                  </View>
+                </View>
+              </>
             ) : null}
           </Surface>
         </View>
@@ -823,6 +836,18 @@ const styles = StyleSheet.create({
   },
   detailsSurface: {
     overflow: 'hidden',
+  },
+  notesRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  notesIcon: {
+    marginTop: 2,
+  },
+  notesContent: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
   },
   receiptFrame: {
     height: 220,
