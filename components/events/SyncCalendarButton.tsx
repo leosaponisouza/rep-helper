@@ -1,9 +1,9 @@
 import React from 'react';
 import { ActivityIndicator, StyleProp, ViewStyle } from 'react-native';
 import { Calendar } from 'lucide-react-native';
-import { Button, IconButton, useTheme } from '../src/design-system';
-import { useCalendarSync } from '../src/hooks/useCalendarSync';
-import { Event } from '../src/services/events';
+import { Button, IconButton, useTheme } from '../../src/design-system';
+import { useCalendarSync } from '../../src/hooks/useCalendarSync';
+import { Event } from '../../src/services/events';
 import { CalendarPicker } from './CalendarPicker';
 
 interface SyncCalendarButtonProps {

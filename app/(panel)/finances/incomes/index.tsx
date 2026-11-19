@@ -3,7 +3,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { FlatList, Platform, RefreshControl, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Plus, Wallet } from 'lucide-react-native';
-import IncomeItem from '../../../../components/Finances/IncomeItem';
+import IncomeItem from '../../../../components/finances/IncomeItem';
 import { useAuth } from '../../../../src/context/AuthContext';
 import {
   Button,

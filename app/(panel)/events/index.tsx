@@ -4,9 +4,9 @@ import { RefreshControl, StyleSheet, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { Calendar as CalendarIcon, Plus } from 'lucide-react-native';
-import { CalendarPicker } from '../../../components/CalendarPicker';
-import Calendar from '../../../components/Event/Calendar';
-import CalendarSkeleton from '../../../components/Event/CalendarSkeleton';
+import { CalendarPicker } from '../../../components/events/CalendarPicker';
+import Calendar from '../../../components/events/Calendar';
+import CalendarSkeleton from '../../../components/events/CalendarSkeleton';
 import { useAuth } from '../../../src/context/AuthContext';
 import {
   Button,

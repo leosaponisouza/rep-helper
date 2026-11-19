@@ -14,8 +14,8 @@ import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context';
 import NotificationToast, {
   ToastNotification,
   NotificationType,
-} from '@/components/NotificationToast';
-import { useTheme } from '@/src/design-system/theme/useTheme';
+} from '../../components/notifications/NotificationToast';
+import { useTheme } from '../design-system/theme/useTheme';
 
 // Interface para o estado do contexto
 interface NotificationContextState {

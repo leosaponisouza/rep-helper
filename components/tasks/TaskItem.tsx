@@ -18,9 +18,9 @@ import {
   useMotion,
   useTheme,
   type StatusTone,
-} from '../src/design-system';
-import { Task } from '../src/models/task.model';
-import { formatLocalDate, parseISOPreservingTime } from '../src/utils/dateUtils';
+} from '../../src/design-system';
+import { Task } from '../../src/models/task.model';
+import { formatLocalDate, parseISOPreservingTime } from '../../src/utils/dateUtils';
 
 export interface TaskItemProps {
   item: Task;

@@ -5,8 +5,8 @@ import { addHours, isBefore, isValid, parseISO } from 'date-fns';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Calendar, MapPin, Save, Users } from 'lucide-react-native';
-import InviteUsersSection from '../../../../components/Event/InviteUsersSection';
-import { DateTimePickerFields } from '../../../../components/Task/TaskEdit/DateTimePickerSection';
+import InviteUsersSection from '../../../../components/events/InviteUsersSection';
+import { DateTimePickerFields } from '../../../../components/tasks/TaskEdit/DateTimePickerSection';
 import { useAuth } from '../../../../src/context/AuthContext';
 import {
   Button,

@@ -2,7 +2,7 @@
 // Componente de notificação toast integrado ao design system
 
 import React, { useEffect, useRef } from 'react';
-import { Toast, ToastTone } from '@/src/design-system';
+import { Toast, ToastTone } from '../../src/design-system';
 
 // Tipos de notificações toast
 export type NotificationType = 'success' | 'error' | 'warning' | 'info';

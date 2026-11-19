@@ -23,8 +23,8 @@ import {
   User,
   XCircle,
 } from 'lucide-react-native';
-import { ExpenseReceiptModal } from '../../../../components/Finances/ExpenseDetails/ExpenseReceiptModal';
-import { ExpenseTimeline } from '../../../../components/Finances/ExpenseDetails/ExpenseTimeline';
+import { ExpenseReceiptModal } from '../../../../components/finances/ExpenseDetails/ExpenseReceiptModal';
+import { ExpenseTimeline } from '../../../../components/finances/ExpenseDetails/ExpenseTimeline';
 import { useAuth } from '../../../../src/context/AuthContext';
 import {
   AppText,

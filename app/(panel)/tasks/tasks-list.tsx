@@ -14,8 +14,8 @@ import { CheckSquare, Plus } from 'lucide-react-native';
 import TaskFilter, {
   type FilterOption,
   type TaskSortOption,
-} from '../../../components/TaskFilter';
-import TaskItem from '../../../components/TaskItem';
+} from '../../../components/tasks/TaskFilter';
+import TaskItem from '../../../components/tasks/TaskItem';
 import { useAuth } from '../../../src/context/AuthContext';
 import {
   Button,

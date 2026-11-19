@@ -19,8 +19,8 @@ import {
   Plus,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
-import NotificationBadge from '../../components/NotificationBadge';
-import NotificationCenter from '../../components/NotificationCenter';
+import NotificationBadge from '../../components/notifications/NotificationBadge';
+import NotificationCenter from '../../components/notifications/NotificationCenter';
 import { useAuth } from '../../src/context/AuthContext';
 import {
   AppText,

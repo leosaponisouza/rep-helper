@@ -10,9 +10,9 @@ import {
   StateView,
   Surface,
   useTheme,
-} from '../src/design-system';
-import { CalendarService } from '../src/services/calendar/calendarService';
-import { logger } from '../src/utils/logger';
+} from '../../src/design-system';
+import { CalendarService } from '../../src/services/calendar/calendarService';
+import { logger } from '../../src/utils/logger';
 
 interface CalendarPickerProps {
   onSelect: (calendarId: string, calendarSource?: string) => void;

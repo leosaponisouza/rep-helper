@@ -1,4 +1,4 @@
-import { buildExpenseTimelineSteps } from '../../../components/Finances/ExpenseDetails/ExpenseTimeline';
+import { buildExpenseTimelineSteps } from '../../../components/finances/ExpenseDetails/ExpenseTimeline';
 import { Expense } from '../../models/finances.model';
 
 describe('buildExpenseTimelineSteps', () => {

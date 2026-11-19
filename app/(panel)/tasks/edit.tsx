@@ -12,7 +12,7 @@ import {
   DateTimePickerSection,
   TitleDescriptionInputs,
   UserAssignmentSection,
-} from '../../../components/Task/TaskEdit';
+} from '../../../components/tasks/TaskEdit';
 import { useAuth } from '../../../src/context/AuthContext';
 import {
   Button,

@@ -23,9 +23,9 @@ import {
   Share2,
   Users,
 } from 'lucide-react-native';
-import { CalendarPicker } from '../../../components/CalendarPicker';
-import { EventAttendanceGroups } from '../../../components/Event/EventDetails/EventAttendanceGroups';
-import { EventParticipationActions } from '../../../components/Event/EventDetails/EventParticipationActions';
+import { CalendarPicker } from '../../../components/events/CalendarPicker';
+import { EventAttendanceGroups } from '../../../components/events/EventDetails/EventAttendanceGroups';
+import { EventParticipationActions } from '../../../components/events/EventDetails/EventParticipationActions';
 import { useAuth } from '../../../src/context/AuthContext';
 import {
   AppText,

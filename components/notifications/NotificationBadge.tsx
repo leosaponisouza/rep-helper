@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet } from 'react-native';
-import { useAuth } from '../src/context/AuthContext';
-import { AppText, useMotion, useTheme } from '../src/design-system';
-import notificationApiService from '../src/services/notificationApiService';
+import { useAuth } from '../../src/context/AuthContext';
+import { AppText, useMotion, useTheme } from '../../src/design-system';
+import notificationApiService from '../../src/services/notificationApiService';
 
 interface NotificationBadgeProps {
   size?: 'small' | 'medium' | 'large';

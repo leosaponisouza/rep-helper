@@ -10,8 +10,8 @@ import {
   IconButton,
   TextField,
   useTheme,
-} from '../src/design-system';
-import { COMMON_TASK_CATEGORIES } from '../src/validation/taskSchemas';
+} from '../../src/design-system';
+import { COMMON_TASK_CATEGORIES } from '../../src/validation/taskSchemas';
 
 export interface FilterOption {
   key: string;

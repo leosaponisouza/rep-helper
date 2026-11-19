@@ -5,8 +5,8 @@ import { useRouter } from 'expo-router';
 import { Plus, Receipt } from 'lucide-react-native';
 import ExpenseFilters, {
   FilterOption,
-} from '../../../../components/Finances/ExpenseFilters';
-import ExpenseItem from '../../../../components/Finances/ExpenseItem';
+} from '../../../../components/finances/ExpenseFilters';
+import ExpenseItem from '../../../../components/finances/ExpenseItem';
 import { useAuth } from '../../../../src/context/AuthContext';
 import {
   Button,

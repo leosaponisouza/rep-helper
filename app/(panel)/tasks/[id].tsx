@@ -15,9 +15,9 @@ import {
   Tag,
   User,
 } from 'lucide-react-native';
-import { TaskActionButtons } from '../../../components/Task/TaskDetails/TaskActionButtons';
-import { TaskAssignedUsersCard } from '../../../components/Task/TaskDetails/TaskAssignedUsersCard';
-import { TaskRecurrenceCard } from '../../../components/Task/TaskDetails/TaskRecurrenceCard';
+import { TaskActionButtons } from '../../../components/tasks/TaskDetails/TaskActionButtons';
+import { TaskAssignedUsersCard } from '../../../components/tasks/TaskDetails/TaskAssignedUsersCard';
+import { TaskRecurrenceCard } from '../../../components/tasks/TaskDetails/TaskRecurrenceCard';
 import { useAuth } from '../../../src/context/AuthContext';
 import {
   AppText,

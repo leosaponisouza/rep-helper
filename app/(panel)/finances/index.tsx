@@ -3,12 +3,12 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowDownLeft, ArrowUpRight, Plus } from 'lucide-react-native';
-import AdjustBalanceModal from '../../../components/Finances/AdjustBalanceModal';
-import CategoryChart from '../../../components/Finances/CategoryChart';
-import FinancialSummary from '../../../components/Finances/FinancialSummary';
-import MonthlyChart from '../../../components/Finances/MonthlyChart';
-import PendingActions from '../../../components/Finances/PendingActions';
-import RecentTransactions from '../../../components/Finances/RecentTransactions';
+import AdjustBalanceModal from '../../../components/finances/AdjustBalanceModal';
+import CategoryChart from '../../../components/finances/CategoryChart';
+import FinancialSummary from '../../../components/finances/FinancialSummary';
+import MonthlyChart from '../../../components/finances/MonthlyChart';
+import PendingActions from '../../../components/finances/PendingActions';
+import RecentTransactions from '../../../components/finances/RecentTransactions';
 import { useAuth } from '../../../src/context/AuthContext';
 import {
   BottomSheetModal,

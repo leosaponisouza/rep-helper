@@ -29,13 +29,13 @@ import {
   useTheme,
   type SegmentedTabOption,
   type ThemeColors,
-} from '../src/design-system';
+} from '../../src/design-system';
 import {
   Notification,
   NotificationType,
   useNotifications,
-} from '../src/hooks/useNotifications';
-import { getRelativeTime } from '../src/utils/dateUtils';
+} from '../../src/hooks/useNotifications';
+import { getRelativeTime } from '../../src/utils/dateUtils';
 
 type NotificationWithRawType = Omit<Notification, 'type'> & {
   type: string;
