@@ -57,6 +57,14 @@ const SettingsScreen = () => {
       title: 'Aplicativo',
       items: [
         {
+          id: 'appearance',
+          title: 'Aparência',
+          description: 'Tema claro, escuro ou do sistema',
+          icon: 'color-palette',
+          iconType: 'ionicons',
+          route: '/(panel)/settings/appearance'
+        },
+        {
           id: 'about',
           title: 'Sobre o App',
           description: 'Informações, termos e licenças',

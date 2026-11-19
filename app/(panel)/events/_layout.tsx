@@ -1,28 +1,48 @@
 // app/(panel)/events/_layout.tsx
-import { Stack } from 'expo-router';
 import React from 'react';
-import { Ionicons } from '@expo/vector-icons';
+import { Stack, useRouter } from 'expo-router';
+import { ChevronLeft } from 'lucide-react-native';
+import { fontFamilies, IconButton, useTheme } from '../../../src/design-system';
 
-// Layout simplificado sem o uso do EventsProvider
 export default function EventsLayout() {
+  const router = useRouter();
+  const { theme } = useTheme();
+
   return (
-    <Stack 
-      screenOptions={{ 
+    <Stack
+      screenOptions={{
         headerStyle: {
-          backgroundColor: '#222',
+          backgroundColor: theme.colors.bg,
         },
-        headerTintColor: '#7B68EE',
+        headerTintColor: theme.colors.ink,
         headerTitleStyle: {
-          fontWeight: 'bold',
+          fontFamily: fontFamilies.sansSemiBold,
+          color: theme.colors.ink,
         },
         headerShadowVisible: false,
         headerBackVisible: true,
-        headerShown: false // Oculta todos os headers por padrão
+        headerShown: false,
+        contentStyle: {
+          backgroundColor: theme.colors.bg,
+        },
+        headerLeft: ({ canGoBack }) =>
+          canGoBack ? (
+            <IconButton
+              icon={
+                <ChevronLeft
+                  size={22}
+                  strokeWidth={1.75}
+                  color={theme.colors.ink}
+                />
+              }
+              onPress={() => router.back()}
+              accessibilityLabel="Voltar"
+              variant="ghost"
+            />
+          ) : null,
       }}
     >
       <Stack.Screen name="index" />
-      <Stack.Screen name="events-list" />
-      <Stack.Screen name="calendar" />
       <Stack.Screen name="create" />
       <Stack.Screen name="edit/[id]" />
       <Stack.Screen name="[id]" />

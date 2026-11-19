@@ -1,5 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import { palette } from '../design-system/tokens/palette';
 
 export async function registerForPushNotificationsAsync() {
   if (Platform.OS === 'web') {
@@ -13,7 +14,7 @@ export async function registerForPushNotificationsAsync() {
       name: 'default',
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#FF231F7C',
+      lightColor: palette.light.accent,
     });
   }
 

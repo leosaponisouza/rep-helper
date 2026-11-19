@@ -2,7 +2,7 @@
 import React, { useMemo } from 'react';
 import { useSegments, Redirect } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
-import { View, ActivityIndicator } from 'react-native';
+import { Screen, StateView } from '../design-system';
 
 export interface AuthRouteState {
   isAuthenticated: boolean;
@@ -75,9 +75,9 @@ export function AuthProtection({ children }: { children: React.ReactNode }): Rea
   // exibimos o spinner global para impedir montagem prematura dos filhos protegidos.
   if (!firstSegment || (loading && !inAuthGroup)) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#222' }}>
-        <ActivityIndicator size="large" color="#7B68EE" />
-      </View>
+      <Screen padded={false}>
+        <StateView kind="loading" />
+      </Screen>
     );
   }
 

@@ -1,62 +1,97 @@
+import React, { useContext } from 'react';
+import { StyleSheet, Text } from 'react-native';
 import { Tabs } from 'expo-router';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { StyleSheet } from 'react-native';
+import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
+import { Calendar, CheckSquare, Home, Settings, Wallet } from 'lucide-react-native';
 import { AuthProtection } from '../../src/utils/authProtection';
+import { fontFamilies, useTheme } from '../../src/design-system';
+
+const DEFAULT_INSETS = { top: 0, right: 0, bottom: 0, left: 0 };
 
 export default function PanelLayout() {
+  const { theme } = useTheme();
+  const insets = useContext(SafeAreaInsetsContext) ?? DEFAULT_INSETS;
+
   return (
     <AuthProtection>
       <Tabs
         screenOptions={{
           headerShown: false,
-          tabBarActiveTintColor: '#7B68EE',
-          tabBarInactiveTintColor: 'gray',
-          tabBarStyle: styles.tabBar,
+          tabBarActiveTintColor: theme.colors.accent,
+          tabBarInactiveTintColor: theme.colors.inkMuted,
+          tabBarAllowFontScaling: true,
+          tabBarStyle: {
+            backgroundColor: theme.colors.surface,
+            borderTopColor: theme.colors.line,
+            borderTopWidth: 1,
+            minHeight: 60 + insets.bottom,
+            paddingTop: theme.spacing.xs,
+            paddingBottom: Math.max(insets.bottom, theme.spacing.xs),
+          },
           tabBarLabelStyle: styles.tabBarLabel,
+          tabBarLabel: ({ color, position, children }) => (
+            <Text
+              allowFontScaling={true}
+              maxFontSizeMultiplier={1.3}
+              numberOfLines={1}
+              style={[
+                styles.tabBarLabel,
+                position === 'beside-icon' ? styles.tabBarLabelBeside : undefined,
+                { color },
+              ]}
+            >
+              {children}
+            </Text>
+          ),
         }}
       >
         <Tabs.Screen
           name="home"
           options={{
-            tabBarLabel: 'Home',
+            title: 'Home',
+            tabBarAccessibilityLabel: 'Home',
             tabBarIcon: ({ color, size }) => (
-              <Ionicons name="home-outline" color={color} size={size} />
+              <Home color={color} size={size} strokeWidth={1.75} />
             ),
           }}
         />
         <Tabs.Screen
           name="tasks"
           options={{
-            tabBarLabel: 'Tarefas',
+            title: 'Tarefas',
+            tabBarAccessibilityLabel: 'Tarefas',
             tabBarIcon: ({ color, size }) => (
-              <MaterialCommunityIcons name="checkbox-marked-outline" color={color} size={size} />
+              <CheckSquare color={color} size={size} strokeWidth={1.75} />
             ),
           }}
         />
         <Tabs.Screen
           name="events"
           options={{
-            tabBarLabel: 'Agenda',
+            title: 'Agenda',
+            tabBarAccessibilityLabel: 'Agenda',
             tabBarIcon: ({ color, size }) => (
-              <Ionicons name="calendar-outline" color={color} size={size} />
+              <Calendar color={color} size={size} strokeWidth={1.75} />
             ),
           }}
         />
         <Tabs.Screen
           name="finances"
           options={{
-            tabBarLabel: 'Finanças',
+            title: 'Finanças',
+            tabBarAccessibilityLabel: 'Finanças',
             tabBarIcon: ({ color, size }) => (
-              <MaterialCommunityIcons name="cash" color={color} size={size} />
+              <Wallet color={color} size={size} strokeWidth={1.75} />
             ),
           }}
         />
         <Tabs.Screen
           name="settings"
           options={{
-            tabBarLabel: 'Configurações',
+            title: 'Configurações',
+            tabBarAccessibilityLabel: 'Configurações',
             tabBarIcon: ({ color, size }) => (
-              <Ionicons name="settings-outline" color={color} size={size} />
+              <Settings color={color} size={size} strokeWidth={1.75} />
             ),
           }}
         />
@@ -72,16 +107,12 @@ export default function PanelLayout() {
 }
 
 const styles = StyleSheet.create({
-  tabBar: {
-    backgroundColor: '#333',
-    borderTopColor: '#555',
-    borderTopWidth: 1,
-    height: 60,
-    paddingBottom: 8,
-    paddingTop: 8,
-  },
   tabBarLabel: {
+    fontFamily: fontFamilies.sansMedium,
     fontSize: 12,
-    marginBottom: 4,
+    textAlign: 'center',
+  },
+  tabBarLabelBeside: {
+    marginLeft: 4,
   },
 });

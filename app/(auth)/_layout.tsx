@@ -1,60 +1,69 @@
 // app/(auth)/_layout.tsx
-import { Stack } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { TouchableOpacity } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
+import { ChevronLeft } from 'lucide-react-native';
 import { AuthProtection } from '../../src/utils/authProtection';
+import { fontFamilies, IconButton, useTheme } from '../../src/design-system';
 
 export default function AuthLayout() {
   const router = useRouter();
-  
+  const { theme } = useTheme();
+
   return (
     <AuthProtection>
-      <Stack 
-        screenOptions={{ 
+      <Stack
+        screenOptions={{
           headerStyle: {
-            backgroundColor: '#222',
+            backgroundColor: theme.colors.bg,
           },
-          headerTintColor: '#7B68EE',
+          headerTintColor: theme.colors.ink,
           headerTitleStyle: {
-            fontWeight: 'bold',
+            fontFamily: fontFamilies.sansSemiBold,
+            color: theme.colors.ink,
           },
           headerShadowVisible: false,
           headerBackVisible: true,
-          headerLeft: ({ canGoBack }) => 
+          contentStyle: {
+            backgroundColor: theme.colors.bg,
+          },
+          headerLeft: ({ canGoBack }) =>
             canGoBack ? (
-              <TouchableOpacity 
+              <IconButton
+                icon={
+                  <ChevronLeft
+                    size={22}
+                    strokeWidth={1.75}
+                    color={theme.colors.ink}
+                  />
+                }
                 onPress={() => router.back()}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Ionicons name="chevron-back" size={24} color="#7B68EE" style={{ marginLeft: 8 }} />
-              </TouchableOpacity>
+                accessibilityLabel="Voltar"
+                variant="ghost"
+              />
             ) : null,
         }}
       >
-        <Stack.Screen 
-          name="sign-in" 
-          options={{ 
+        <Stack.Screen
+          name="sign-in"
+          options={{
             title: 'Login',
-            headerShown: false
-          }} 
+            headerShown: false,
+          }}
         />
-        <Stack.Screen 
-          name="sign-up" 
-          options={{ 
+        <Stack.Screen
+          name="sign-up"
+          options={{
             title: 'Cadastro',
-            headerShown: false
-          }} 
+            headerShown: false,
+          }}
         />
-        <Stack.Screen 
-          name="forgot-password" 
-          options={{ 
+        <Stack.Screen
+          name="forgot-password"
+          options={{
             title: 'Recuperar Senha',
-            headerShown: false
-          }} 
+            headerShown: false,
+          }}
         />
-        {/* Removida a definição explícita da rota index */}
       </Stack>
     </AuthProtection>
   );

@@ -1,28 +1,50 @@
-// app/(panel)/settings/_layout.tsx - Settings sub-navigation (corrigido)
-import { Stack } from 'expo-router';
+// app/(panel)/settings/_layout.tsx
 import React from 'react';
-import { Ionicons } from '@expo/vector-icons';
+import { Stack, useRouter } from 'expo-router';
+import { ChevronLeft } from 'lucide-react-native';
+import { fontFamilies, IconButton, useTheme } from '../../../src/design-system';
 
 export default function SettingsLayout() {
+  const router = useRouter();
+  const { theme } = useTheme();
+
   return (
-    <Stack 
-      screenOptions={{ 
+    <Stack
+      screenOptions={{
         headerStyle: {
-          backgroundColor: '#222',
+          backgroundColor: theme.colors.bg,
         },
-        headerTintColor: '#7B68EE',
+        headerTintColor: theme.colors.ink,
         headerTitleStyle: {
-          fontWeight: 'bold',
+          fontFamily: fontFamilies.sansSemiBold,
+          color: theme.colors.ink,
         },
         headerShadowVisible: false,
         headerBackVisible: true,
+        headerShown: false,
+        contentStyle: {
+          backgroundColor: theme.colors.bg,
+        },
+        headerLeft: ({ canGoBack }) =>
+          canGoBack ? (
+            <IconButton
+              icon={
+                <ChevronLeft
+                  size={22}
+                  strokeWidth={1.75}
+                  color={theme.colors.ink}
+                />
+              }
+              onPress={() => router.back()}
+              accessibilityLabel="Voltar"
+              variant="ghost"
+            />
+          ) : null,
       }}
     >
-      <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen name="account" options={{ 
-        headerTitle: '',
-        headerBackVisible: true,
-      }} />
+      <Stack.Screen name="index" />
+      <Stack.Screen name="appearance" options={{ title: 'Aparência' }} />
+      <Stack.Screen name="account" options={{ title: 'Conta' }} />
       <Stack.Screen name="about" options={{ title: 'Sobre' }} />
       <Stack.Screen name="terms-of-use" options={{ title: 'Termos de Uso' }} />
       <Stack.Screen name="privacy-policy" options={{ title: 'Política de Privacidade' }} />
