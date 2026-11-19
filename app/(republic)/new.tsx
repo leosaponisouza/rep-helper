@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Clipboard, Keyboard, Platform, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
@@ -150,6 +150,15 @@ const CreateRepublicScreen: React.FC = () => {
   const router = useRouter();
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isMountedRef = useRef(true);
+  const hasCompletedRef = useRef(false);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const styles = useThemedStyles((t) => ({
     screenContent: {
@@ -175,6 +184,8 @@ const CreateRepublicScreen: React.FC = () => {
   // Reset form when screen comes into focus
   useFocusEffect(
     useCallback(() => {
+      hasCompletedRef.current = false;
+      setIsSubmitting(false);
       reset(DEFAULT_VALUES);
     }, [reset])
   );
@@ -214,10 +225,16 @@ const CreateRepublicScreen: React.FC = () => {
       });
     }
 
-    router.replace('/(panel)/home');
+    if (isMountedRef.current) {
+      router.replace('/(panel)/home');
+    }
   };
 
   const onSubmit = async (data: RepublicFormData) => {
+    if (isSubmitting || hasCompletedRef.current) {
+      return;
+    }
+
     Keyboard.dismiss();
     setIsSubmitting(true);
 
@@ -241,12 +258,12 @@ const CreateRepublicScreen: React.FC = () => {
       });
 
       const response = await republicService.createRepublic(republicData);
+      hasCompletedRef.current = true;
 
       logger.debug('República criada com sucesso:', {
         id: response.republic?.id,
       });
       const republicCode = response.republic?.code;
-      setIsSubmitting(false);
 
       if (republicCode) {
         await showRepublicCodeDialog(republicCode);
@@ -256,7 +273,9 @@ const CreateRepublicScreen: React.FC = () => {
           message: 'República criada com sucesso!',
           tone: 'success',
         });
-        router.replace('/(panel)/home');
+        if (isMountedRef.current) {
+          router.replace('/(panel)/home');
+        }
       }
     } catch (err: any) {
       triggerHaptic(() =>
@@ -270,7 +289,9 @@ const CreateRepublicScreen: React.FC = () => {
         tone: 'danger',
       });
     } finally {
-      setIsSubmitting(false);
+      if (isMountedRef.current && !hasCompletedRef.current) {
+        setIsSubmitting(false);
+      }
     }
   };
 

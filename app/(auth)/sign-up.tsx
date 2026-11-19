@@ -1,5 +1,5 @@
 // app/(auth)/sign-up.tsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Keyboard, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
@@ -127,12 +127,8 @@ const SignUpScreen = () => {
     },
   }));
 
-  const [loadingMessage, setLoadingMessage] = useState('Criando conta...');
   const [localLoading, setLocalLoading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
-
-  // Referência para controlar o cancelamento do cadastro
-  const cancelSignupRef = useRef(false);
 
   const { signUp, loading, error, clearError } = useAuth();
   const router = useRouter();
@@ -162,17 +158,6 @@ const SignUpScreen = () => {
     }
   }, [loading, error]);
 
-  // Resetar o status de cancelamento quando o componente for desmontado ou quando 'loading' mudar para false
-  useEffect(() => {
-    if (!loading) {
-      cancelSignupRef.current = false;
-    }
-
-    return () => {
-      cancelSignupRef.current = false;
-    };
-  }, [loading]);
-
   // Limpa o erro quando o usuário interage com os campos
   const handleFieldFocus = () => {
     clearError();
@@ -189,41 +174,14 @@ const SignUpScreen = () => {
 
       setLocalError(null);
       setLocalLoading(true);
-      cancelSignupRef.current = false;
 
       await clearAuthData();
 
-      setLoadingMessage('Criando conta...');
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      if (cancelSignupRef.current) {
-        setLocalLoading(false);
-        return;
-      }
-
-      setLoadingMessage('Registrando no Firebase...');
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      if (cancelSignupRef.current) {
-        setLocalLoading(false);
-        return;
-      }
-
-      setLoadingMessage('Enviando dados para o servidor...');
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      if (cancelSignupRef.current) {
-        setLocalLoading(false);
-        return;
-      }
-
-      await signUp(
-        data.email,
-        data.password,
-        {
-          name: data.name,
-          nickname: data.nickname || null,
-          phoneNumber: data.phone || '',
-        },
-        cancelSignupRef
-      );
+      await signUp(data.email, data.password, {
+        name: data.name,
+        nickname: data.nickname || null,
+        phoneNumber: data.phone || '',
+      });
     } catch (err: any) {
       setLocalError(err?.message || 'Erro ao criar conta');
       setLocalLoading(false);
@@ -300,7 +258,7 @@ const SignUpScreen = () => {
           ) : null}
 
           <Button
-            label={localLoading ? loadingMessage : 'Criar Conta'}
+            label={localLoading ? 'Criando conta...' : 'Criar Conta'}
             variant="primary"
             fullWidth
             loading={localLoading}

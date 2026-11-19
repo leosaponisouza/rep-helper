@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Keyboard, Platform, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { AlertCircle, Lock, Mail } from 'lucide-react-native';
@@ -81,13 +81,9 @@ const LoginScreen = () => {
     },
   }));
 
-  const [loadingMessage, setLoadingMessage] = useState('Autenticando...');
   const [localLoading, setLocalLoading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [googleLoading, setGoogleLoading] = useState(false);
-
-  // Referência para controlar o cancelamento do login
-  const cancelLoginRef = useRef(false);
 
   const { loginWithCredentials, loading, error, clearError, loginWithFirebaseToken } = useAuth();
   const router = useRouter();
@@ -133,17 +129,6 @@ const LoginScreen = () => {
     }
   }, [loading, error]);
 
-  // Resetar o status de cancelamento quando o componente for desmontado ou quando 'loading' mudar para false
-  useEffect(() => {
-    if (!loading) {
-      cancelLoginRef.current = false;
-    }
-
-    return () => {
-      cancelLoginRef.current = false;
-    };
-  }, [loading]);
-
   // Efeito para lidar com a resposta do Google
   useEffect(() => {
     if (response?.type === 'success') {
@@ -172,26 +157,10 @@ const LoginScreen = () => {
 
     setLocalError(null);
     setLocalLoading(true);
-    cancelLoginRef.current = false;
 
     try {
       await clearAuthData();
-
-      setLoadingMessage('Autenticando...');
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      if (cancelLoginRef.current) {
-        setLocalLoading(false);
-        return;
-      }
-
-      setLoadingMessage('Conectando ao servidor...');
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      if (cancelLoginRef.current) {
-        setLocalLoading(false);
-        return;
-      }
-
-      await loginWithCredentials(data.email, data.password, cancelLoginRef);
+      await loginWithCredentials(data.email, data.password);
     } catch (err: any) {
       setLocalError(err?.message || 'Erro ao fazer login');
       setLocalLoading(false);
@@ -319,7 +288,7 @@ const LoginScreen = () => {
           ) : null}
 
           <Button
-            label={localLoading ? loadingMessage : 'Entrar'}
+            label={localLoading ? 'Autenticando...' : 'Entrar'}
             variant="primary"
             fullWidth
             loading={localLoading}
