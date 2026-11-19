@@ -1,37 +1,74 @@
-import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  FlatList,
   Animated,
-  Dimensions,
-  ActivityIndicator,
+  FlatList,
+  StyleSheet,
+  useWindowDimensions,
+  View,
 } from 'react-native';
-import { Calendar as RNCalendar, LocaleConfig, CalendarList } from 'react-native-calendars';
-import { format, parseISO, addMonths, subMonths } from 'date-fns';
+import { Calendar as RNCalendar, LocaleConfig } from 'react-native-calendars';
+import { format, isValid, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Ionicons } from '@expo/vector-icons';
+import {
+  Calendar as CalendarIcon,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react-native';
+import {
+  AppText,
+  createCalendarTheme,
+  Divider,
+  StateView,
+  StatusText,
+  Surface,
+  useMotion,
+  useTheme,
+} from '../../src/design-system';
+import { logger } from '../../src/utils/logger';
 import EventItem from './EventItem';
 
-// Configurar localização em português
 LocaleConfig.locales['pt-br'] = {
   monthNames: [
-    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 
-    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    'Janeiro',
+    'Fevereiro',
+    'Março',
+    'Abril',
+    'Maio',
+    'Junho',
+    'Julho',
+    'Agosto',
+    'Setembro',
+    'Outubro',
+    'Novembro',
+    'Dezembro',
   ],
-  monthNamesShort: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'],
-  dayNames: ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'],
+  monthNamesShort: [
+    'Jan',
+    'Fev',
+    'Mar',
+    'Abr',
+    'Mai',
+    'Jun',
+    'Jul',
+    'Ago',
+    'Set',
+    'Out',
+    'Nov',
+    'Dez',
+  ],
+  dayNames: [
+    'Domingo',
+    'Segunda-feira',
+    'Terça-feira',
+    'Quarta-feira',
+    'Quinta-feira',
+    'Sexta-feira',
+    'Sábado',
+  ],
   dayNamesShort: ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'],
-  today: 'Hoje'
+  today: 'Hoje',
 };
 LocaleConfig.defaultLocale = 'pt-br';
-
-// Obter dimensões da tela
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
-// Altura calculada para o container
-const containerHeight = screenHeight - 120;
 
 interface CalendarProps {
   events: any[];
@@ -47,252 +84,267 @@ interface EventsByDate {
   [date: string]: any[];
 }
 
+const WIDE_LAYOUT_BREAKPOINT = 900;
+
 const Calendar: React.FC<CalendarProps> = ({
   events,
   selectedDate,
   onDateSelect,
   onEventPress,
   currentUserId,
-  loading = false,
   refreshControl,
 }) => {
-  const [selectedDay, setSelectedDay] = useState(selectedDate || format(new Date(), 'yyyy-MM-dd'));
-  const [currentMonth, setCurrentMonth] = useState('');
-  const [eventsByDate, setEventsByDate] = useState<EventsByDate>({});
-  const [dayEvents, setDayEvents] = useState<any[]>([]);
-  const slideAnim = useRef(new Animated.Value(20)).current;
-  const opacityAnim = useRef(new Animated.Value(0)).current;
-  const calendarRef = useRef<any>(null);
-  const isRefreshing = useRef(false);
-  
-  // Função para animar a entrada dos eventos com efeito de fade in/slide up
-  const animateEventsIn = useCallback(() => {
-    // Reset dos valores de animação
-    slideAnim.setValue(20);
+  const { theme } = useTheme();
+  const motion = useMotion();
+  const { width: windowWidth } = useWindowDimensions();
+  const isWideLayout = windowWidth >= WIDE_LAYOUT_BREAKPOINT;
+
+  const [selectedDay, setSelectedDay] = useState(
+    selectedDate || format(new Date(), 'yyyy-MM-dd')
+  );
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const opacityAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (selectedDate && selectedDate !== selectedDay) {
+      setSelectedDay(selectedDate);
+    }
+  }, [selectedDate, selectedDay]);
+
+  const calendarTheme = useMemo(() => createCalendarTheme(theme), [theme]);
+
+  const eventsByDate = useMemo<EventsByDate>(() => {
+    const grouped: EventsByDate = {};
+    if (!Array.isArray(events)) {
+      return grouped;
+    }
+
+    events.forEach((event) => {
+      if (event && typeof event === 'object') {
+        const eventDate = event.date || event.startDate;
+        if (eventDate && typeof eventDate === 'string') {
+          const dateStr = eventDate.split('T')[0];
+          if (!grouped[dateStr]) {
+            grouped[dateStr] = [];
+          }
+          grouped[dateStr].push(event);
+        }
+      }
+    });
+
+    return grouped;
+  }, [events]);
+
+  const dayEvents = useMemo(() => {
+    if (!selectedDay || typeof selectedDay !== 'string') {
+      return [];
+    }
+    const dateStr = selectedDay.split('T')[0];
+    return eventsByDate[dateStr] || [];
+  }, [selectedDay, eventsByDate]);
+
+  useEffect(() => {
+    if (!motion.shouldAnimate) {
+      slideAnim.setValue(0);
+      opacityAnim.setValue(1);
+      return;
+    }
+
+    slideAnim.setValue(12);
     opacityAnim.setValue(0);
-    
-    // Animação paralela de deslize para cima e fade in
-    Animated.parallel([
+
+    const anim = Animated.parallel([
       Animated.timing(slideAnim, {
         toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
+        duration: motion.duration(theme.motion.duration.normal),
+        easing: theme.motion.easing.standard,
+        useNativeDriver: motion.useNativeDriver,
       }),
       Animated.timing(opacityAnim, {
         toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
+        duration: motion.duration(theme.motion.duration.normal, {
+          allowReducedFade: true,
+        }),
+        easing: theme.motion.easing.standard,
+        useNativeDriver: motion.useNativeDriver,
       }),
-    ]).start();
-  }, [slideAnim, opacityAnim]);
-  
-  // Organiza os eventos por data
-  useEffect(() => {
-    const grouped: EventsByDate = {};
-    
-    if (Array.isArray(events)) {
-      events.forEach(event => {
-        if (event && typeof event === 'object') {
-          // Verificar se o evento tem uma propriedade date ou startDate
-          const eventDate = event.date || event.startDate;
-          
-          if (eventDate && typeof eventDate === 'string') {
-            const dateStr = eventDate.split('T')[0];
-            if (!grouped[dateStr]) {
-              grouped[dateStr] = [];
-            }
-            grouped[dateStr].push(event);
-          }
-        }
-      });
-    }
-    
-    setEventsByDate(grouped);
-    
-    // Animar a entrada dos eventos quando forem carregados
-    if (!isRefreshing.current) {
-      animateEventsIn();
-    }
-    isRefreshing.current = false;
-  }, [events, animateEventsIn]);
+    ]);
 
-  // Atualiza os eventos do dia quando a data selecionada muda
-  useEffect(() => {
-    if (selectedDay && typeof selectedDay === 'string') {
-      const dateStr = selectedDay.split('T')[0];
-      setDayEvents(eventsByDate[dateStr] || []);
-      
-      // Animar a entrada dos eventos
-      animateEventsIn();
-    }
-  }, [selectedDay, eventsByDate, animateEventsIn]);
+    anim.start();
 
-  // Formata o mês atual para exibição
-  useEffect(() => {
-    if (selectedDay && typeof selectedDay === 'string') {
-      try {
-        const date = parseISO(selectedDay);
-        const monthStr = format(date, 'MMMM yyyy', { locale: ptBR });
-        setCurrentMonth(monthStr.charAt(0).toUpperCase() + monthStr.slice(1));
-      } catch (error) {
-        console.error("Erro ao formatar mês:", error);
-        setCurrentMonth('');
-      }
-    }
-  }, [selectedDay]);
+    return () => {
+      anim.stop();
+    };
+  }, [
+    selectedDay,
+    dayEvents.length,
+    motion,
+    slideAnim,
+    opacityAnim,
+    theme.motion.duration.normal,
+    theme.motion.easing.standard,
+  ]);
 
-  // Prepara os marcadores para o calendário
   const markedDates = useMemo(() => {
-    const markers: any = {};
-    
-    // Marca dias com eventos
-    Object.keys(eventsByDate).forEach(date => {
-      markers[date] = { 
+    const markers: Record<string, any> = {};
+
+    Object.keys(eventsByDate).forEach((date) => {
+      markers[date] = {
         marked: true,
-        dotColor: '#7B68EE',
-        activeOpacity: 0.8
+        dotColor: theme.colors.accent,
       };
     });
-    
-    // Marca o dia selecionado
+
     if (selectedDay && typeof selectedDay === 'string') {
       const selectedDateStr = selectedDay.split('T')[0];
       markers[selectedDateStr] = {
         ...markers[selectedDateStr],
         selected: true,
-        selectedColor: '#7B68EE',
-        selectedTextColor: '#ffffff',
-        selectedDotColor: '#ffffff'
+        selectedColor: theme.colors.accent,
+        selectedTextColor: theme.colors.onAccent,
+        selectedDotColor: theme.colors.onAccent,
       };
     }
-    
+
     return markers;
-  }, [eventsByDate, selectedDay]);
+  }, [eventsByDate, selectedDay, theme.colors.accent, theme.colors.onAccent]);
 
-  const handleDateSelect = (day: any) => {
-    if (day && day.dateString) {
-      const dateString = day.dateString;
-      setSelectedDay(dateString);
-      onDateSelect(dateString);
-    }
-  };
-
-  const renderEventItem = useCallback(({ item }: { item: any }) => {
-    if (!item) return null;
-    
-    return (
-      <EventItem 
-        event={item} 
-        onPress={() => onEventPress(item)}
-        currentUserId={currentUserId}
-      />
-    );
-  }, [onEventPress, currentUserId]);
-  
-  // Função para navegar para o mês anterior
-  const goToPreviousMonth = useCallback(() => {
-    if (selectedDay) {
-      try {
-        const currentDate = parseISO(selectedDay);
-        const newDate = subMonths(currentDate, 1);
-        const newDateString = format(newDate, 'yyyy-MM-dd');
-        
-        // Se o calendário tem uma referência, podemos usar seus métodos nativos
-        if (calendarRef.current) {
-          calendarRef.current.scrollToMonth(newDateString);
-        }
-      } catch (error) {
-        console.error('Erro ao navegar para o mês anterior:', error);
+  const formattedSelectedDay = useMemo(() => {
+    try {
+      const parsed = parseISO(selectedDay);
+      if (!isValid(parsed)) {
+        return selectedDay;
       }
+      return format(parsed, "dd 'de' MMMM", { locale: ptBR });
+    } catch (error) {
+      logger.error('Erro ao formatar dia selecionado:', error);
+      return selectedDay;
     }
   }, [selectedDay]);
-  
-  // Função para navegar para o próximo mês
-  const goToNextMonth = useCallback(() => {
-    if (selectedDay) {
-      try {
-        const currentDate = parseISO(selectedDay);
-        const newDate = addMonths(currentDate, 1);
-        const newDateString = format(newDate, 'yyyy-MM-dd');
-        
-        // Se o calendário tem uma referência, podemos usar seus métodos nativos
-        if (calendarRef.current) {
-          calendarRef.current.scrollToMonth(newDateString);
-        }
-      } catch (error) {
-        console.error('Erro ao navegar para o próximo mês:', error);
+
+  const handleDateSelect = useCallback(
+    (day: { dateString?: string }) => {
+      if (day?.dateString) {
+        setSelectedDay(day.dateString);
+        onDateSelect(day.dateString);
       }
-    }
-  }, [selectedDay]);
+    },
+    [onDateSelect]
+  );
+
+  const renderEventItem = useCallback(
+    ({ item }: { item: any }) => {
+      if (!item) return null;
+      return (
+        <EventItem
+          event={item}
+          onPress={() => onEventPress(item)}
+          currentUserId={currentUserId}
+        />
+      );
+    },
+    [onEventPress, currentUserId]
+  );
+
+  const renderCalendarArrow = useCallback(
+    (direction: 'left' | 'right') =>
+      direction === 'left' ? (
+        <ChevronLeft size={20} strokeWidth={1.75} color={theme.colors.accent} />
+      ) : (
+        <ChevronRight size={20} strokeWidth={1.75} color={theme.colors.accent} />
+      ),
+    [theme.colors.accent]
+  );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.calendarWrapper}>
-        <CalendarList
-          ref={calendarRef}
-          current={selectedDay}
-          onDayPress={handleDateSelect}
-          markedDates={markedDates}
-          pastScrollRange={12}
-          futureScrollRange={12}
-          scrollEnabled={true}
-          horizontal={true}
-          pagingEnabled={true}
-          theme={{
-            calendarBackground: '#333',
-            textSectionTitleColor: '#fff',
-            selectedDayBackgroundColor: '#7B68EE',
-            selectedDayTextColor: '#ffffff',
-            todayTextColor: '#7B68EE',
-            dayTextColor: '#fff',
-            textDisabledColor: '#666',
-            dotColor: '#7B68EE',
-            monthTextColor: '#fff',
-            arrowColor: '#7B68EE',
-            indicatorColor: '#7B68EE',
-          }}
-        />
+    <View
+      style={[
+        styles.container,
+        isWideLayout ? styles.containerWide : styles.containerStacked,
+        {
+          backgroundColor: theme.colors.bg,
+          padding: theme.spacing.md,
+          gap: theme.spacing.md,
+        },
+      ]}
+    >
+      <View style={isWideLayout ? styles.calendarColumnWide : undefined}>
+        <Surface tone="surface" bordered radiusKey="md" style={styles.calendarCard}>
+          <RNCalendar
+            key={theme.mode}
+            current={selectedDay}
+            onDayPress={handleDateSelect}
+            markedDates={markedDates}
+            enableSwipeMonths={true}
+            renderArrow={renderCalendarArrow}
+            theme={calendarTheme}
+          />
+        </Surface>
       </View>
 
-      <View style={styles.eventsSection}>
-        <View style={styles.eventsHeader}>
-          <View style={styles.eventsHeaderContent}>
-            <Text style={styles.eventsTitle}>
-              {format(parseISO(selectedDay), "dd 'de' MMMM", { locale: ptBR })}
-            </Text>
-            <View style={styles.eventsCountBadge}>
-              <Text style={styles.eventsCountText}>
-                {dayEvents.length} {dayEvents.length === 1 ? 'evento' : 'eventos'}
-              </Text>
-            </View>
-          </View>
+      <Surface
+        tone="surface"
+        bordered
+        radiusKey="md"
+        style={styles.eventsSection}
+      >
+        <View
+          style={[
+            styles.eventsHeader,
+            {
+              paddingHorizontal: theme.spacing.md,
+              paddingVertical: theme.spacing.sm,
+            },
+          ]}
+        >
+          <AppText variant="heading" color="ink" numberOfLines={1}>
+            {formattedSelectedDay}
+          </AppText>
+          <StatusText
+            label={`${dayEvents.length} ${dayEvents.length === 1 ? 'evento' : 'eventos'}`}
+            tone={dayEvents.length > 0 ? 'accent' : 'neutral'}
+            showDot={dayEvents.length > 0}
+          />
         </View>
 
-        <Animated.View 
+        <Divider />
+
+        <Animated.View
           style={[
             styles.eventsList,
             {
-              transform: [{ translateY: slideAnim }],
-              opacity: opacityAnim
-            }
+              transform: motion.shouldAnimate ? [{ translateY: slideAnim }] : undefined,
+              opacity: opacityAnim,
+            },
           ]}
         >
           <FlatList
             data={dayEvents}
             renderItem={renderEventItem}
-            keyExtractor={(item) => item.id.toString()}
-            contentContainerStyle={styles.eventsListContent}
+            keyExtractor={(item) => String(item.id)}
+            contentContainerStyle={[
+              styles.eventsListContent,
+              { padding: theme.spacing.md },
+            ]}
             refreshControl={refreshControl}
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <Ionicons name="calendar-outline" size={40} color="#666" />
-                <Text style={styles.emptyText}>Nenhum evento para este dia</Text>
-              </View>
+              <StateView
+                kind="empty"
+                icon={
+                  <CalendarIcon
+                    size={32}
+                    strokeWidth={1.75}
+                    color={theme.colors.inkMuted}
+                  />
+                }
+                title="Nenhum evento para este dia"
+                description="Selecione outra data ou crie um novo evento."
+              />
             }
           />
         </Animated.View>
-      </View>
+      </Surface>
     </View>
   );
 };
@@ -300,62 +352,39 @@ const Calendar: React.FC<CalendarProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#333',
+    minHeight: 0,
   },
-  calendarWrapper: {
-    backgroundColor: '#333',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#444',
+  containerStacked: {
+    flexDirection: 'column',
+  },
+  containerWide: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+  },
+  calendarColumnWide: {
+    width: 380,
+    maxWidth: '45%',
+  },
+  calendarCard: {
+    overflow: 'hidden',
   },
   eventsSection: {
     flex: 1,
-    backgroundColor: '#222',
+    minHeight: 0,
+    overflow: 'hidden',
   },
   eventsHeader: {
-    backgroundColor: '#333',
-    borderBottomWidth: 1,
-    borderBottomColor: '#444',
-  },
-  eventsHeaderContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 12,
-  },
-  eventsTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  eventsCountBadge: {
-    backgroundColor: '#7B68EE',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  eventsCountText: {
-    fontSize: 12,
-    color: '#fff',
-    fontWeight: '500',
   },
   eventsList: {
     flex: 1,
+    minHeight: 0,
   },
   eventsListContent: {
-    padding: 12,
-  },
-  emptyContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 24,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 12,
+    flexGrow: 1,
   },
 });
 
-export default Calendar; 
+export default Calendar;

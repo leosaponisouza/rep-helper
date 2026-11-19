@@ -1,567 +1,387 @@
 // app/(panel)/events/edit/[id].tsx
-import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  SafeAreaView,
-  StatusBar,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-  ActivityIndicator,
-  Keyboard,
-  Animated
-} from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { useEvents } from '../../../../src/hooks/useEvents';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Keyboard, Platform, View } from 'react-native';
+import { addHours, isBefore, isValid, parseISO } from 'date-fns';
+import * as Haptics from 'expo-haptics';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Calendar, MapPin, Save, Users } from 'lucide-react-native';
+import InviteUsersSection from '../../../../components/Event/InviteUsersSection';
+import { DateTimePickerFields } from '../../../../components/Task/TaskEdit/DateTimePickerSection';
 import { useAuth } from '../../../../src/context/AuthContext';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { format, parseISO, isBefore } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import {
+  Button,
+  Screen,
+  ScreenHeader,
+  StateView,
+  TextField,
+  useFeedback,
+  useTheme,
+} from '../../../../src/design-system';
+import { useEvents } from '../../../../src/hooks/useEvents';
 import { EventsService } from '../../../../src/services/events';
+import { formatToBackendDateTime } from '../../../../src/utils/dateUtils';
+import { ErrorHandler } from '../../../../src/utils/errorHandling';
+import { logger } from '../../../../src/utils/logger';
 
-// Importar estilos compartilhados
-import { sharedStyles, colors } from '../../../../src/styles/sharedStyles';
-import eventsStyles from '../../../../src/styles/eventStyles';
-import { formatToBackendDateTime } from '@/src/utils/dateUtils';
-
-// Importar componente de convite de usuários
-import InviteUsersSection from '@/components/Event/InviteUsersSection';
+const triggerSuccessHaptic = () => {
+  if (Platform.OS === 'web') return;
+  try {
+    void Promise.resolve(
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+    ).catch(() => {});
+  } catch {
+    // Ignore haptics errors on unsupported devices
+  }
+};
 
 const EditEventScreen: React.FC = () => {
   const router = useRouter();
+  const { theme } = useTheme();
+  const { toast } = useFeedback();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
-  const { updateEvent, isCurrentUserCreator, inviteUsers } = useEvents();
-  
-  // Animações
-  const fadeAnim = useState(new Animated.Value(0))[0];
-  
-  // Form states
+  const { updateEvent, inviteUsers } = useEvents();
+
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
-  const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(new Date());
-  const [event, setEvent] = useState<any | null>(null);
-  
-  // Date picker states
+  const [startDate, setStartDate] = useState<Date>(new Date());
+  const [endDate, setEndDate] = useState<Date>(new Date());
+  const [titleError, setTitleError] = useState<string | undefined>(undefined);
+  const [endDateError, setEndDateError] = useState<string | undefined>(undefined);
+
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
-  const [datePickerMode, setDatePickerMode] = useState<'date' | 'time'>('date');
-  const [datePickerFor, setDatePickerFor] = useState<'start' | 'end'>('start');
-  
-  // UI states
+  const [startPickerMode, setStartPickerMode] = useState<'date' | 'time'>('date');
+  const [endPickerMode, setEndPickerMode] = useState<'date' | 'time'>('date');
+
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
-  const [titleFocused, setTitleFocused] = useState(false);
-  const [descriptionFocused, setDescriptionFocused] = useState(false);
-  const [locationFocused, setLocationFocused] = useState(false);
-  
-  // Estado para participantes selecionados
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
-  
-  // Efeito de entrada com animação
-  useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-  }, []);
-  
-  // Carregar os dados do evento
-  useEffect(() => {
-    const fetchEventDetails = async () => {
-      if (!id) return;
-      
-      try {
-        setInitialLoading(true);
-        const eventData = await EventsService.getEventById(id);
-        
-        if (!eventData) {
-          Alert.alert('Erro', 'Evento não encontrado.');
-          router.back();
-          return;
-        }
 
-        // Verificar se o usuário tem permissão para editar
-        const isCreator = !!user && user.uid === eventData.creatorId;
-        if (!isCreator) {
-          Alert.alert('Erro', 'Você não tem permissão para editar este evento');
-          router.back();
-          return;
-        }
-        
-        setEvent(eventData);
-        setTitle(eventData.title);
-        setDescription(eventData.description || '');
-        setLocation(eventData.location || '');
-        setStartDate(parseISO(eventData.startDate));
-        setEndDate(parseISO(eventData.endDate));
-
-        // Carregar participantes existentes, se disponíveis
-        if (eventData.invitations) {
-          const participantIds = eventData.invitations.map((invitation) => invitation.userId);
-          setSelectedParticipants(participantIds);
-        }
-      } catch (error: any) {
-        console.error("Error fetching event:", error);
-        
-        // Extrair a mensagem de erro mais específica se disponível
-        const errorMessage = error?.message || 
-                            error?.originalError?.message || 
-                            'Não foi possível carregar o evento';
-                            
-        Alert.alert('Erro', errorMessage);
-        router.back();
-      } finally {
-        setInitialLoading(false);
-      }
-    };
-
-    fetchEventDetails();
-  }, [id, user, router]);
-  
-  // Funções para manipular o DateTimePicker - otimizadas
-  const showDatePicker = useCallback((forDate: 'start' | 'end', mode: 'date' | 'time') => {
-    setDatePickerFor(forDate);
-    setDatePickerMode(mode);
-    if (forDate === 'start') {
-      setShowStartDatePicker(true);
+  const handleBack = useCallback(() => {
+    if (router.canGoBack()) {
+      router.back();
+    } else if (id) {
+      router.replace(`/(panel)/events/${id}`);
     } else {
-      setShowEndDatePicker(true);
+      router.replace('/(panel)/events');
     }
-  }, []);
-  
-  const handleDateChange = useCallback((event: any, selectedDate?: Date) => {
-    if (Platform.OS === 'android') {
-      setShowStartDatePicker(false);
-      setShowEndDatePicker(false);
+  }, [router, id]);
+
+  const fetchEventDetails = useCallback(async () => {
+    if (!id) {
+      setLoadError('Identificador do evento não informado.');
+      setInitialLoading(false);
+      return;
     }
-    
-    if (!selectedDate) return;
-    
-    if (datePickerFor === 'start') {
-      const currentStartDate = new Date(startDate);
-      
-      if (datePickerMode === 'date') {
-        // Atualiza apenas a data, mantendo a hora
-        const newDate = new Date(
-          selectedDate.getFullYear(),
-          selectedDate.getMonth(),
-          selectedDate.getDate(),
-          currentStartDate.getHours(),
-          currentStartDate.getMinutes()
-        );
-        setStartDate(newDate);
-        
-        // Se a data de término for anterior à nova data de início, ajusta
-        if (isBefore(endDate, newDate)) {
-          const newEndDate = new Date(newDate);
-          newEndDate.setHours(newDate.getHours() + 2);
-          setEndDate(newEndDate);
-        }
-        
-        // No iOS, após selecionar a data, mostra o seletor de hora
-        if (Platform.OS === 'ios') {
-          setDatePickerMode('time');
-        }
-      } else {
-        // Atualiza apenas a hora, mantendo a data
-        const newDate = new Date(
-          currentStartDate.getFullYear(),
-          currentStartDate.getMonth(),
-          currentStartDate.getDate(),
-          selectedDate.getHours(),
-          selectedDate.getMinutes()
-        );
-        setStartDate(newDate);
-        
-        // Ajusta a data de término se necessário
-        if (isBefore(endDate, newDate)) {
-          const newEndDate = new Date(newDate);
-          newEndDate.setHours(newDate.getHours() + 2);
-          setEndDate(newEndDate);
-        }
-        
-        if (Platform.OS === 'ios') {
-          setShowStartDatePicker(false);
-        }
+
+    try {
+      setInitialLoading(true);
+      setLoadError(null);
+      const eventData = await EventsService.getEventById(id);
+
+      if (!eventData) {
+        setLoadError('Evento não encontrado.');
+        toast({
+          title: 'Não encontrado',
+          message: 'Evento não encontrado.',
+          tone: 'warning',
+        });
+        return;
       }
-    } else {
-      // Para data/hora de término
-      const currentEndDate = new Date(endDate);
-      
-      if (datePickerMode === 'date') {
-        // Atualiza apenas a data, mantendo a hora
-        const newDate = new Date(
-          selectedDate.getFullYear(),
-          selectedDate.getMonth(),
-          selectedDate.getDate(),
-          currentEndDate.getHours(),
-          currentEndDate.getMinutes()
-        );
-        
-        // Não permite data de término anterior à data de início
-        if (isBefore(newDate, startDate)) {
-          Alert.alert('Atenção', 'A data de término não pode ser anterior à data de início');
-          return;
-        }
-        
-        setEndDate(newDate);
-        
-        // No iOS, após selecionar a data, mostra o seletor de hora
-        if (Platform.OS === 'ios') {
-          setDatePickerMode('time');
-        }
-      } else {
-        // Atualiza apenas a hora, mantendo a data
-        const newDate = new Date(
-          currentEndDate.getFullYear(),
-          currentEndDate.getMonth(),
-          currentEndDate.getDate(),
-          selectedDate.getHours(),
-          selectedDate.getMinutes()
-        );
-        
-        // Não permite hora de término anterior à hora de início no mesmo dia
-        if (
-          currentEndDate.getFullYear() === startDate.getFullYear() &&
-          currentEndDate.getMonth() === startDate.getMonth() &&
-          currentEndDate.getDate() === startDate.getDate() &&
-          isBefore(newDate, startDate)
-        ) {
-          Alert.alert('Atenção', 'O horário de término não pode ser anterior ao horário de início');
-          return;
-        }
-        
-        setEndDate(newDate);
-        
-        if (Platform.OS === 'ios') {
-          setShowEndDatePicker(false);
-        }
+
+      const isCreator = Boolean(user && user.uid === eventData.creatorId);
+      if (!isCreator) {
+        setLoadError('Você não tem permissão para editar este evento.');
+        toast({
+          title: 'Acesso negado',
+          message: 'Você não tem permissão para editar este evento.',
+          tone: 'warning',
+        });
+        return;
       }
+
+      setTitle(eventData.title);
+      setDescription(eventData.description || '');
+      setLocation(eventData.location || '');
+
+      const parsedStart = parseISO(eventData.startDate);
+      const parsedEnd = parseISO(eventData.endDate);
+      if (isValid(parsedStart)) {
+        setStartDate(parsedStart);
+      }
+      if (isValid(parsedEnd)) {
+        setEndDate(parsedEnd);
+      }
+
+      if (eventData.invitations) {
+        setSelectedParticipants(
+          eventData.invitations.map((invitation) => invitation.userId)
+        );
+      }
+    } catch (error: any) {
+      logger.error('Erro ao carregar evento para edição:', error);
+      const errorMessage =
+        error?.message ||
+        error?.originalError?.message ||
+        'Não foi possível carregar o evento.';
+      setLoadError(errorMessage);
+      void ErrorHandler.handle(error);
+    } finally {
+      setInitialLoading(false);
     }
-  }, [startDate, endDate, datePickerFor, datePickerMode]);
-  
-  // Formatação das datas para exibição - otimizada
-  const formatDate = useCallback((date: Date) => {
-    return format(date, "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
-  }, []);
-  
-  const formatTime = useCallback((date: Date) => {
-    return format(date, "HH:mm", { locale: ptBR });
-  }, []);
-  
-  // Validar formulário antes de submeter - otimizada
+  }, [id, user, toast]);
+
+  useEffect(() => {
+    void fetchEventDetails();
+  }, [fetchEventDetails]);
+
+  const handleStartDateChange = useCallback(
+    (nextDate?: Date) => {
+      if (!nextDate) return;
+      setStartDate(nextDate);
+      if (isBefore(endDate, nextDate)) {
+        setEndDate(addHours(nextDate, 2));
+        setEndDateError(undefined);
+      }
+    },
+    [endDate]
+  );
+
+  const handleEndDateChange = useCallback(
+    (nextDate?: Date) => {
+      if (!nextDate) return;
+      if (isBefore(nextDate, startDate)) {
+        const message = 'A data/hora de término não pode ser anterior ao início.';
+        setEndDateError(message);
+        toast({
+          title: 'Atenção',
+          message,
+          tone: 'warning',
+        });
+        return;
+      }
+      setEndDateError(undefined);
+      setEndDate(nextDate);
+    },
+    [startDate, toast]
+  );
+
   const validateForm = useCallback(() => {
+    let valid = true;
+
     if (!title.trim()) {
-      Alert.alert('Erro', 'Por favor, informe um título para o evento');
-      return false;
+      setTitleError('Por favor, informe um título para o evento.');
+      toast({
+        title: 'Atenção',
+        message: 'Por favor, informe um título para o evento.',
+        tone: 'warning',
+      });
+      valid = false;
+    } else {
+      setTitleError(undefined);
     }
-    
+
     if (isBefore(endDate, startDate)) {
-      Alert.alert('Erro', 'A data/hora de término deve ser após a data/hora de início');
-      return false;
+      const message = 'A data/hora de término deve ser após a data/hora de início.';
+      setEndDateError(message);
+      if (valid) {
+        toast({
+          title: 'Atenção',
+          message,
+          tone: 'warning',
+        });
+      }
+      valid = false;
+    } else {
+      setEndDateError(undefined);
     }
-    
-    return true;
-  }, [title, startDate, endDate]);
-  
-  // Atualizar evento
+
+    return valid;
+  }, [title, startDate, endDate, toast]);
+
   const handleUpdateEvent = useCallback(async () => {
     Keyboard.dismiss();
-    
+
     if (!validateForm() || !id) return;
-    
+
     setLoading(true);
-    
+
     try {
       const eventData = {
         title: title.trim(),
         description: description.trim() || '',
-        // Use a nova função que gera formato compatível com LocalDateTime do Java
         startDate: formatToBackendDateTime(startDate),
         endDate: formatToBackendDateTime(endDate),
-        location: location.trim() || ''
+        location: location.trim() || '',
       };
-      
-      await updateEvent(parseInt(id), eventData);
-      
-      // Atualizar participantes se necessário
-      // O criador do evento já é automaticamente um participante confirmado
-      // e não precisa ser incluído na lista de convites
+
+      await updateEvent(parseInt(id, 10), eventData);
+
       if (selectedParticipants.length > 0) {
-        await inviteUsers(parseInt(id), selectedParticipants);
+        await inviteUsers(parseInt(id, 10), selectedParticipants);
       }
-      
-      // Animação de saída
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }).start(() => {
-        Alert.alert(
-          'Sucesso',
-          'Evento atualizado com sucesso!',
-          [
-            {
-              text: 'OK',
-              onPress: () => router.push(`/(panel)/events/${id}`)
-            }
-          ]
-        );
+
+      triggerSuccessHaptic();
+      toast({
+        title: 'Evento atualizado',
+        message: 'Evento atualizado com sucesso!',
+        tone: 'success',
       });
+
+      router.replace(`/(panel)/events/${id}`);
     } catch (error: any) {
-      console.error('Erro ao atualizar evento:', error);
-      
-      // Extrair a mensagem de erro mais específica se disponível
-      const errorMessage = error?.message || 
-                          error?.originalError?.message || 
-                          'Não foi possível atualizar o evento. Tente novamente.';
-                          
-      Alert.alert('Erro', errorMessage);
+      logger.error('Erro ao atualizar evento:', error);
+      void ErrorHandler.handle(error);
     } finally {
       setLoading(false);
     }
-  }, [title, description, startDate, endDate, location, validateForm, id, updateEvent, fadeAnim, router, selectedParticipants, inviteUsers]);
+  }, [
+    title,
+    description,
+    startDate,
+    endDate,
+    location,
+    validateForm,
+    id,
+    updateEvent,
+    selectedParticipants,
+    inviteUsers,
+    toast,
+    router,
+  ]);
 
-  
+  const header = <ScreenHeader title="Editar Evento" onBack={handleBack} />;
+
   if (initialLoading) {
     return (
-      <SafeAreaView style={sharedStyles.safeArea}>
-        <StatusBar barStyle="light-content" backgroundColor={colors.background.primary} />
-        <View style={sharedStyles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary.main} />
-          <Text style={sharedStyles.loadingText}>Carregando evento...</Text>
-        </View>
-      </SafeAreaView>
+      <Screen header={header}>
+        <StateView kind="loading" title="Carregando evento..." />
+      </Screen>
     );
   }
-  
-  return (
-    <SafeAreaView style={sharedStyles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.background.primary} />
-      
-      <KeyboardAvoidingView 
-        style={sharedStyles.container}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
-        <View style={sharedStyles.headerContainer}>
-          <TouchableOpacity 
-            onPress={() => router.back()}
-            style={sharedStyles.headerBackButton}
-            accessibilityRole="button"
-            accessibilityLabel="Voltar"
-          >
-            <Ionicons name="arrow-back" size={24} color={colors.primary.main} />
-          </TouchableOpacity>
-          <Text style={sharedStyles.headerTitle}>Editar Evento</Text>
-        </View>
-        
-        <Animated.ScrollView 
-          style={[sharedStyles.scrollContainer, { opacity: fadeAnim }]}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 100 }} // Adiciona padding extra no final para evitar que conteúdo seja cortado
-        >
-          {/* Título */}
-          <View style={sharedStyles.inputGroup}>
-            <Text style={sharedStyles.inputLabel}>Título do Evento *</Text>
-            <View style={[
-              sharedStyles.inputContainer, 
-              titleFocused && sharedStyles.inputFocused
-            ]}>
-              <Ionicons name="calendar" size={20} color={colors.primary.main} style={sharedStyles.buttonIcon} />
-              <TextInput
-                style={sharedStyles.input}
-                placeholder="Digite o título do evento"
-                placeholderTextColor={colors.text.tertiary}
-                value={title}
-                onChangeText={setTitle}
-                maxLength={100}
-                onFocus={() => setTitleFocused(true)}
-                onBlur={() => setTitleFocused(false)}
-                returnKeyType="next"
-              />
-            </View>
-          </View>
-          
-          {/* Descrição */}
-          <View style={sharedStyles.inputGroup}>
-            <Text style={sharedStyles.inputLabel}>Descrição (opcional)</Text>
-            <View style={[
-              sharedStyles.inputContainer, 
-              sharedStyles.textAreaContainer,
-              descriptionFocused && sharedStyles.inputFocused
-            ]}>
-              <TextInput
-                style={[sharedStyles.input, sharedStyles.textArea]}
-                placeholder="Descreva mais sobre o evento"
-                placeholderTextColor={colors.text.tertiary}
-                value={description}
-                onChangeText={setDescription}
-                multiline
-                numberOfLines={4}
-                textAlignVertical="top"
-                onFocus={() => setDescriptionFocused(true)}
-                onBlur={() => setDescriptionFocused(false)}
-              />
-            </View>
-          </View>
-          
-          {/* Data de Início */}
-          <View style={sharedStyles.inputGroup}>
-            <Text style={sharedStyles.inputLabel}>Data e Hora de Início *</Text>
-            <View style={eventsStyles.dateTimeContainer}>
-              <TouchableOpacity 
-                style={eventsStyles.dateButton}
-                onPress={() => showDatePicker('start', 'date')}
-                accessibilityRole="button"
-                accessibilityLabel="Selecionar data de início"
-              >
-                <Ionicons name="calendar" size={20} color={colors.primary.main} style={sharedStyles.buttonIcon} />
-                <Text style={eventsStyles.dateTimeText}>{formatDate(startDate)}</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={eventsStyles.timeButton}
-                onPress={() => showDatePicker('start', 'time')}
-                accessibilityRole="button"
-                accessibilityLabel="Selecionar hora de início"
-              >
-                <Ionicons name="time" size={20} color={colors.primary.main} style={sharedStyles.buttonIcon} />
-                <Text style={eventsStyles.dateTimeText}>{formatTime(startDate)}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-          
-          {/* Data de Término */}
-          <View style={sharedStyles.inputGroup}>
-            <Text style={sharedStyles.inputLabel}>Data e Hora de Término *</Text>
-            <View style={eventsStyles.dateTimeContainer}>
-              <TouchableOpacity 
-                style={eventsStyles.dateButton}
-                onPress={() => showDatePicker('end', 'date')}
-                accessibilityRole="button"
-                accessibilityLabel="Selecionar data de término"
-              >
-                <Ionicons name="calendar" size={20} color={colors.primary.main} style={sharedStyles.buttonIcon} />
-                <Text style={eventsStyles.dateTimeText}>{formatDate(endDate)}</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={eventsStyles.timeButton}
-                onPress={() => showDatePicker('end', 'time')}
-                accessibilityRole="button"
-                accessibilityLabel="Selecionar hora de término"
-              >
-                <Ionicons name="time" size={20} color={colors.primary.main} style={sharedStyles.buttonIcon} />
-                <Text style={eventsStyles.dateTimeText}>{formatTime(endDate)}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-          
-          {/* Local do Evento */}
-          <View style={sharedStyles.inputGroup}>
-            <Text style={sharedStyles.inputLabel}>Local (opcional)</Text>
-            <View style={[
-              sharedStyles.inputContainer, 
-              locationFocused && sharedStyles.inputFocused
-            ]}>
-              <Ionicons name="location" size={20} color={colors.primary.main} style={sharedStyles.buttonIcon} />
-              <TextInput
-                style={sharedStyles.input}
-                placeholder="Local do evento"
-                placeholderTextColor={colors.text.tertiary}
-                value={location}
-                onChangeText={setLocation}
-                onFocus={() => setLocationFocused(true)}
-                onBlur={() => setLocationFocused(false)}
-                returnKeyType="done"
-              />
-            </View>
-          </View>
 
-          {/* Seção de Convite de Participantes */}
-          {user?.currentRepublicId && (
-            <InviteUsersSection
-              republicId={user.currentRepublicId}
-              selectedIds={selectedParticipants}
-              onSelectionChange={setSelectedParticipants}
-            />
-          )}
-          
-          {/* Botão para gerenciar convites */}
-          <TouchableOpacity 
-            style={[
-              sharedStyles.button,
-              sharedStyles.buttonSecondary,
-              { marginBottom: 5, marginTop: 0 } // Ajuste para espaçamento adequado
-            ]}
-            onPress={() => router.push(`/(panel)/events/invitations/${id}`)}
-            accessibilityRole="button"
-            accessibilityLabel="Gerenciar convidados"
-          >
-            <Ionicons name="people" size={20} color={colors.primary.main} style={sharedStyles.buttonIcon} />
-            <Text style={[sharedStyles.buttonText, sharedStyles.buttonTextSecondary]}>Gerenciar Convidados</Text>
-          </TouchableOpacity>
-          {/* Botão de Atualizar */}
-          <View style={{ marginTop: 20, marginBottom: 60 }}>
-            <TouchableOpacity 
-              style={[
-                sharedStyles.button, 
-                loading && sharedStyles.buttonDisabled
-              ]}
-              onPress={handleUpdateEvent}
-              disabled={loading}
-              accessibilityRole="button"
-              accessibilityLabel="Atualizar evento"
-              accessibilityHint="Salva as alterações feitas no evento"
-            >
-              {loading ? (
-                <ActivityIndicator size="small" color={colors.text.primary} />
-              ) : (
-                <>
-                  <Ionicons name="save" size={20} color={colors.text.primary} style={sharedStyles.buttonIcon} />
-                  <Text style={sharedStyles.buttonText}>Atualizar Evento</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-          
-         
-        </Animated.ScrollView>
-        
-        {/* Date Pickers */}
-        {showStartDatePicker && (
-          <DateTimePicker
-            value={startDate}
-            mode={datePickerMode}
-            display="default"
-            onChange={handleDateChange}
-            minimumDate={new Date()}
-            textColor={Platform.OS === 'ios' ? '#fff' : undefined}
-          />
-        )}
-        
-        {showEndDatePicker && (
-          <DateTimePicker
-            value={endDate}
-            mode={datePickerMode}
-            display="default"
-            onChange={handleDateChange}
-            minimumDate={datePickerMode === 'date' ? startDate : undefined}
-            textColor={Platform.OS === 'ios' ? '#fff' : undefined}
-          />
-        )}
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+  if (loadError) {
+    return (
+      <Screen header={header}>
+        <StateView
+          kind="error"
+          title="Não foi possível carregar"
+          description={loadError}
+          actionLabel="Voltar"
+          onAction={handleBack}
+        />
+      </Screen>
+    );
+  }
+
+  return (
+    <Screen
+      scroll
+      keyboardAvoiding
+      header={header}
+      contentContainerStyle={{
+        gap: theme.spacing.md,
+        paddingBottom: theme.spacing.xxl,
+      }}
+    >
+      <TextField
+        label="Título do Evento *"
+        placeholder="Digite o título do evento"
+        value={title}
+        onChangeText={(text) => {
+          setTitle(text);
+          if (titleError && text.trim()) {
+            setTitleError(undefined);
+          }
+        }}
+        error={titleError}
+        maxLength={100}
+        returnKeyType="next"
+        leftIcon={<Calendar size={18} strokeWidth={1.75} color={theme.colors.accent} />}
+      />
+
+      <TextField
+        label="Descrição (opcional)"
+        placeholder="Descreva mais sobre o evento"
+        value={description}
+        onChangeText={setDescription}
+        multiline
+        numberOfLines={4}
+      />
+
+      <DateTimePickerFields
+        label="Data e Hora de Início *"
+        value={startDate}
+        onChange={handleStartDateChange}
+        isVisible={showStartDatePicker}
+        onVisibleChange={(visible) => {
+          setShowStartDatePicker(visible);
+          if (visible) setShowEndDatePicker(false);
+        }}
+        mode={startPickerMode}
+        onModeChange={setStartPickerMode}
+        clearable={false}
+      />
+
+      <DateTimePickerFields
+        label="Data e Hora de Término *"
+        value={endDate}
+        onChange={handleEndDateChange}
+        isVisible={showEndDatePicker}
+        onVisibleChange={(visible) => {
+          setShowEndDatePicker(visible);
+          if (visible) setShowStartDatePicker(false);
+        }}
+        mode={endPickerMode}
+        onModeChange={setEndPickerMode}
+        error={endDateError}
+        clearable={false}
+      />
+
+      <TextField
+        label="Local (opcional)"
+        placeholder="Local do evento"
+        value={location}
+        onChangeText={setLocation}
+        returnKeyType="done"
+        leftIcon={<MapPin size={18} strokeWidth={1.75} color={theme.colors.accent} />}
+      />
+
+      {user?.currentRepublicId ? (
+        <InviteUsersSection
+          republicId={user.currentRepublicId}
+          selectedIds={selectedParticipants}
+          onSelectionChange={setSelectedParticipants}
+        />
+      ) : null}
+
+      <View style={{ gap: theme.spacing.sm, marginTop: theme.spacing.xs }}>
+        <Button
+          label="Gerenciar Convidados"
+          variant="secondary"
+          fullWidth
+          leftIcon={<Users size={18} strokeWidth={1.75} color={theme.colors.accent} />}
+          onPress={() => router.push(`/(panel)/events/invitations/${id}`)}
+          accessibilityLabel="Gerenciar convidados"
+        />
+
+        <Button
+          label="Atualizar Evento"
+          variant="primary"
+          fullWidth
+          loading={loading}
+          leftIcon={
+            <Save size={18} strokeWidth={1.75} color={theme.colors.onAccent} />
+          }
+          onPress={() => void handleUpdateEvent()}
+          accessibilityLabel="Atualizar evento"
+          accessibilityHint="Salva as alterações feitas no evento"
+        />
+      </View>
+    </Screen>
   );
 };
 

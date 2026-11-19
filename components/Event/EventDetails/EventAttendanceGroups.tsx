@@ -1,13 +1,22 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  Image,
-  Animated,
-  StyleSheet,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  HelpCircle,
+  Users,
+  XCircle,
+} from 'lucide-react-native';
+import {
+  AppText,
+  Avatar,
+  ListRow,
+  StateView,
+  Surface,
+  useTheme,
+  type AppTextColor,
+} from '../../../src/design-system';
 import { EventInvitation } from '../../../src/services/events';
 
 export interface EventAttendanceGroupsProps {
@@ -15,16 +24,14 @@ export interface EventAttendanceGroupsProps {
   currentUserId?: string;
 }
 
+type AttendanceGroupKey = 'confirmed' | 'pending' | 'declined';
+
 export const EventAttendanceGroups: React.FC<EventAttendanceGroupsProps> = ({
   invitations = [],
   currentUserId,
 }) => {
-  const [expandedGroup, setExpandedGroup] = useState<
-    'confirmed' | 'pending' | 'declined' | null
-  >(null);
-  const confirmedHeight = useState(new Animated.Value(0))[0];
-  const pendingHeight = useState(new Animated.Value(0))[0];
-  const declinedHeight = useState(new Animated.Value(0))[0];
+  const { theme } = useTheme();
+  const [expandedGroup, setExpandedGroup] = useState<AttendanceGroupKey | null>(null);
 
   const confirmedParticipants = useMemo(
     () => invitations.filter((inv) => inv.status === 'CONFIRMED'),
@@ -39,255 +46,167 @@ export const EventAttendanceGroups: React.FC<EventAttendanceGroupsProps> = ({
     [invitations]
   );
 
-  const animateGroup = useCallback(
-    (group: 'confirmed' | 'pending' | 'declined' | null) => {
-      const targetHeight = group === expandedGroup ? 0 : 1;
+  const toggleGroup = useCallback((group: AttendanceGroupKey) => {
+    setExpandedGroup((prev) => (prev === group ? null : group));
+  }, []);
 
-      Animated.parallel([
-        Animated.timing(confirmedHeight, {
-          toValue: group === 'confirmed' ? targetHeight : 0,
-          duration: 300,
-          useNativeDriver: false,
-        }),
-        Animated.timing(pendingHeight, {
-          toValue: group === 'pending' ? targetHeight : 0,
-          duration: 300,
-          useNativeDriver: false,
-        }),
-        Animated.timing(declinedHeight, {
-          toValue: group === 'declined' ? targetHeight : 0,
-          duration: 300,
-          useNativeDriver: false,
-        }),
-      ]).start();
-
-      setExpandedGroup(group === expandedGroup ? null : group);
+  const groups: Array<{
+    key: AttendanceGroupKey;
+    title: string;
+    colorKey: AppTextColor;
+    colorValue: string;
+    items: EventInvitation[];
+    icon: React.ReactNode;
+  }> = [
+    {
+      key: 'confirmed',
+      title: `Confirmados (${confirmedParticipants.length})`,
+      colorKey: 'success',
+      colorValue: theme.colors.success,
+      items: confirmedParticipants,
+      icon: (
+        <CheckCircle2 size={20} strokeWidth={1.75} color={theme.colors.success} />
+      ),
     },
-    [expandedGroup, confirmedHeight, pendingHeight, declinedHeight]
-  );
-
-  const renderParticipantItem = (invitation: EventInvitation) => (
-    <View key={invitation.userId} style={styles.participantItem}>
-      {invitation.profilePictureUrl ? (
-        <Image
-          source={{ uri: invitation.profilePictureUrl }}
-          style={styles.participantAvatar}
-        />
-      ) : (
-        <View style={styles.participantAvatarPlaceholder}>
-          <Text style={styles.participantInitials}>
-            {(invitation.nickName ?? invitation.userName ?? '?')
-              .charAt(0)
-              .toUpperCase()}
-          </Text>
-        </View>
-      )}
-      <View style={styles.participantInfo}>
-        <Text style={styles.participantName}>
-          {invitation.nickName ?? invitation.userName}
-          {invitation.userId === currentUserId && ' (Você)'}
-        </Text>
-        <Text style={styles.participantEmail}>{invitation.userEmail}</Text>
-      </View>
-    </View>
-  );
+    {
+      key: 'pending',
+      title: `Pendentes (${pendingParticipants.length})`,
+      colorKey: 'warning',
+      colorValue: theme.colors.warning,
+      items: pendingParticipants,
+      icon: (
+        <HelpCircle size={20} strokeWidth={1.75} color={theme.colors.warning} />
+      ),
+    },
+    {
+      key: 'declined',
+      title: `Recusados (${declinedParticipants.length})`,
+      colorKey: 'danger',
+      colorValue: theme.colors.danger,
+      items: declinedParticipants,
+      icon: <XCircle size={20} strokeWidth={1.75} color={theme.colors.danger} />,
+    },
+  ];
 
   return (
-    <View style={styles.participantsSection}>
-      <Text style={styles.sectionTitle}>Participantes</Text>
+    <Surface
+      tone="surface"
+      bordered
+      padded="md"
+      radiusKey="md"
+      style={{ gap: theme.spacing.sm }}
+    >
+      <AppText variant="heading" color="ink">
+        Participantes
+      </AppText>
 
-      {/* Confirmados */}
-      <TouchableOpacity
-        style={styles.groupHeader}
-        onPress={() => animateGroup('confirmed')}
-      >
-        <View style={styles.groupHeaderContent}>
-          <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
-          <Text style={[styles.groupTitle, { color: '#4CAF50' }]}>
-            Confirmados ({confirmedParticipants.length})
-          </Text>
-        </View>
-        <Ionicons
-          name={expandedGroup === 'confirmed' ? 'chevron-up' : 'chevron-down'}
-          size={20}
-          color="#4CAF50"
+      {invitations.length === 0 ? (
+        <StateView
+          kind="empty"
+          icon={<Users size={32} strokeWidth={1.75} color={theme.colors.inkMuted} />}
+          title="Nenhum participante convidado ainda"
         />
-      </TouchableOpacity>
-      <Animated.View
-        style={[
-          styles.participantsGroup,
-          {
-            maxHeight: confirmedHeight.interpolate({
-              inputRange: [0, 1],
-              outputRange: [0, 1000],
-            }),
-            opacity: confirmedHeight,
-          },
-        ]}
-      >
-        {confirmedParticipants.map(renderParticipantItem)}
-      </Animated.View>
+      ) : (
+        <View style={{ gap: theme.spacing.xs }}>
+          {groups.map((group) => {
+            const isExpanded = expandedGroup === group.key;
 
-      {/* Pendentes */}
-      <TouchableOpacity
-        style={styles.groupHeader}
-        onPress={() => animateGroup('pending')}
-      >
-        <View style={styles.groupHeaderContent}>
-          <Ionicons name="help-circle" size={20} color="#FFC107" />
-          <Text style={[styles.groupTitle, { color: '#FFC107' }]}>
-            Pendentes ({pendingParticipants.length})
-          </Text>
-        </View>
-        <Ionicons
-          name={expandedGroup === 'pending' ? 'chevron-up' : 'chevron-down'}
-          size={20}
-          color="#FFC107"
-        />
-      </TouchableOpacity>
-      <Animated.View
-        style={[
-          styles.participantsGroup,
-          {
-            maxHeight: pendingHeight.interpolate({
-              inputRange: [0, 1],
-              outputRange: [0, 1000],
-            }),
-            opacity: pendingHeight,
-          },
-        ]}
-      >
-        {pendingParticipants.map(renderParticipantItem)}
-      </Animated.View>
+            return (
+              <View key={group.key} style={{ gap: theme.spacing.xs }}>
+                <Pressable
+                  onPress={() => toggleGroup(group.key)}
+                  accessibilityRole="button"
+                  accessibilityLabel={group.title}
+                  accessibilityState={{ expanded: isExpanded }}
+                  style={({ pressed }) => [
+                    styles.groupHeader,
+                    {
+                      backgroundColor: theme.colors.subtle,
+                      borderColor: theme.colors.line,
+                      borderRadius: theme.radius.sm,
+                      paddingHorizontal: theme.spacing.sm,
+                      paddingVertical: theme.spacing.xs,
+                      opacity: pressed ? theme.motion.pressOpacity : 1,
+                    },
+                  ]}
+                >
+                  <View style={[styles.groupHeaderContent, { gap: theme.spacing.xs }]}>
+                    {group.icon}
+                    <AppText variant="bodyStrong" color={group.colorKey}>
+                      {group.title}
+                    </AppText>
+                  </View>
 
-      {/* Recusados */}
-      <TouchableOpacity
-        style={styles.groupHeader}
-        onPress={() => animateGroup('declined')}
-      >
-        <View style={styles.groupHeaderContent}>
-          <Ionicons name="close-circle" size={20} color="#FF6347" />
-          <Text style={[styles.groupTitle, { color: '#FF6347' }]}>
-            Recusados ({declinedParticipants.length})
-          </Text>
-        </View>
-        <Ionicons
-          name={expandedGroup === 'declined' ? 'chevron-up' : 'chevron-down'}
-          size={20}
-          color="#FF6347"
-        />
-      </TouchableOpacity>
-      <Animated.View
-        style={[
-          styles.participantsGroup,
-          {
-            maxHeight: declinedHeight.interpolate({
-              inputRange: [0, 1],
-              outputRange: [0, 1000],
-            }),
-            opacity: declinedHeight,
-          },
-        ]}
-      >
-        {declinedParticipants.map(renderParticipantItem)}
-      </Animated.View>
+                  {isExpanded ? (
+                    <ChevronUp size={18} strokeWidth={1.75} color={group.colorValue} />
+                  ) : (
+                    <ChevronDown size={18} strokeWidth={1.75} color={group.colorValue} />
+                  )}
+                </Pressable>
 
-      {invitations.length === 0 && (
-        <View style={styles.emptyParticipantsContainer}>
-          <Ionicons name="people" size={40} color="#666" />
-          <Text style={styles.emptyParticipantsText}>
-            Nenhum participante convidado ainda
-          </Text>
+                {isExpanded ? (
+                  group.items.length === 0 ? (
+                    <AppText
+                      variant="caption"
+                      color="inkMuted"
+                      style={{ paddingHorizontal: theme.spacing.sm }}
+                    >
+                      Nenhum participante nesta categoria.
+                    </AppText>
+                  ) : (
+                    <Surface
+                      tone="bg"
+                      bordered
+                      radiusKey="sm"
+                      style={styles.participantsSurface}
+                    >
+                      {group.items.map((invitation, index) => {
+                        const displayName =
+                          invitation.nickName ?? invitation.userName ?? 'Participante';
+                        const title = `${displayName}${invitation.userId === currentUserId ? ' (Você)' : ''}`;
+
+                        return (
+                          <ListRow
+                            key={invitation.userId}
+                            title={title}
+                            subtitle={invitation.userEmail}
+                            showDivider={index < group.items.length - 1}
+                            leading={
+                              <Avatar
+                                uri={invitation.profilePictureUrl}
+                                name={displayName}
+                                size="sm"
+                              />
+                            }
+                          />
+                        );
+                      })}
+                    </Surface>
+                  )
+                ) : null}
+              </View>
+            );
+          })}
         </View>
       )}
-    </View>
+    </Surface>
   );
 };
 
 const styles = StyleSheet.create({
-  participantsSection: {
-    marginTop: 24,
-    padding: 16,
-    backgroundColor: '#444',
-    borderRadius: 12,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 16,
-  },
   groupHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 12,
-    backgroundColor: '#333',
-    borderRadius: 8,
-    marginBottom: 8,
+    minHeight: 48,
+    borderWidth: 1,
   },
   groupHeaderContent: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  groupTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
-  },
-  participantsGroup: {
+  participantsSurface: {
     overflow: 'hidden',
-    marginBottom: 8,
-  },
-  participantItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 8,
-    backgroundColor: '#333',
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  participantAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 12,
-  },
-  participantAvatarPlaceholder: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#7B68EE20',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  participantInitials: {
-    color: '#7B68EE',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  participantInfo: {
-    flex: 1,
-  },
-  participantName: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#fff',
-  },
-  participantEmail: {
-    fontSize: 14,
-    color: '#aaa',
-  },
-  emptyParticipantsContainer: {
-    alignItems: 'center',
-    padding: 24,
-  },
-  emptyParticipantsText: {
-    fontSize: 16,
-    color: '#666',
-    marginTop: 12,
-    textAlign: 'center',
   },
 });
 

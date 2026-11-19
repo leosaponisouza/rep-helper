@@ -1,17 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Modal,
-  FlatList,
-  ActivityIndicator,
-  Platform
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { CalendarService } from '../src/services/calendar/calendarService';
+import React, { useEffect, useState } from 'react';
+import { Platform, StyleSheet, View } from 'react-native';
 import * as Calendar from 'expo-calendar';
+import { Calendar as CalendarIcon, ChevronRight } from 'lucide-react-native';
+import {
+  AppText,
+  BottomSheetModal,
+  GoogleIcon,
+  ListRow,
+  StateView,
+  Surface,
+  useTheme,
+} from '../src/design-system';
+import { CalendarService } from '../src/services/calendar/calendarService';
+import { logger } from '../src/utils/logger';
 
 interface CalendarPickerProps {
   onSelect: (calendarId: string, calendarSource?: string) => void;
@@ -22,249 +23,191 @@ interface CalendarPickerProps {
 export const CalendarPicker: React.FC<CalendarPickerProps> = ({
   onSelect,
   isVisible,
-  onClose
+  onClose,
 }) => {
+  const { theme } = useTheme();
   const [calendars, setCalendars] = useState<Calendar.Calendar[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Carregar calendários disponíveis
   useEffect(() => {
+    let isMounted = true;
+
     const loadCalendars = async () => {
+      if (Platform.OS === 'web') {
+        if (isMounted) {
+          setCalendars([]);
+          setLoading(false);
+        }
+        return;
+      }
+
       try {
-        setLoading(true);
+        if (isMounted) setLoading(true);
         const availableCalendars = await CalendarService.listAvailableCalendars();
-        // Filtrar apenas calendários que permitem modificações
-        const writableCalendars = availableCalendars.filter(cal => cal.allowsModifications);
-        // Ordenar calendários (Samsung primeiro, depois Google, depois outros)
+        const writableCalendars = availableCalendars.filter(
+          (cal) => cal.allowsModifications
+        );
+
         const sortedCalendars = writableCalendars.sort((a, b) => {
-          // Samsung primeiro
-          if (a.source.name.includes('Samsung') && !b.source.name.includes('Samsung')) return -1;
-          if (!a.source.name.includes('Samsung') && b.source.name.includes('Samsung')) return 1;
-          // Google depois
-          if (a.source.name === 'Google' && b.source.name !== 'Google') return -1;
-          if (a.source.name !== 'Google' && b.source.name === 'Google') return 1;
-          // Ordem alfabética para os demais
-          return a.title.localeCompare(b.title);
+          const aSource = a.source?.name ?? '';
+          const bSource = b.source?.name ?? '';
+
+          if (aSource.includes('Samsung') && !bSource.includes('Samsung')) return -1;
+          if (!aSource.includes('Samsung') && bSource.includes('Samsung')) return 1;
+          if (aSource === 'Google' && bSource !== 'Google') return -1;
+          if (aSource !== 'Google' && bSource === 'Google') return 1;
+          return (a.title || '').localeCompare(b.title || '', 'pt-BR');
         });
-        setCalendars(sortedCalendars);
+
+        if (isMounted) {
+          setCalendars(sortedCalendars);
+        }
       } catch (error) {
-        console.error('Erro ao carregar calendários:', error);
+        logger.error('Erro ao carregar calendários:', error);
+        if (isMounted) {
+          setCalendars([]);
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     if (isVisible) {
-      loadCalendars();
+      void loadCalendars();
     }
+
+    return () => {
+      isMounted = false;
+    };
   }, [isVisible]);
 
-  // Obter ícone apropriado para o tipo de calendário
-  const getCalendarIcon = (calendar: Calendar.Calendar) => {
-    if (calendar.source.name.includes('Samsung')) {
-      return <Ionicons name="calendar" size={24} color="#1A73E8" />;
-    } else if (calendar.source.name === 'Google') {
-      return <Ionicons name="logo-google" size={24} color="#DB4437" />;
-    } else {
-      return <Ionicons name="calendar-outline" size={24} color="#7B68EE" />;
+  const renderCalendarIcon = (calendar: Calendar.Calendar) => {
+    const sourceName = calendar.source?.name ?? '';
+    if (sourceName === 'Google' || sourceName.includes('Google')) {
+      return <GoogleIcon size={22} />;
     }
+    return (
+      <CalendarIcon
+        size={22}
+        strokeWidth={1.75}
+        color={theme.colors.accent}
+      />
+    );
   };
 
-  // Função para formatar o nome do calendário
-  const formatCalendarInfo = (calendar: Calendar.Calendar) => {
-    let sourceName = calendar.source.name;
-    let calendarName = calendar.name || calendar.title;
-    
-    if (calendar.source.name.includes('Samsung')) {
+  const formatCalendarInfo = (calendar: Calendar.Calendar): string => {
+    const rawSource = calendar.source?.name ?? '';
+    let sourceName = rawSource;
+    const calendarName = calendar.name || calendar.title || '';
+
+    if (rawSource.includes('Samsung')) {
       sourceName = 'Samsung Calendar';
-    } else if (calendar.source.name === 'Google' || calendar.source.name.includes('Google')) {
+    } else if (rawSource === 'Google' || rawSource.includes('Google')) {
       sourceName = 'Google Calendar';
     }
-    
-    // Se o nome do calendário é igual ao nome da fonte, mostrar apenas um
-    if (calendarName === sourceName) {
-      return calendarName;
-    }
-    
-    return `${calendarName} (${sourceName})`;
+
+    const baseInfo =
+      !sourceName || calendarName === sourceName
+        ? calendarName || sourceName || 'Calendário'
+        : `${calendarName} (${sourceName})`;
+
+    const flags: string[] = [];
+    if ((calendar as any).isLocalAccount) flags.push('Local');
+    if ((calendar as any).isMainCalendar) flags.push('Principal');
+
+    return flags.length > 0 ? `${baseInfo} • ${flags.join(' • ')}` : baseInfo;
   };
 
-  // Renderizar um item de calendário
-  const renderCalendarItem = ({ item }: { item: Calendar.Calendar }) => (
-    <TouchableOpacity
-      style={styles.calendarItem}
-      onPress={() => {
-        onSelect(item.id, item.source.name);
-        onClose();
-      }}
-      activeOpacity={0.7}
-    >
-      <View style={styles.calendarIconContainer}>
-        {getCalendarIcon(item)}
-        <View 
-          style={[
-            styles.calendarColorDot, 
-            { backgroundColor: item.color || '#7B68EE' }
-          ]}
-        />
-      </View>
-      <View style={styles.calendarInfo}>
-        <Text style={styles.calendarName}>{item.title || item.name || 'Calendário'}</Text>
-        <Text style={styles.calendarSource}>
-          {formatCalendarInfo(item)}
-          {(item as any).isLocalAccount && " • Local"}
-          {(item as any).isMainCalendar && " • Principal"}
-        </Text>
-      </View>
-      <Ionicons name="chevron-forward" size={20} color="#aaa" />
-    </TouchableOpacity>
-  );
-
   return (
-    <Modal
+    <BottomSheetModal
       visible={isVisible}
-      animationType="slide"
-      transparent={true}
-      onRequestClose={onClose}
+      onClose={onClose}
+      title="Selecionar Calendário"
     >
-      <View style={styles.modalContainer}>
-        <View style={styles.modalContent}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Selecionar Calendário</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color="#fff" />
-            </TouchableOpacity>
-          </View>
+      {Platform.OS === 'web' ? (
+        <StateView
+          kind="empty"
+          icon={<CalendarIcon size={32} strokeWidth={1.75} color={theme.colors.inkMuted} />}
+          title="Calendário disponível no app mobile"
+          description="A sincronização com o calendário do dispositivo está disponível apenas nos aplicativos Android e iOS."
+        />
+      ) : loading ? (
+        <StateView kind="loading" title="Carregando calendários..." />
+      ) : calendars.length === 0 ? (
+        <StateView
+          kind="empty"
+          icon={<CalendarIcon size={32} strokeWidth={1.75} color={theme.colors.inkMuted} />}
+          title="Nenhum calendário disponível"
+          description="Verifique se você concedeu permissão e se tem o Samsung Calendar ou Google Calendar configurado."
+        />
+      ) : (
+        <View style={{ gap: theme.spacing.sm }}>
+          <AppText variant="caption" color="inkSecondary">
+            Escolha um calendário para adicionar seus eventos
+          </AppText>
 
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#7B68EE" />
-              <Text style={styles.loadingText}>Carregando calendários...</Text>
-            </View>
-          ) : calendars.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="calendar-outline" size={48} color="#666" />
-              <Text style={styles.emptyText}>
-                Nenhum calendário disponível encontrado
-              </Text>
-              <Text style={styles.emptySubtext}>
-                Verifique se você tem o Samsung Calendar ou Google Calendar instalado
-              </Text>
-            </View>
-          ) : (
-            <>
-              <Text style={styles.instructionText}>
-                Escolha um calendário para adicionar seus eventos
-              </Text>
-              <FlatList
-                data={calendars}
-                renderItem={renderCalendarItem}
-                keyExtractor={(item) => item.id}
-                contentContainerStyle={styles.listContainer}
+          <Surface tone="surface" bordered radiusKey="md" style={styles.listSurface}>
+            {calendars.map((item, index) => (
+              <ListRow
+                key={item.id}
+                title={item.title || item.name || 'Calendário'}
+                subtitle={formatCalendarInfo(item)}
+                showDivider={index < calendars.length - 1}
+                onPress={() => {
+                  onSelect(item.id, item.source?.name);
+                  onClose();
+                }}
+                leading={
+                  <View style={styles.calendarIconContainer}>
+                    {renderCalendarIcon(item)}
+                    <View
+                      pointerEvents="none"
+                      style={[
+                        styles.calendarColorDot,
+                        {
+                          backgroundColor: item.color || theme.colors.accent,
+                          borderColor: theme.colors.surface,
+                          borderRadius: theme.radius.full,
+                        },
+                      ]}
+                    />
+                  </View>
+                }
+                trailing={
+                  <ChevronRight
+                    size={18}
+                    strokeWidth={1.75}
+                    color={theme.colors.inkMuted}
+                  />
+                }
               />
-            </>
-          )}
+            ))}
+          </Surface>
         </View>
-      </View>
-    </Modal>
+      )}
+    </BottomSheetModal>
   );
 };
 
 const styles = StyleSheet.create({
-  modalContainer: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  modalContent: {
-    backgroundColor: '#333',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '80%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#444',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  closeButton: {
-    padding: 8,
-  },
-  loadingContainer: {
-    padding: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  loadingText: {
-    color: '#aaa',
-    marginTop: 12,
-    fontSize: 16,
-  },
-  instructionText: {
-    color: '#aaa',
-    padding: 16,
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  emptyContainer: {
-    padding: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyText: {
-    color: '#aaa',
-    marginTop: 16,
-    fontSize: 16,
-    textAlign: 'center',
-  },
-  emptySubtext: {
-    color: '#666',
-    marginTop: 8,
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  listContainer: {
-    padding: 8,
-  },
-  calendarItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#444',
+  listSurface: {
+    overflow: 'hidden',
   },
   calendarIconContainer: {
-    flexDirection: 'row',
+    width: 32,
+    height: 32,
     alignItems: 'center',
-    marginRight: 12,
+    justifyContent: 'center',
     position: 'relative',
   },
   calendarColorDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 10,
+    height: 10,
+    borderWidth: 1.5,
     position: 'absolute',
     bottom: 0,
-    right: -5,
+    right: 0,
   },
-  calendarInfo: {
-    flex: 1,
-  },
-  calendarName: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#fff',
-  },
-  calendarSource: {
-    fontSize: 14,
-    color: '#aaa',
-  },
-}); 
+});

@@ -1,31 +1,41 @@
 // app/(panel)/events/invitations/[id].tsx
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, FlatList, StyleSheet, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  SafeAreaView,
-  StatusBar,
-  FlatList,
-  TextInput,
-  ActivityIndicator,
-  Image,
-  Alert,
-  Animated
-} from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+  CheckCircle2,
+  Circle,
+  Mail,
+  Search,
+  Users,
+  X,
+} from 'lucide-react-native';
+import { useAuth } from '../../../../src/context/AuthContext';
+import {
+  AppText,
+  Avatar,
+  Button,
+  Divider,
+  IconButton,
+  ListRow,
+  Screen,
+  ScreenHeader,
+  SegmentedTabs,
+  StateView,
+  StatusText,
+  Surface,
+  TextField,
+  useFeedback,
+  useMotion,
+  useTheme,
+  type StatusTone,
+} from '../../../../src/design-system';
 import { useEvents } from '../../../../src/hooks/useEvents';
 import { Event } from '../../../../src/services/events';
-import { useAuth } from '../../../../src/context/AuthContext';
-import api from '../../../../src/services/api';
+import { getRepublicMembers } from '../../../../src/services/republicService';
+import { ErrorHandler } from '../../../../src/utils/errorHandling';
+import { logger } from '../../../../src/utils/logger';
 
-// Importar estilos
-import { sharedStyles, colors } from '../../../../src/styles/sharedStyles';
-import eventsStyles from '../../../../src/styles/eventStyles';
-
-// Definir interface para membros
 interface Member {
   uid: string;
   name: string;
@@ -38,671 +48,586 @@ interface Member {
 
 const InvitationsScreen: React.FC = () => {
   const router = useRouter();
+  const { theme } = useTheme();
+  const motion = useMotion();
+  const { toast } = useFeedback();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
-  const { getEventById, isCurrentUserCreator, inviteUsers, updateInvitationStatus } = useEvents();
-  
-  // Animações
-  const fadeAnim = useState(new Animated.Value(0))[0];
-  
-  // Estados
+  const { getEventById, isCurrentUserCreator, inviteUsers } = useEvents();
+
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
   const [event, setEvent] = useState<Event | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
-  const [filteredMembers, setFilteredMembers] = useState<Member[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [selectedMembersIds, setSelectedMembersIds] = useState<string[]>([]);
-  const [searchFocused, setSearchFocused] = useState(false);
   const [tab, setTab] = useState<'invited' | 'new'>('invited');
-  
-  // Efeito de entrada com animação
+
+  const handleBack = useCallback(() => {
+    if (router.canGoBack()) {
+      router.back();
+    } else if (id) {
+      router.replace(`/(panel)/events/${id}`);
+    } else {
+      router.replace('/(panel)/events');
+    }
+  }, [router, id]);
+
   useEffect(() => {
-    Animated.timing(fadeAnim, {
+    if (!motion.shouldAnimate) {
+      fadeAnim.setValue(1);
+      return;
+    }
+
+    fadeAnim.setValue(0);
+    const anim = Animated.timing(fadeAnim, {
       toValue: 1,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-  }, []);
-  
-  // Função para buscar dados do evento e membros
+      duration: motion.duration(theme.motion.duration.normal, {
+        allowReducedFade: true,
+      }),
+      easing: theme.motion.easing.standard,
+      useNativeDriver: motion.useNativeDriver,
+    });
+    anim.start();
+
+    return () => {
+      anim.stop();
+    };
+  }, [
+    fadeAnim,
+    motion,
+    theme.motion.duration.normal,
+    theme.motion.easing.standard,
+  ]);
+
   const fetchData = useCallback(async () => {
-    if (!id || !user?.currentRepublicId) return;
-    
+    if (!id || !user?.currentRepublicId) {
+      setLoadError('Evento ou república não identificados.');
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
-      
-      // Buscar dados do evento
+      setLoadError(null);
+
       const eventData = await getEventById(id);
-      
+
       if (!eventData) {
-        Alert.alert('Erro', 'Evento não encontrado');
-        router.back();
+        setLoadError('Evento não encontrado.');
+        toast({
+          title: 'Não encontrado',
+          message: 'Evento não encontrado.',
+          tone: 'warning',
+        });
         return;
       }
-      
-      // Garantir que invitations é sempre um array
+
       if (!eventData.invitations) {
         eventData.invitations = [];
       }
-      
+
       setEvent(eventData);
-      
-      // Verificar se o usuário é o criador para gerenciar permissões
+
       if (!isCurrentUserCreator(eventData)) {
-        Alert.alert('Erro', 'Você não tem permissão para gerenciar convites para este evento');
-        router.back();
+        setLoadError(
+          'Você não tem permissão para gerenciar convites para este evento.'
+        );
+        toast({
+          title: 'Acesso negado',
+          message:
+            'Você não tem permissão para gerenciar convites para este evento.',
+          tone: 'warning',
+        });
         return;
       }
-      
+
       try {
-        // Buscar membros da república
-        const membersResponse = await api.get(`/api/v1/republics/${user.currentRepublicId}/members`);
-        const membersData = membersResponse.data;
-        
-        // Mapear status dos convites para cada membro
-        const mappedMembers = membersData.map((member: any) => {
+        const membersData = await getRepublicMembers(user.currentRepublicId);
+        const normalized = Array.isArray(membersData) ? membersData : [];
+
+        const mappedMembers: Member[] = normalized.map((member: any) => {
+          const memberUid = String(member.uid || member.id || '');
           const invitation = eventData.invitations.find(
-            (inv: any) => inv.userId === member.uid
+            (inv) => inv.userId === memberUid
           );
-          
+
           return {
-            ...member,
-            isInvited: !!invitation,
-            status: invitation?.status
+            uid: memberUid,
+            name: String(member.name || ''),
+            nickname: member.nickname ? String(member.nickname) : undefined,
+            email: String(member.email || ''),
+            profilePictureUrl: member.profilePictureUrl
+              ? String(member.profilePictureUrl)
+              : undefined,
+            isInvited: Boolean(invitation),
+            status: invitation?.status,
           };
         });
-        
+
         setMembers(mappedMembers);
-        setFilteredMembers(mappedMembers);
-        
-        // Inicializar seleção com membros já convidados
-        const invitedMembersIds = eventData.invitations.map((inv: any) => inv.userId);
-        setSelectedMembersIds(invitedMembersIds);
-        
+        setSelectedMembersIds(
+          eventData.invitations.map((inv) => inv.userId)
+        );
       } catch (error) {
-        console.error("Error fetching members:", error);
-        Alert.alert('Erro', 'Não foi possível carregar os membros');
+        logger.error('Erro ao carregar membros:', error);
+        void ErrorHandler.handle(error);
       }
-      
     } catch (error) {
-      console.error("Error fetching event:", error);
-      Alert.alert('Erro', 'Não foi possível carregar os detalhes do evento');
-      router.back();
+      logger.error('Erro ao carregar evento:', error);
+      setLoadError('Não foi possível carregar os detalhes do evento.');
+      void ErrorHandler.handle(error);
     } finally {
       setLoading(false);
     }
-  }, [id, getEventById, isCurrentUserCreator, router, user?.uid, user?.currentRepublicId]);
-  
-  // Carregar dados ao montar o componente
+  }, [id, getEventById, isCurrentUserCreator, user?.currentRepublicId, toast]);
+
   useEffect(() => {
-    fetchData();
+    void fetchData();
   }, [fetchData]);
-  
-  // Filtrar membros quando a busca muda
-  useEffect(() => {
-    if (searchQuery.trim() === '') {
-      setFilteredMembers(members);
-      return;
-    }
-    
-    const lowerQuery = searchQuery.toLowerCase();
-    const filtered = members.filter(member => 
-      member.name.toLowerCase().includes(lowerQuery) || 
-      (member.nickname && member.nickname.toLowerCase().includes(lowerQuery)) ||
-      member.email.toLowerCase().includes(lowerQuery)
+
+  const filteredMembers = useMemo(() => {
+    const trimmed = searchQuery.trim().toLowerCase();
+    if (!trimmed) return members;
+
+    return members.filter(
+      (member) =>
+        member.name.toLowerCase().includes(trimmed) ||
+        (member.nickname && member.nickname.toLowerCase().includes(trimmed)) ||
+        member.email.toLowerCase().includes(trimmed)
     );
-    
-    setFilteredMembers(filtered);
   }, [searchQuery, members]);
-  
-  // Membros não convidados e convidados
-  const notInvitedMembers = useMemo(() => {
-    return filteredMembers.filter(member => !member.isInvited);
-  }, [filteredMembers]);
-  
-  const invitedMembers = useMemo(() => {
-    return filteredMembers.filter(member => member.isInvited);
-  }, [filteredMembers]);
-  
-  // Alternar seleção de membro
+
+  const notInvitedMembers = useMemo(
+    () => filteredMembers.filter((member) => !member.isInvited),
+    [filteredMembers]
+  );
+
+  const invitedMembers = useMemo(
+    () => filteredMembers.filter((member) => member.isInvited),
+    [filteredMembers]
+  );
+
+  const newInviteesIds = useMemo(
+    () =>
+      selectedMembersIds.filter(
+        (memberId) => !event?.invitations?.some((inv) => inv.userId === memberId)
+      ),
+    [selectedMembersIds, event?.invitations]
+  );
+
   const toggleMemberSelection = useCallback((memberId: string) => {
-    setSelectedMembersIds(prev => {
-      if (prev.includes(memberId)) {
-        return prev.filter(id => id !== memberId);
-      } else {
-        return [...prev, memberId];
-      }
-    });
+    setSelectedMembersIds((prev) =>
+      prev.includes(memberId)
+        ? prev.filter((itemId) => itemId !== memberId)
+        : [...prev, memberId]
+    );
   }, []);
-  
-  // Convidar membros selecionados
+
   const handleInviteMembers = useCallback(async () => {
     if (!id || !event) return;
-    
+
     try {
       setActionLoading(true);
-      
-      // Filtrar apenas IDs que não estão na lista de convites
-      const newInvitees = selectedMembersIds.filter(memberId => 
-        !event.invitations?.some(inv => inv.userId === memberId)
-      );
-      
-      if (newInvitees.length === 0) {
-        Alert.alert('Info', 'Nenhum novo membro para convidar');
-        setActionLoading(false);
+
+      if (newInviteesIds.length === 0) {
+        toast({
+          title: 'Nenhum selecionado',
+          message: 'Selecione ao menos um novo membro para convidar.',
+          tone: 'info',
+        });
         return;
       }
-      
-      await inviteUsers(parseInt(id), newInvitees);
-      
-      // Recarregar dados após convidar
+
+      await inviteUsers(parseInt(id, 10), newInviteesIds);
       await fetchData();
-      
-      Alert.alert(
-        'Sucesso',
-        `${newInvitees.length} ${newInvitees.length === 1 ? 'membro convidado' : 'membros convidados'} com sucesso!`
-      );
-      
+
+      toast({
+        title: 'Convites enviados',
+        message: `${newInviteesIds.length} ${newInviteesIds.length === 1 ? 'membro convidado' : 'membros convidados'} com sucesso!`,
+        tone: 'success',
+      });
     } catch (error) {
-      console.error('Error inviting members:', error);
-      Alert.alert('Erro', 'Não foi possível enviar os convites. Tente novamente.');
+      logger.error('Erro ao convidar membros:', error);
+      void ErrorHandler.handle(error);
     } finally {
       setActionLoading(false);
     }
-  }, [id, event, selectedMembersIds, inviteUsers, fetchData]);
-  
-  // Alterar status de um convite
-  const handleUpdateInvitationStatus = useCallback(async (userId: string, status: 'CONFIRMED' | 'DECLINED' | 'INVITED') => {
-    if (!id) return;
-    
-    try {
-      setActionLoading(true);
-      
-      await updateInvitationStatus(id, userId, status);
-      
-      // Recarregar dados após atualizar status
-      await fetchData();
-      
-      Alert.alert(
-        'Sucesso',
-        'Status do convite atualizado com sucesso!'
+  }, [id, event, newInviteesIds, inviteUsers, fetchData, toast]);
+
+  const activeList = tab === 'invited' ? invitedMembers : notInvitedMembers;
+
+  const renderNewMemberItem = useCallback(
+    ({ item, index }: { item: Member; index: number }) => {
+      const isSelected = selectedMembersIds.includes(item.uid);
+      const displayName = item.nickname || item.name;
+      const isFirst = index === 0;
+      const isLast = index === notInvitedMembers.length - 1;
+
+      return (
+        <View
+          style={[
+            styles.itemFrame,
+            {
+              borderColor: theme.colors.line,
+              backgroundColor: theme.colors.surface,
+              borderTopWidth: isFirst ? 1 : 0,
+              borderBottomWidth: isLast ? 1 : 0,
+              borderTopLeftRadius: isFirst ? theme.radius.md : 0,
+              borderTopRightRadius: isFirst ? theme.radius.md : 0,
+              borderBottomLeftRadius: isLast ? theme.radius.md : 0,
+              borderBottomRightRadius: isLast ? theme.radius.md : 0,
+            },
+          ]}
+        >
+          <ListRow
+            title={`${displayName}${item.uid === user?.uid ? ' (Você)' : ''}`}
+            subtitle={item.email}
+            selected={isSelected}
+            showDivider={!isLast}
+            disabled={actionLoading}
+            onPress={() => toggleMemberSelection(item.uid)}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: isSelected }}
+            leading={
+              <Avatar
+                uri={item.profilePictureUrl}
+                name={displayName}
+                size="md"
+              />
+            }
+            trailing={
+              isSelected ? (
+                <CheckCircle2
+                  size={22}
+                  strokeWidth={1.75}
+                  color={theme.colors.accent}
+                />
+              ) : (
+                <Circle
+                  size={22}
+                  strokeWidth={1.75}
+                  color={theme.colors.borderStrong}
+                />
+              )
+            }
+          />
+        </View>
       );
-      
-    } catch (error) {
-      console.error('Error updating invitation status:', error);
-      Alert.alert('Erro', 'Não foi possível atualizar o status do convite. Tente novamente.');
-    } finally {
-      setActionLoading(false);
-    }
-  }, [id, updateInvitationStatus, fetchData]);
-  
-  // Renderizar item de membro para lista de não convidados
-  const renderNewMemberItem = useCallback(({ item }: { item: Member }) => {
-    const isSelected = selectedMembersIds.includes(item.uid);
-    const displayName = item.nickname || item.name;
-    
-    return (
-      <TouchableOpacity
-        style={[
-          eventsStyles.memberItem,
-          isSelected && eventsStyles.selectedMemberItem
-        ]}
-        onPress={() => toggleMemberSelection(item.uid)}
-        disabled={actionLoading}
-        activeOpacity={0.7}
-      >
-        <View style={eventsStyles.memberInfoContainer}>
-          {item.profilePictureUrl ? (
-            <Image 
-              source={{ uri: item.profilePictureUrl }} 
-              style={[
-                eventsStyles.memberAvatar,
-                isSelected && styles.selectedMemberAvatar
-              ]}
-            />
-          ) : (
-            <View style={[
-              eventsStyles.memberAvatarPlaceholder,
-              isSelected && styles.selectedMemberAvatar
-            ]}>
-              <Text style={eventsStyles.memberInitials}>
-                {displayName.charAt(0).toUpperCase()}
-              </Text>
-            </View>
-          )}
-          
-          <View style={eventsStyles.memberTextInfo}>
-            <Text style={[
-              eventsStyles.memberName,
-              isSelected && styles.selectedMemberText
-            ]}>
-              {displayName}
-              {item.uid === user?.uid ? ' (Você)' : ''}
-            </Text>
-            <Text style={eventsStyles.memberEmail}>{item.email}</Text>
-          </View>
+    },
+    [
+      selectedMembersIds,
+      notInvitedMembers.length,
+      theme.colors.line,
+      theme.colors.surface,
+      theme.colors.accent,
+      theme.colors.borderStrong,
+      theme.radius.md,
+      user?.uid,
+      actionLoading,
+      toggleMemberSelection,
+    ]
+  );
+
+  const renderInvitedMemberItem = useCallback(
+    ({ item, index }: { item: Member; index: number }) => {
+      const displayName = item.nickname || item.name;
+      const isFirst = index === 0;
+      const isLast = index === invitedMembers.length - 1;
+
+      const statusMeta: { label: string; tone: StatusTone } =
+        item.status === 'CONFIRMED'
+          ? { label: 'Confirmado', tone: 'success' }
+          : item.status === 'DECLINED'
+            ? { label: 'Recusado', tone: 'danger' }
+            : { label: 'Convidado', tone: 'warning' };
+
+      return (
+        <View
+          style={[
+            styles.itemFrame,
+            {
+              borderColor: theme.colors.line,
+              backgroundColor: theme.colors.surface,
+              borderTopWidth: isFirst ? 1 : 0,
+              borderBottomWidth: isLast ? 1 : 0,
+              borderTopLeftRadius: isFirst ? theme.radius.md : 0,
+              borderTopRightRadius: isFirst ? theme.radius.md : 0,
+              borderBottomLeftRadius: isLast ? theme.radius.md : 0,
+              borderBottomRightRadius: isLast ? theme.radius.md : 0,
+            },
+          ]}
+        >
+          <ListRow
+            title={`${displayName}${item.uid === user?.uid ? ' (Você)' : ''}`}
+            subtitle={item.email}
+            showDivider={!isLast}
+            leading={
+              <Avatar
+                uri={item.profilePictureUrl}
+                name={displayName}
+                size="md"
+              />
+            }
+            trailing={
+              <StatusText
+                label={statusMeta.label}
+                tone={statusMeta.tone}
+                showDot
+              />
+            }
+          />
         </View>
-        
-        <View style={eventsStyles.memberStatusContainer}>
-          <View style={[
-            eventsStyles.checkboxContainer,
-            isSelected && eventsStyles.checkboxSelected
-          ]}>
-            {isSelected && (
-              <Ionicons name="checkmark" size={18} color="#fff" />
-            )}
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
-  }, [selectedMembersIds, toggleMemberSelection, user?.uid, actionLoading]);
-  
-  // Renderizar item de membro para lista de convidados
-  const renderInvitedMemberItem = useCallback(({ item }: { item: Member }) => {
-    const displayName = item.nickname || item.name;
-    
-    // Componente para renderizar o status do convite
-    const renderStatusBadge = () => {
-      switch (item.status) {
-        case 'CONFIRMED':
-          return (
-            <View style={[sharedStyles.badge, sharedStyles.confirmedBadge]}>
-              <Text style={[sharedStyles.badgeText, sharedStyles.confirmedText]}>Confirmado</Text>
-            </View>
-          );
-        case 'DECLINED':
-          return (
-            <View style={[sharedStyles.badge, sharedStyles.cancelledBadge]}>
-              <Text style={[sharedStyles.badgeText, sharedStyles.cancelledText]}>Recusado</Text>
-            </View>
-          );
-        default: // 'INVITED'
-          return (
-            <View style={[sharedStyles.badge, sharedStyles.pendingBadge]}>
-              <Text style={[sharedStyles.badgeText, sharedStyles.pendingText]}>Convidado</Text>
-            </View>
-          );
-      }
-    };
-    
-    return (
-      <View style={eventsStyles.memberItem}>
-        <View style={eventsStyles.memberInfoContainer}>
-          {item.profilePictureUrl ? (
-            <Image 
-              source={{ uri: item.profilePictureUrl }} 
-              style={eventsStyles.memberAvatar}
-            />
-          ) : (
-            <View style={eventsStyles.memberAvatarPlaceholder}>
-              <Text style={eventsStyles.memberInitials}>
-                {displayName.charAt(0).toUpperCase()}
-              </Text>
-            </View>
-          )}
-          
-          <View style={eventsStyles.memberTextInfo}>
-            <Text style={eventsStyles.memberName}>
-              {displayName}
-              {item.uid === user?.uid ? ' (Você)' : ''}
-            </Text>
-            <Text style={eventsStyles.memberEmail}>{item.email}</Text>
-          </View>
-        </View>
-        
-        <View style={eventsStyles.memberStatusContainer}>
-          {renderStatusBadge()}
-        </View>
-      </View>
-    );
-  }, [user?.uid]);
-  
-  // Renderizar estado vazio
+      );
+    },
+    [invitedMembers.length, theme.colors.line, theme.colors.surface, theme.radius.md, user?.uid]
+  );
+
   const renderEmptyState = useCallback(() => {
     if (loading) {
-      return (
-        <View style={sharedStyles.emptyContainer}>
-          <ActivityIndicator size="large" color={colors.primary.main} />
-          <Text style={sharedStyles.loadingText}>Carregando membros...</Text>
-        </View>
-      );
+      return <StateView kind="loading" title="Carregando membros..." />;
     }
-    
-    if (tab === 'invited' && invitedMembers.length === 0) {
-      return (
-        <View style={sharedStyles.emptyContainer}>
-          <Ionicons name="people" size={56} color={colors.primary.main} style={{ opacity: 0.6 }} />
-          <Text style={[sharedStyles.emptyText, { marginTop: 16 }]}>
-            Nenhum membro convidado para este evento
-          </Text>
-          <TouchableOpacity 
-            style={[sharedStyles.button, { marginTop: 24 }]}
-            onPress={() => setTab('new')}
-          >
-            <Ionicons name="person-add" size={20} color={colors.text.primary} style={sharedStyles.buttonIcon} />
-            <Text style={sharedStyles.buttonText}>Convidar Membros</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-    
-    if (tab === 'new' && notInvitedMembers.length === 0) {
-      return (
-        <View style={sharedStyles.emptyContainer}>
-          <Ionicons name="checkmark-circle" size={56} color="#4CAF50" style={{ opacity: 0.6 }} />
-          <Text style={[sharedStyles.emptyText, { marginTop: 16 }]}>
-            Todos os membros já foram convidados!
-          </Text>
-          <Text style={{ color: '#aaa', fontSize: 14, textAlign: 'center', marginTop: 8 }}>
-            Você pode gerenciar os convites existentes na aba "Convidados".
-          </Text>
-          <TouchableOpacity 
-            style={[sharedStyles.button, { marginTop: 24 }]}
-            onPress={() => setTab('invited')}
-          >
-            <Ionicons name="people" size={20} color={colors.text.primary} style={sharedStyles.buttonIcon} />
-            <Text style={sharedStyles.buttonText}>Ver Convidados</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-    
+
     if (searchQuery && filteredMembers.length === 0) {
       return (
-        <View style={sharedStyles.emptyContainer}>
-          <Ionicons name="search" size={56} color={colors.primary.main} style={{ opacity: 0.6 }} />
-          <Text style={[sharedStyles.emptyText, { marginTop: 16 }]}>
-            Nenhum membro encontrado com "{searchQuery}"
-          </Text>
-          <TouchableOpacity 
-            style={[sharedStyles.button, { marginTop: 24 }]}
-            onPress={() => setSearchQuery('')}
-          >
-            <Ionicons name="close-circle" size={20} color={colors.text.primary} style={sharedStyles.buttonIcon} />
-            <Text style={sharedStyles.buttonText}>Limpar Busca</Text>
-          </TouchableOpacity>
-        </View>
+        <StateView
+          kind="empty"
+          icon={<Search size={32} strokeWidth={1.75} color={theme.colors.inkMuted} />}
+          title="Nenhum resultado"
+          description={`Nenhum membro encontrado com "${searchQuery}".`}
+          actionLabel="Limpar Busca"
+          onAction={() => setSearchQuery('')}
+        />
       );
     }
-    
+
+    if (tab === 'invited' && invitedMembers.length === 0) {
+      return (
+        <StateView
+          kind="empty"
+          icon={<Users size={32} strokeWidth={1.75} color={theme.colors.inkMuted} />}
+          title="Nenhum membro convidado"
+          description="Nenhum membro foi convidado para este evento ainda."
+          actionLabel="Convidar Membros"
+          onAction={() => setTab('new')}
+        />
+      );
+    }
+
+    if (tab === 'new' && notInvitedMembers.length === 0) {
+      return (
+        <StateView
+          kind="empty"
+          icon={
+            <CheckCircle2 size={32} strokeWidth={1.75} color={theme.colors.success} />
+          }
+          title="Todos os membros já foram convidados"
+          description='Você pode acompanhar as respostas na aba "Convidados".'
+          actionLabel="Ver Convidados"
+          onAction={() => setTab('invited')}
+        />
+      );
+    }
+
     return null;
-  }, [loading, tab, invitedMembers.length, notInvitedMembers.length, searchQuery, filteredMembers.length]);
-  
+  }, [
+    loading,
+    searchQuery,
+    filteredMembers.length,
+    tab,
+    invitedMembers.length,
+    notInvitedMembers.length,
+    theme.colors.inkMuted,
+    theme.colors.success,
+  ]);
+
+  const header = (
+    <ScreenHeader
+      title="Gerenciar Convidados"
+      variant="compact"
+      onBack={handleBack}
+    />
+  );
+
   if (loading && !event) {
     return (
-      <SafeAreaView style={sharedStyles.safeArea}>
-        <StatusBar barStyle="light-content" backgroundColor={colors.background.primary} />
-        <View style={sharedStyles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary.main} />
-          <Text style={sharedStyles.loadingText}>Carregando...</Text>
-        </View>
-      </SafeAreaView>
+      <Screen header={header}>
+        <StateView kind="loading" title="Carregando..." />
+      </Screen>
     );
   }
-  
+
+  if (loadError) {
+    return (
+      <Screen header={header}>
+        <StateView
+          kind="error"
+          title="Não foi possível carregar"
+          description={loadError}
+          actionLabel="Voltar"
+          onAction={handleBack}
+        />
+      </Screen>
+    );
+  }
+
   return (
-    <SafeAreaView style={sharedStyles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.background.primary} />
-      
-      <View style={sharedStyles.container}>
-        {/* Cabeçalho */}
-        <View style={styles.header}>
-          <TouchableOpacity 
-            onPress={() => router.back()}
-            style={styles.backButton}
-          >
-            <Ionicons name="arrow-back" size={24} color="#7B68EE" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Gerenciar Convidados</Text>
-        </View>
-        
-        <Animated.View style={[{ padding: 16, opacity: fadeAnim }]}>
-          {event && (
-            <View style={sharedStyles.card}>
-              <Text style={sharedStyles.cardTitle} numberOfLines={1}>{event.title}</Text>
-            </View>
-          )}
-          
-          {/* Tabs */}
-          <View style={styles.tabContainer}>
-            <TouchableOpacity 
-              style={[styles.tabButton, tab === 'invited' && styles.activeTab]}
-              onPress={() => setTab('invited')}
-            >
-              <Text style={[styles.tabText, tab === 'invited' && styles.activeTabText]}>
-                Convidados ({invitedMembers.length})
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.tabButton, tab === 'new' && styles.activeTab]}
-              onPress={() => setTab('new')}
-            >
-              <Text style={[styles.tabText, tab === 'new' && styles.activeTabText]}>
-                Convidar ({notInvitedMembers.length})
-              </Text>
-            </TouchableOpacity>
-          </View>
-          
-          {/* Barra de pesquisa */}
-          <View style={[
-            sharedStyles.searchContainer,
-            searchFocused && { borderColor: colors.primary.main }
-          ]}>
-            <Ionicons name="search" size={20} color={colors.primary.main} style={{ marginRight: 10 }} />
-            <TextInput
-              style={sharedStyles.searchInput}
-              placeholder="Buscar membro por nome ou email"
-              placeholderTextColor={colors.text.tertiary}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              onFocus={() => setSearchFocused(true)}
-              onBlur={() => setSearchFocused(false)}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity
-                style={{ padding: 4 }}
+    <Screen width="wide" padded={false} header={header}>
+      <Animated.View
+        style={[
+          styles.topControls,
+          {
+            opacity: fadeAnim,
+            padding: theme.spacing.md,
+            gap: theme.spacing.sm,
+          },
+        ]}
+      >
+        {event ? (
+          <Surface tone="surface" bordered padded="md" radiusKey="md">
+            <AppText variant="monoLabel" color="inkSecondary">
+              Evento
+            </AppText>
+            <AppText variant="heading" color="ink" numberOfLines={2}>
+              {event.title}
+            </AppText>
+          </Surface>
+        ) : null}
+
+        <SegmentedTabs
+          value={tab}
+          onChange={setTab}
+          options={[
+            {
+              value: 'invited',
+              label: 'Convidados',
+              badge: invitedMembers.length,
+            },
+            {
+              value: 'new',
+              label: 'Convidar',
+              badge: notInvitedMembers.length,
+            },
+          ]}
+        />
+
+        <TextField
+          placeholder="Buscar membro por nome ou email"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          leftIcon={
+            <Search size={18} strokeWidth={1.75} color={theme.colors.inkMuted} />
+          }
+          rightAccessory={
+            searchQuery.length > 0 ? (
+              <IconButton
+                icon={<X size={18} strokeWidth={1.75} color={theme.colors.inkMuted} />}
                 onPress={() => setSearchQuery('')}
-              >
-                <Ionicons name="close-circle" size={20} color={colors.text.tertiary} />
-              </TouchableOpacity>
-            )}
+                accessibilityLabel="Limpar busca"
+                variant="ghost"
+              />
+            ) : undefined
+          }
+        />
+
+        {tab === 'new' && notInvitedMembers.length > 0 ? (
+          <View style={styles.selectionCountContainer}>
+            <AppText variant="caption" color="inkSecondary">
+              {newInviteesIds.length}{' '}
+              {newInviteesIds.length === 1
+                ? 'membro selecionado'
+                : 'membros selecionados'}
+            </AppText>
+            {newInviteesIds.length > 0 ? (
+              <Button
+                label="Limpar seleção"
+                variant="ghost"
+                size="sm"
+                onPress={() =>
+                  setSelectedMembersIds(
+                    event?.invitations?.map((inv) => inv.userId) ?? []
+                  )
+                }
+              />
+            ) : null}
           </View>
-          
-          {/* Contador de seleção (apenas na aba de convidar) */}
-          {tab === 'new' && notInvitedMembers.length > 0 && (
-            <View style={styles.selectionCountContainer}>
-              <Text style={styles.selectionCountText}>
-                {selectedMembersIds.filter(id => 
-                  !event?.invitations.some(inv => inv.userId === id)
-                ).length} membros selecionados
-              </Text>
-              {selectedMembersIds.filter(id => 
-                !event?.invitations.some(inv => inv.userId === id)
-              ).length > 0 && (
-                <TouchableOpacity
-                  style={styles.clearSelectionButton}
-                  onPress={() => setSelectedMembersIds([])}
-                >
-                  <Text style={styles.clearSelectionText}>Limpar seleção</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
-        </Animated.View>
-        
-        {/* Lista de membros */}
-        {tab === 'invited' ? (
-          <FlatList
-            data={invitedMembers}
-            renderItem={renderInvitedMemberItem}
-            keyExtractor={(item) => item.uid}
-            contentContainerStyle={{ padding: 16, paddingTop: 0 }}
-            ListEmptyComponent={renderEmptyState}
+        ) : null}
+      </Animated.View>
+
+      <Divider />
+
+      <FlatList
+        data={activeList}
+        renderItem={
+          tab === 'invited' ? renderInvitedMemberItem : renderNewMemberItem
+        }
+        keyExtractor={(item) => item.uid}
+        contentContainerStyle={[
+          styles.listContent,
+          {
+            padding: theme.spacing.md,
+            paddingBottom:
+              tab === 'new' && notInvitedMembers.length > 0
+                ? theme.spacing.xxl
+                : theme.spacing.xl,
+          },
+        ]}
+        ListEmptyComponent={renderEmptyState}
+      />
+
+      {tab === 'new' && notInvitedMembers.length > 0 ? (
+        <Surface
+          tone="surface"
+          padded="md"
+          radiusKey="none"
+          style={[
+            styles.bottomBar,
+            {
+              borderTopColor: theme.colors.line,
+            },
+          ]}
+        >
+          <Button
+            label={`Convidar ${newInviteesIds.length} ${newInviteesIds.length === 1 ? 'Membro' : 'Membros'}`}
+            variant="primary"
+            fullWidth
+            loading={actionLoading}
+            disabled={newInviteesIds.length === 0}
+            leftIcon={
+              <Mail size={18} strokeWidth={1.75} color={theme.colors.onAccent} />
+            }
+            onPress={() => void handleInviteMembers()}
           />
-        ) : (
-          <>
-            <FlatList
-              data={notInvitedMembers}
-              renderItem={renderNewMemberItem}
-              keyExtractor={(item) => item.uid}
-              contentContainerStyle={{ padding: 16, paddingTop: 0, paddingBottom: 150 }}
-              ListEmptyComponent={renderEmptyState}
-            />
-            
-            {notInvitedMembers.length > 0 && (
-              <View style={styles.bottomButtonContainer}>
-                <TouchableOpacity 
-                  style={[
-                    styles.inviteButton,
-                    (actionLoading || selectedMembersIds.filter(id => 
-                      !event?.invitations.some(inv => inv.userId === id)
-                    ).length === 0) && styles.inviteButtonDisabled
-                  ]}
-                  onPress={handleInviteMembers}
-                  disabled={actionLoading || selectedMembersIds.filter(id => 
-                    !event?.invitations.some(inv => inv.userId === id)
-                  ).length === 0}
-                >
-                  {actionLoading ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <>
-                      <Ionicons name="mail" size={22} color="#fff" style={{ marginRight: 10 }} />
-                      <Text style={styles.inviteButtonText}>
-                        Convidar {selectedMembersIds.filter(id => 
-                          !event?.invitations.some(inv => inv.userId === id)
-                        ).length} {selectedMembersIds.filter(id => 
-                          !event?.invitations.some(inv => inv.userId === id)
-                        ).length === 1 ? 'Membro' : 'Membros'}
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </View>
-            )}
-          </>
-        )}
-      </View>
-    </SafeAreaView>
+        </Surface>
+      ) : null}
+    </Screen>
   );
 };
 
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#333',
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#444',
-  },
-  backButton: {
-    marginRight: 15,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  tabContainer: {
-    flexDirection: 'row',
-    marginBottom: 16,
-  },
-  tabButton: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: colors.background.tertiary,
-  },
-  activeTab: {
-    borderBottomColor: colors.primary.main,
-  },
-  tabText: {
-    color: colors.text.tertiary,
-    fontWeight: '500',
-  },
-  activeTabText: {
-    color: colors.primary.main,
-    fontWeight: 'bold',
-  },
-  bottomButtonContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 16,
-    paddingBottom: 30,
-    backgroundColor: 'rgba(34, 34, 34, 0.95)',
-    borderTopWidth: 1,
-    borderTopColor: '#444',
-    elevation: 10,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: -4,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    zIndex: 1000
+  topControls: {
+    width: '100%',
   },
   selectionCountContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 4,
-    paddingHorizontal: 4,
+    minHeight: 36,
   },
-  selectionCountText: {
-    color: colors.text.secondary,
-    fontSize: 14,
+  itemFrame: {
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    overflow: 'hidden',
   },
-  clearSelectionButton: {
-    padding: 4,
+  listContent: {
+    flexGrow: 1,
   },
-  clearSelectionText: {
-    color: colors.primary.main,
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  selectedMemberAvatar: {
-    borderWidth: 2,
-    borderColor: colors.primary.main,
-  },
-  selectedMemberText: {
-    color: colors.primary.main,
-    fontWeight: 'bold',
-  },
-  inviteButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#7B68EE',
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    shadowColor: '#7B68EE',
-    shadowOffset: {
-      width: 0,
-      height: 3,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 6,
-  },
-  inviteButtonDisabled: {
-    backgroundColor: 'rgba(123, 104, 238, 0.5)',
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  inviteButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+  bottomBar: {
+    borderTopWidth: 1,
+    width: '100%',
   },
 });
 

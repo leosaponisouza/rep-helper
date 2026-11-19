@@ -1,7 +1,31 @@
 import * as Calendar from 'expo-calendar';
-import { Platform, Alert } from 'react-native';
-import { Event } from '../events/eventsTypes';
+import { Platform } from 'react-native';
 import { parseISO } from 'date-fns';
+import { Event } from '../events/eventsTypes';
+import { logger } from '../../utils/logger';
+
+export type CalendarSyncErrorCode =
+  | 'permission_denied'
+  | 'no_calendar'
+  | 'sync_failed';
+
+export interface AddEventToCalendarResult {
+  eventId: string | null;
+  calendarSource: string | null;
+  errorCode?: CalendarSyncErrorCode;
+}
+
+export interface SyncEventsWithCalendarResult {
+  success: number;
+  failed: number;
+  calendarSource: string | null;
+  errorCode?: CalendarSyncErrorCode;
+}
+
+export interface CalendarTargetOptions {
+  calendarId?: string;
+  calendarSource?: string | null;
+}
 
 /**
  * Serviço responsável por gerenciar a sincronização com o calendário do dispositivo
@@ -11,11 +35,15 @@ export class CalendarService {
    * Solicita permissões de acesso ao calendário
    */
   static async requestCalendarPermissions(): Promise<boolean> {
+    if (Platform.OS === 'web') {
+      return false;
+    }
+
     try {
       const { status } = await Calendar.requestCalendarPermissionsAsync();
       return status === 'granted';
     } catch (error) {
-      console.error('Erro ao solicitar permissões de calendário:', error);
+      logger.error('Erro ao solicitar permissões de calendário:', error);
       return false;
     }
   }
@@ -25,77 +53,92 @@ export class CalendarService {
    * Prioriza o Samsung Calendar, depois Google Calendar
    */
   static async getDefaultCalendarId(): Promise<{ id: string | null; source: string | null }> {
+    if (Platform.OS === 'web') {
+      return { id: null, source: null };
+    }
+
     try {
-      // Verificar se tem permissão para acessar o calendário
       const hasPermission = await this.requestCalendarPermissions();
       if (!hasPermission) {
         return { id: null, source: null };
       }
 
-      // Listar todos os calendários disponíveis
       const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
-      
-      // Filtrar apenas calendários que permitem modificações
-      const writableCalendars = calendars.filter(cal => cal.allowsModifications);
-      
+      const writableCalendars = calendars.filter((cal) => cal.allowsModifications);
+
       if (writableCalendars.length === 0) {
         return { id: null, source: null };
       }
 
-      // Procurar calendário da Samsung
-      const samsungCalendar = writableCalendars.find(cal => 
-        cal.source.name.includes('Samsung') || 
-        (cal.name && cal.name.includes('Samsung'))
+      const samsungCalendar = writableCalendars.find(
+        (cal) =>
+          cal.source?.name?.includes('Samsung') ||
+          (cal.name && cal.name.includes('Samsung'))
       );
 
       if (samsungCalendar) {
         return { id: samsungCalendar.id, source: 'Samsung Calendar' };
       }
 
-      // Procurar calendário do Google
-      const googleCalendar = writableCalendars.find(cal => 
-        cal.source.name === 'Google' || cal.source.name.includes('Google')
+      const googleCalendar = writableCalendars.find(
+        (cal) =>
+          cal.source?.name === 'Google' || cal.source?.name?.includes('Google')
       );
 
       if (googleCalendar) {
         return { id: googleCalendar.id, source: 'Google Calendar' };
       }
 
-      // Se não encontrar Samsung ou Google, usa o primeiro calendário disponível
-      return { 
-        id: writableCalendars[0].id, 
-        source: writableCalendars[0].source.name 
+      return {
+        id: writableCalendars[0].id,
+        source: writableCalendars[0].source?.name ?? null,
       };
-      
     } catch (error) {
-      console.error('Erro ao obter calendário padrão:', error);
+      logger.error('Erro ao obter calendário padrão:', error);
       return { id: null, source: null };
     }
+  }
+
+  private static async resolveTargetCalendar(
+    options?: CalendarTargetOptions
+  ): Promise<{ id: string | null; source: string | null }> {
+    if (options?.calendarId) {
+      return {
+        id: options.calendarId,
+        source: options.calendarSource ?? null,
+      };
+    }
+
+    return this.getDefaultCalendarId();
   }
 
   /**
    * Adiciona um evento ao calendário do dispositivo
    */
-  static async addEventToCalendar(event: Event): Promise<{eventId: string | null, calendarSource: string | null}> {
+  static async addEventToCalendar(
+    event: Event,
+    options?: CalendarTargetOptions
+  ): Promise<AddEventToCalendarResult> {
     try {
       const hasPermission = await this.requestCalendarPermissions();
-      
+
       if (!hasPermission) {
-        Alert.alert(
-          'Permissão necessária',
-          'Para sincronizar eventos, precisamos de acesso ao seu calendário.'
-        );
-        return { eventId: null, calendarSource: null };
+        return {
+          eventId: null,
+          calendarSource: null,
+          errorCode: 'permission_denied',
+        };
       }
 
-      const { id: calendarId, source: calendarSource } = await this.getDefaultCalendarId();
-      
+      const { id: calendarId, source: calendarSource } =
+        await this.resolveTargetCalendar(options);
+
       if (!calendarId) {
-        Alert.alert(
-          'Calendário não encontrado',
-          'Não foi possível encontrar um calendário válido no seu dispositivo.'
-        );
-        return { eventId: null, calendarSource: null };
+        return {
+          eventId: null,
+          calendarSource: null,
+          errorCode: 'no_calendar',
+        };
       }
 
       const startDate = parseISO(event.startDate);
@@ -107,17 +150,25 @@ export class CalendarService {
         location: event.location,
         startDate,
         endDate,
-        alarms: [{ relativeOffset: -60 }], // Lembrete 1 hora antes
+        alarms: [{ relativeOffset: -60 }],
       });
+
+      if (!eventId) {
+        return {
+          eventId: null,
+          calendarSource,
+          errorCode: 'sync_failed',
+        };
+      }
 
       return { eventId, calendarSource };
     } catch (error) {
-      console.error('Erro ao adicionar evento ao calendário:', error);
-      Alert.alert(
-        'Erro na sincronização',
-        'Não foi possível adicionar o evento ao seu calendário.'
-      );
-      return { eventId: null, calendarSource: null };
+      logger.error('Erro ao adicionar evento ao calendário:', error);
+      return {
+        eventId: null,
+        calendarSource: null,
+        errorCode: 'sync_failed',
+      };
     }
   }
 
@@ -125,20 +176,20 @@ export class CalendarService {
    * Lista todos os calendários disponíveis no dispositivo
    */
   static async listAvailableCalendars(): Promise<Calendar.Calendar[]> {
+    if (Platform.OS === 'web') {
+      return [];
+    }
+
     try {
       const hasPermission = await this.requestCalendarPermissions();
-      
+
       if (!hasPermission) {
-        Alert.alert(
-          'Permissão necessária',
-          'Para listar calendários, precisamos de acesso ao seu calendário.'
-        );
         return [];
       }
 
       return await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
     } catch (error) {
-      console.error('Erro ao listar calendários:', error);
+      logger.error('Erro ao listar calendários:', error);
       return [];
     }
   }
@@ -146,59 +197,76 @@ export class CalendarService {
   /**
    * Sincroniza múltiplos eventos com o calendário
    */
-  static async syncEventsWithCalendar(events: Event[]): Promise<{ success: number, failed: number, calendarSource: string | null }> {
+  static async syncEventsWithCalendar(
+    events: Event[],
+    options?: CalendarTargetOptions
+  ): Promise<SyncEventsWithCalendarResult> {
     let success = 0;
     let failed = 0;
-    let calendarSource = null;
 
-    const hasPermission = await this.requestCalendarPermissions();
-    
-    if (!hasPermission) {
-      Alert.alert(
-        'Permissão necessária',
-        'Para sincronizar eventos, precisamos de acesso ao seu calendário.'
-      );
-      return { success, failed: events.length, calendarSource };
-    }
+    try {
+      const hasPermission = await this.requestCalendarPermissions();
 
-    // Verificar se há algum calendário disponível
-    const { id: calendarId, source } = await this.getDefaultCalendarId();
-    calendarSource = source;
-    
-    if (!calendarId) {
-      Alert.alert(
-        'Calendário não encontrado',
-        'Não foi possível encontrar um calendário válido no seu dispositivo. ' +
-        'Verifique se você tem o Google Calendar ou Samsung Calendar instalado.'
-      );
-      return { success: 0, failed: events.length, calendarSource };
-    }
+      if (!hasPermission) {
+        return {
+          success: 0,
+          failed: events.length,
+          calendarSource: null,
+          errorCode: 'permission_denied',
+        };
+      }
 
-    for (const event of events) {
-      try {
-        const startDate = parseISO(event.startDate);
-        const endDate = parseISO(event.endDate);
+      const { id: calendarId, source: calendarSource } =
+        await this.resolveTargetCalendar(options);
 
-        const eventId = await Calendar.createEventAsync(calendarId, {
-          title: event.title,
-          notes: event.description,
-          location: event.location,
-          startDate,
-          endDate,
-          alarms: [{ relativeOffset: -60 }], // Lembrete 1 hora antes
-        });
-        
-        if (eventId) {
-          success++;
-        } else {
+      if (!calendarId) {
+        return {
+          success: 0,
+          failed: events.length,
+          calendarSource: null,
+          errorCode: 'no_calendar',
+        };
+      }
+
+      for (const event of events) {
+        try {
+          const startDate = parseISO(event.startDate);
+          const endDate = parseISO(event.endDate);
+
+          const eventId = await Calendar.createEventAsync(calendarId, {
+            title: event.title,
+            notes: event.description,
+            location: event.location,
+            startDate,
+            endDate,
+            alarms: [{ relativeOffset: -60 }],
+          });
+
+          if (eventId) {
+            success++;
+          } else {
+            failed++;
+          }
+        } catch (error) {
+          logger.error(`Erro ao sincronizar evento ${event.id}:`, error);
           failed++;
         }
-      } catch (error) {
-        console.error(`Erro ao sincronizar evento ${event.id}:`, error);
-        failed++;
       }
-    }
 
-    return { success, failed, calendarSource };
+      return {
+        success,
+        failed,
+        calendarSource,
+        ...(success === 0 && failed > 0 ? { errorCode: 'sync_failed' as const } : {}),
+      };
+    } catch (error) {
+      logger.error('Erro ao sincronizar eventos com o calendário:', error);
+      return {
+        success,
+        failed: events.length - success,
+        calendarSource: null,
+        errorCode: 'sync_failed',
+      };
+    }
   }
-} 
+}
