@@ -267,7 +267,16 @@ describe('Themed navigation shell and entry gate', () => {
       backgroundColor: darkTheme.colors.surface,
       borderTopColor: darkTheme.colors.line,
       borderTopWidth: 1,
+      height: 64 + 34,
+      paddingTop: darkTheme.spacing.xxs,
+      paddingBottom: 34,
     });
+    expect(screenOptions.tabBarStyle.height).toBeGreaterThanOrEqual(64);
+    expect(
+      screenOptions.tabBarStyle.height -
+        screenOptions.tabBarStyle.paddingTop -
+        screenOptions.tabBarStyle.paddingBottom
+    ).toBeGreaterThanOrEqual(60);
     expect(screenOptions.tabBarLabelStyle.fontFamily).toBe(fontFamilies.sansMedium);
     expect(screenOptions.tabBarLabelStyle.fontWeight).toBeUndefined();
 
@@ -312,6 +321,39 @@ describe('Themed navigation shell and entry gate', () => {
 
     act(() => {
       tree.unmount();
+    });
+
+    // Verify explicit tabBarStyle height when insets.bottom === 0 (Android/Web)
+    let zeroInsetTree!: renderer.ReactTestRenderer;
+    await act(async () => {
+      zeroInsetTree = renderer.create(
+        <SafeAreaProvider
+          initialMetrics={{
+            frame: { x: 0, y: 0, width: 390, height: 844 },
+            insets: { top: 0, left: 0, right: 0, bottom: 0 },
+          }}
+        >
+          <ThemeProvider>
+            <PanelLayout />
+          </ThemeProvider>
+        </SafeAreaProvider>
+      );
+    });
+    await flushEffects();
+
+    const zeroInsetOptions = capturedNavigatorOptions[capturedNavigatorOptions.length - 1];
+    expect(zeroInsetOptions.tabBarStyle.height).toBe(64 + darkTheme.spacing.xxs);
+    expect(zeroInsetOptions.tabBarStyle.height).toBeGreaterThanOrEqual(64);
+    expect(zeroInsetOptions.tabBarStyle.paddingTop).toBe(darkTheme.spacing.xxs);
+    expect(zeroInsetOptions.tabBarStyle.paddingBottom).toBe(darkTheme.spacing.xxs);
+    expect(
+      zeroInsetOptions.tabBarStyle.height -
+        zeroInsetOptions.tabBarStyle.paddingTop -
+        zeroInsetOptions.tabBarStyle.paddingBottom
+    ).toBeGreaterThanOrEqual(60);
+
+    act(() => {
+      zeroInsetTree.unmount();
     });
   });
 

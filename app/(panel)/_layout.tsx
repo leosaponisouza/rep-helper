@@ -11,6 +11,7 @@ const DEFAULT_INSETS = { top: 0, right: 0, bottom: 0, left: 0 };
 export default function PanelLayout() {
   const { theme } = useTheme();
   const insets = useContext(SafeAreaInsetsContext) ?? DEFAULT_INSETS;
+  const bottomInset = Math.max(insets.bottom, theme.spacing.xxs);
 
   return (
     <AuthProtection>
@@ -24,9 +25,9 @@ export default function PanelLayout() {
             backgroundColor: theme.colors.surface,
             borderTopColor: theme.colors.line,
             borderTopWidth: 1,
-            minHeight: 60 + insets.bottom,
-            paddingTop: theme.spacing.xs,
-            paddingBottom: Math.max(insets.bottom, theme.spacing.xs),
+            height: 64 + bottomInset,
+            paddingTop: theme.spacing.xxs,
+            paddingBottom: bottomInset,
           },
           tabBarLabelStyle: styles.tabBarLabel,
           tabBarLabel: ({ color, position, children }) => (
