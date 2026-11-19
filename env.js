@@ -30,7 +30,7 @@ const getEnvPath = () => {
 
 // Logging para ajudar no debugging, mas sem expor os valores
 const logEnvStatus = (env) => {
-  const keys = Object.keys(env);
+  const keys = Object.keys(env).filter((k) => k.startsWith('EXPO_PUBLIC_'));
   if (keys.length === 0) {
     console.warn('Aviso: Nenhuma variável de ambiente encontrada!');
     return;

@@ -28,7 +28,7 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "scheme": "com.anonymous.rephelper",
+    "scheme": "rephelper",
     "plugins": [
       "expo-router"
     ]
