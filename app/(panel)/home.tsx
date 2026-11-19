@@ -510,19 +510,21 @@ const HomeScreen = () => {
                         variant="ghost"
                       />
 
-                      <ListRow
-                        title={task.title || 'Tarefa sem título'}
-                        subtitle={subtitleParts.join(' · ') || 'Sem prazo definido'}
-                        style={[styles.taskListRow, { paddingLeft: theme.spacing.xxs }]}
-                        onPress={() => handleTaskPress(task.id)}
-                        trailing={
-                          <StatusText
-                            label={statusInfo.label}
-                            tone={statusInfo.tone}
-                            showDot
-                          />
-                        }
-                      />
+                      <View style={styles.taskListRow}>
+                        <ListRow
+                          title={task.title || 'Tarefa sem título'}
+                          subtitle={subtitleParts.join(' · ') || 'Sem prazo definido'}
+                          style={{ paddingLeft: theme.spacing.xxs }}
+                          onPress={() => handleTaskPress(task.id)}
+                          trailing={
+                            <StatusText
+                              label={statusInfo.label}
+                              tone={statusInfo.tone}
+                              showDot
+                            />
+                          }
+                        />
+                      </View>
                     </View>
                     {index < userTasks.length - 1 ? <Divider /> : null}
                   </View>
@@ -629,12 +631,10 @@ const HomeScreen = () => {
         </View>
       </Screen>
 
-      {showNotifications ? (
-        <NotificationCenter
-          visible={showNotifications}
-          onClose={handleCloseNotifications}
-        />
-      ) : null}
+      <NotificationCenter
+        visible={showNotifications}
+        onClose={handleCloseNotifications}
+      />
 
       <Pressable
         onPress={() => navigateWithTimeout('/(panel)/quick-actions')}
@@ -725,6 +725,7 @@ const styles = StyleSheet.create({
   },
   taskListRow: {
     flex: 1,
+    minWidth: 0,
   },
   eventDateBadge: {
     width: 48,

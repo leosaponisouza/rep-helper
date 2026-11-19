@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
@@ -150,36 +150,42 @@ const NotificationItem: React.FC<{
           !notification.read ? { backgroundColor: theme.colors.accentSoft } : undefined,
         ]}
       >
-        <ListRow
-          title={notification.title}
-          subtitle={subtitle}
-          style={styles.itemListRow}
-          onPress={() => onPress(notification)}
-          accessibilityLabel={
-            notification.read
-              ? `${notification.title}, ${subtitle}`
-              : `Não lida: ${notification.title}, ${subtitle}`
-          }
-          leading={
-            <View
-              style={[
-                styles.iconBadge,
-                {
-                  backgroundColor: theme.colors.subtle,
-                  borderRadius: theme.radius.full,
-                  borderColor: !notification.read ? theme.colors.accent : theme.colors.line,
-                },
-              ]}
-            >
-              <Icon size={18} strokeWidth={1.75} color={iconColor} />
-            </View>
-          }
-          trailing={
-            hasDestination ? (
-              <ChevronRight size={18} strokeWidth={1.75} color={theme.colors.inkMuted} />
-            ) : null
-          }
-        />
+        <View style={styles.itemListRow}>
+          <ListRow
+            title={notification.title}
+            subtitle={subtitle}
+            style={
+              !notification.read
+                ? { paddingRight: theme.spacing.xs }
+                : undefined
+            }
+            onPress={() => onPress(notification)}
+            accessibilityLabel={
+              notification.read
+                ? `${notification.title}, ${subtitle}`
+                : `Não lida: ${notification.title}, ${subtitle}`
+            }
+            leading={
+              <View
+                style={[
+                  styles.iconBadge,
+                  {
+                    backgroundColor: theme.colors.subtle,
+                    borderRadius: theme.radius.full,
+                    borderColor: !notification.read ? theme.colors.accent : theme.colors.line,
+                  },
+                ]}
+              >
+                <Icon size={18} strokeWidth={1.75} color={iconColor} />
+              </View>
+            }
+            trailing={
+              hasDestination ? (
+                <ChevronRight size={18} strokeWidth={1.75} color={theme.colors.inkMuted} />
+              ) : null
+            }
+          />
+        </View>
 
         {!notification.read ? (
           <View style={[styles.markReadSlot, { paddingRight: theme.spacing.xs }]}>
@@ -216,6 +222,16 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ visible, onClos
     markAllAsRead,
   } = useNotifications();
 
+  const displayedNotifications = useMemo(
+    () =>
+      (
+        activeTab === 'unread'
+          ? notifications.filter((item) => !item.read)
+          : notifications
+      ) as NotificationWithRawType[],
+    [activeTab, notifications]
+  );
+
   useEffect(() => {
     if (visible) {
       void fetchNotifications(activeTab);
@@ -245,7 +261,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ visible, onClos
   }, [
     visible,
     activeTab,
-    notifications.length,
+    displayedNotifications.length,
     motion,
     listFadeAnim,
     theme.motion.duration.fast,
@@ -304,14 +320,14 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ visible, onClos
     { value: 'all', label: 'Todas' },
   ];
 
-  const hasUnreadItems = notifications.some((item) => !item.read);
+  const hasUnreadItems = displayedNotifications.some((item) => !item.read);
 
   const renderContent = () => {
-    if (loading && !refreshing && notifications.length === 0) {
+    if (loading && !refreshing && displayedNotifications.length === 0) {
       return <StateView kind="loading" title="Carregando notificações..." />;
     }
 
-    if (error && notifications.length === 0) {
+    if (error && displayedNotifications.length === 0) {
       return (
         <StateView
           kind="error"
@@ -323,7 +339,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ visible, onClos
       );
     }
 
-    if (notifications.length === 0) {
+    if (displayedNotifications.length === 0) {
       return (
         <StateView
           kind="empty"
@@ -340,16 +356,14 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ visible, onClos
       );
     }
 
-    const typedNotifications = notifications as NotificationWithRawType[];
-
     return (
       <Animated.View style={{ opacity: listFadeAnim, gap: theme.spacing.sm }}>
         <Surface tone="surface" bordered style={styles.listSurface}>
-          {typedNotifications.map((item, index) => (
+          {displayedNotifications.map((item, index) => (
             <NotificationItem
               key={item.id}
               notification={item}
-              showDivider={index < typedNotifications.length - 1}
+              showDivider={index < displayedNotifications.length - 1}
               onPress={handleNotificationPress}
               onMarkAsRead={handleMarkAsRead}
             />
@@ -440,6 +454,7 @@ const styles = StyleSheet.create({
   },
   itemListRow: {
     flex: 1,
+    minWidth: 0,
   },
   iconBadge: {
     width: 36,
