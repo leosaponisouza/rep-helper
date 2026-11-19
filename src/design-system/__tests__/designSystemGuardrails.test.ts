@@ -62,8 +62,8 @@ describe('Design System architecture guardrails', () => {
     expect(offenders.map(rel)).toEqual([]);
   });
 
-  it('has zero Alert.alert calls across app/, components/, and src/', () => {
-    const offenders = allSrc.filter((f) => /\bAlert\.alert\s*\(/.test(fs.readFileSync(f, 'utf8')));
+  it('has zero Alert.alert or bare alert() calls across app/, components/, and src/', () => {
+    const offenders = allSrc.filter((f) => /\b(?:Alert\.alert|alert)\s*\(/.test(fs.readFileSync(f, 'utf8')));
     expect(offenders.map(rel)).toEqual([]);
   });
 

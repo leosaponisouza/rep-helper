@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useRef } from 'react';
 import {
   Animated,
   KeyboardAvoidingView,
@@ -17,6 +17,18 @@ import { useTheme } from '../theme/useTheme';
 import { AppText } from './AppText';
 import { Divider } from './Divider';
 import { IconButton } from './IconButton';
+
+export interface FeedbackModalPortalContextValue {
+  activeModalId: string | null;
+  toastOverlay: React.ReactNode;
+  registerModal: (id: string) => void;
+  unregisterModal: (id: string) => void;
+}
+
+export const FeedbackModalPortalContext =
+  createContext<FeedbackModalPortalContextValue | null>(null);
+
+let modalInstanceCounter = 0;
 
 export interface BottomSheetModalProps {
   visible: boolean;
@@ -59,9 +71,28 @@ export function BottomSheetModal({
   const { reduceMotion, useNativeDriver, duration } = useMotion();
   const { width: viewportWidth } = useWindowDimensions();
   const insets = useSafeInsets();
+  const portal = useContext(FeedbackModalPortalContext);
+  const registerModal = portal?.registerModal;
+  const unregisterModal = portal?.unregisterModal;
+  const modalIdRef = useRef<string | null>(null);
+  if (modalIdRef.current === null) {
+    modalInstanceCounter += 1;
+    modalIdRef.current = `bottom-sheet-modal-${modalInstanceCounter}`;
+  }
+  const modalId = modalIdRef.current;
 
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const translateYAnim = useRef(new Animated.Value(SHEET_ENTER_OFFSET)).current;
+
+  useEffect(() => {
+    if (!visible || !registerModal || !unregisterModal) {
+      return;
+    }
+    registerModal(modalId);
+    return () => {
+      unregisterModal(modalId);
+    };
+  }, [visible, modalId, registerModal, unregisterModal]);
 
   useEffect(() => {
     if (!visible) {
@@ -248,6 +279,8 @@ export function BottomSheetModal({
             ) : null}
           </Animated.View>
         </KeyboardAvoidingView>
+
+        {visible && portal?.activeModalId === modalId ? portal.toastOverlay : null}
       </View>
     </Modal>
   );

@@ -240,7 +240,6 @@ const TaskDetailsScreen: React.FC = () => {
       await loadTaskDetails();
     } catch (err) {
       logger.error('Error toggling task status:', err);
-      void ErrorHandler.handle(err);
     } finally {
       setIsStatusChanging(false);
     }
@@ -267,7 +266,6 @@ const TaskDetailsScreen: React.FC = () => {
       await loadTaskDetails();
     } catch (err) {
       logger.error('Error cancelling task:', err);
-      void ErrorHandler.handle(err);
     } finally {
       setIsCancelling(false);
     }
@@ -294,7 +292,6 @@ const TaskDetailsScreen: React.FC = () => {
       await loadTaskDetails();
     } catch (err) {
       logger.error('Error stopping task recurrence:', err);
-      void ErrorHandler.handle(err);
     } finally {
       setIsStoppingRecurrence(false);
     }
@@ -334,7 +331,6 @@ const TaskDetailsScreen: React.FC = () => {
       router.back();
     } catch (err) {
       logger.error('Error deleting task:', err);
-      void ErrorHandler.handle(err);
     } finally {
       setIsDeleting(false);
     }

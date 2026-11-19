@@ -678,4 +678,72 @@ describe('FeedbackProvider, Overlays, ErrorHandler, and NotificationContext inte
 
     errorSpy.mockRestore();
   });
+
+  it('portals active toastOverlay inside an open BottomSheetModal without duplicating at root', async () => {
+    jest.useFakeTimers();
+    let feedback!: ReturnType<typeof useFeedback>;
+    let setModalOpen!: (open: boolean) => void;
+
+    function ModalHost() {
+      feedback = useFeedback();
+      const [open, setOpen] = React.useState(true);
+      setModalOpen = setOpen;
+      return (
+        <BottomSheetModal visible={open} title="Editar República" onClose={() => setOpen(false)} testID="in-modal-flow">
+          <Text>Conteúdo do modal</Text>
+        </BottomSheetModal>
+      );
+    }
+
+    let tree!: renderer.ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(
+        <SafeAreaProvider initialMetrics={INITIAL_METRICS}>
+          <ThemeProvider>
+            <FeedbackProvider>
+              <ModalHost />
+            </FeedbackProvider>
+          </ThemeProvider>
+        </SafeAreaProvider>
+      );
+    });
+    await flushMicrotasks();
+
+    act(() => {
+      feedback.toast({
+        title: 'Código inválido',
+        message: 'Informe ao menos 4 caracteres.',
+        tone: 'warning',
+        duration: 4000,
+      });
+    });
+
+    // Toast is rendered exactly once in the entire tree
+    const allToastsWhileOpen = tree.root.findAllByType(Toast);
+    expect(allToastsWhileOpen).toHaveLength(1);
+
+    // And that single Toast instance is rendered inside the visible BottomSheetModal's native <Modal>
+    const openNativeModal = tree.root
+      .findAllByType(Modal)
+      .find((m) => m.props.visible === true);
+    expect(openNativeModal).toBeDefined();
+    expect(openNativeModal!.findAllByType(Toast)).toHaveLength(1);
+    expect(collectText(tree)).toContain('Código inválido');
+
+    // When the modal closes while the toast is still active, the toast returns to the root overlay (still rendered once)
+    act(() => {
+      setModalOpen(false);
+    });
+
+    const allToastsAfterClose = tree.root.findAllByType(Toast);
+    expect(allToastsAfterClose).toHaveLength(1);
+    const anyVisibleNativeModal = tree.root
+      .findAllByType(Modal)
+      .find((m) => m.props.visible === true);
+    expect(anyVisibleNativeModal).toBeUndefined();
+
+    act(() => {
+      tree.unmount();
+    });
+  });
 });

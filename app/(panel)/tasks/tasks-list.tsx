@@ -29,7 +29,7 @@ import {
 import { useTasks } from '../../../src/hooks/useTasks';
 import { Task } from '../../../src/models/task.model';
 import { parseISOPreservingTime } from '../../../src/utils/dateUtils';
-import { ErrorHandler } from '../../../src/utils/errorHandling';
+import { logger } from '../../../src/utils/logger';
 import { COMMON_TASK_CATEGORIES } from '../../../src/validation/taskSchemas';
 
 const TASK_FILTERS: FilterOption[] = [
@@ -217,7 +217,7 @@ const TasksListScreen: React.FC = () => {
           });
         }
       } catch (error) {
-        void ErrorHandler.handle(error);
+        logger.error('Error toggling task status:', error);
       } finally {
         if (isMountedRef.current) {
           setPendingTaskIds((prev) => prev.filter((id) => id !== task.id));

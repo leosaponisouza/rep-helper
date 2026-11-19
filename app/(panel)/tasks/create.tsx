@@ -24,7 +24,7 @@ import {
 import { useRepublicMembers } from '../../../src/hooks/useRepublicMembers';
 import { useTasks } from '../../../src/hooks/useTasks';
 import { RecurrenceType } from '../../../src/models/task.model';
-import { ErrorHandler } from '../../../src/utils/errorHandling';
+import { logger } from '../../../src/utils/logger';
 import {
   TaskFormValues,
   getRecurrencePatternLabel,
@@ -156,7 +156,7 @@ const CreateTaskScreen: React.FC = () => {
         router.replace('/(panel)/tasks');
       }
     } catch (error) {
-      void ErrorHandler.handle(error);
+      logger.error('Error creating task:', error);
     } finally {
       setIsLoading(false);
     }

@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { palette } from '../design-system/tokens/palette';
+import { logger } from '../utils/logger';
 
 export async function registerForPushNotificationsAsync() {
   if (Platform.OS === 'web') {
@@ -27,7 +28,7 @@ export async function registerForPushNotificationsAsync() {
   }
   
   if (finalStatus !== 'granted') {
-    alert('Falha ao obter permissão para notificações push!');
+    logger.warn('Permissão para notificações push não concedida.');
     return;
   }
 

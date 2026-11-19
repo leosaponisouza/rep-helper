@@ -26,6 +26,7 @@ import { useRepublicMembers } from '../../../src/hooks/useRepublicMembers';
 import { useTasks } from '../../../src/hooks/useTasks';
 import { parseISOPreservingTime } from '../../../src/utils/dateUtils';
 import { ErrorHandler } from '../../../src/utils/errorHandling';
+import { logger } from '../../../src/utils/logger';
 import { TaskFormValues, taskFormSchema } from '../../../src/validation/taskSchemas';
 
 const triggerSuccessHaptic = () => {
@@ -142,7 +143,7 @@ const EditTaskScreen: React.FC = () => {
 
       router.replace('/(panel)/tasks');
     } catch (error) {
-      void ErrorHandler.handle(error);
+      logger.error('Error updating task:', error);
     } finally {
       setIsLoading(false);
     }

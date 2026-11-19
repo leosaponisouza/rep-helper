@@ -9,6 +9,10 @@ import React, {
 import { StyleSheet, View } from 'react-native';
 import { EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ErrorHandler } from '../../utils/errorHandling';
+import {
+  FeedbackModalPortalContext,
+  FeedbackModalPortalContextValue,
+} from '../primitives/BottomSheetModal';
 import { ConfirmDialog } from '../primitives/ConfirmDialog';
 import { Toast, ToastTone } from '../primitives/Toast';
 import { useTheme } from '../theme/useTheme';
@@ -79,6 +83,7 @@ export function FeedbackProvider({
 
   const [toasts, setToasts] = useState<ActiveToastItem[]>([]);
   const [confirmQueue, setConfirmQueue] = useState<ConfirmQueueItem[]>([]);
+  const [activeModalIds, setActiveModalIds] = useState<string[]>([]);
 
   const isMountedRef = useRef(true);
   const toastCounterRef = useRef(0);
@@ -208,57 +213,93 @@ export function FeedbackProvider({
     [toast, dismissToast, confirm]
   );
 
+  const registerModal = useCallback((id: string) => {
+    if (!isMountedRef.current) {
+      return;
+    }
+    setActiveModalIds((prev) => {
+      const next = prev.filter((item) => item !== id);
+      next.push(id);
+      return next;
+    });
+  }, []);
+
+  const unregisterModal = useCallback((id: string) => {
+    if (!isMountedRef.current) {
+      return;
+    }
+    setActiveModalIds((prev) => prev.filter((item) => item !== id));
+  }, []);
+
+  const activeModalId =
+    activeModalIds.length > 0 ? activeModalIds[activeModalIds.length - 1] : null;
+
+  const toastOverlay =
+    toasts.length > 0 ? (
+      <View
+        pointerEvents="box-none"
+        style={[
+          styles.toastOverlay,
+          {
+            paddingTop: insets.top + theme.spacing.sm,
+            paddingHorizontal: theme.spacing.md,
+            gap: theme.spacing.xs,
+          },
+        ]}
+      >
+        <View pointerEvents="box-none" style={[styles.toastStack, { gap: theme.spacing.xs }]}>
+          {toasts.map((item) => (
+            <Toast
+              key={item.id}
+              title={item.title}
+              message={item.message}
+              tone={item.tone}
+              onDismiss={() => dismissToast(item.id)}
+              onPress={item.onPress}
+            />
+          ))}
+        </View>
+      </View>
+    ) : null;
+
+  const modalPortalValue = useMemo<FeedbackModalPortalContextValue>(
+    () => ({
+      activeModalId,
+      toastOverlay,
+      registerModal,
+      unregisterModal,
+    }),
+    [activeModalId, toastOverlay, registerModal, unregisterModal]
+  );
+
   const activeConfirm = confirmQueue[0] ?? null;
 
   return (
     <FeedbackContext.Provider value={value}>
-      {children}
+      <FeedbackModalPortalContext.Provider value={modalPortalValue}>
+        {children}
 
-      {toasts.length > 0 ? (
-        <View
-          pointerEvents="box-none"
-          style={[
-            styles.toastOverlay,
-            {
-              paddingTop: insets.top + theme.spacing.sm,
-              paddingHorizontal: theme.spacing.md,
-              gap: theme.spacing.xs,
-            },
-          ]}
-        >
-          <View pointerEvents="box-none" style={[styles.toastStack, { gap: theme.spacing.xs }]}>
-            {toasts.map((item) => (
-              <Toast
-                key={item.id}
-                title={item.title}
-                message={item.message}
-                tone={item.tone}
-                onDismiss={() => dismissToast(item.id)}
-                onPress={item.onPress}
-              />
-            ))}
-          </View>
-        </View>
-      ) : null}
+        {activeModalId === null ? toastOverlay : null}
 
-      <ConfirmDialog
-        visible={activeConfirm !== null}
-        title={activeConfirm?.options.title ?? ''}
-        message={activeConfirm?.options.message ?? ''}
-        confirmLabel={activeConfirm?.options.confirmLabel}
-        cancelLabel={activeConfirm?.options.cancelLabel}
-        destructive={activeConfirm?.options.destructive}
-        onConfirm={() => {
-          if (activeConfirm) {
-            resolveConfirmById(activeConfirm.id, true);
-          }
-        }}
-        onCancel={() => {
-          if (activeConfirm) {
-            resolveConfirmById(activeConfirm.id, false);
-          }
-        }}
-      />
+        <ConfirmDialog
+          visible={activeConfirm !== null}
+          title={activeConfirm?.options.title ?? ''}
+          message={activeConfirm?.options.message ?? ''}
+          confirmLabel={activeConfirm?.options.confirmLabel}
+          cancelLabel={activeConfirm?.options.cancelLabel}
+          destructive={activeConfirm?.options.destructive}
+          onConfirm={() => {
+            if (activeConfirm) {
+              resolveConfirmById(activeConfirm.id, true);
+            }
+          }}
+          onCancel={() => {
+            if (activeConfirm) {
+              resolveConfirmById(activeConfirm.id, false);
+            }
+          }}
+        />
+      </FeedbackModalPortalContext.Provider>
     </FeedbackContext.Provider>
   );
 }
