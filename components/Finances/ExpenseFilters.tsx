@@ -1,21 +1,20 @@
 // components/Finances/ExpenseFilters.tsx
 import React, { memo } from 'react';
-import { 
-  View, 
-  Text, 
-  TouchableOpacity, 
-  StyleSheet, 
-  ScrollView,
-  Dimensions
-} from 'react-native';
+import { ScrollView, StyleSheet } from 'react-native';
+import {
+  Banknote,
+  CheckCircle2,
+  Clock,
+  Filter,
+  List,
+  XCircle,
+} from 'lucide-react-native';
+import { Chip, useTheme } from '../../src/design-system';
 import { ExpenseFilterType } from '../../src/hooks/useFinances';
-import { Ionicons } from '@expo/vector-icons';
 
-// Define the filter option interface
-interface FilterOption {
+export interface FilterOption {
   key: ExpenseFilterType;
   label: string;
-  icon?: string;  // Optional icon for each filter
 }
 
 interface ExpenseFiltersProps {
@@ -24,66 +23,54 @@ interface ExpenseFiltersProps {
   onFilterChange: (filter: ExpenseFilterType) => void;
 }
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
-
-const ExpenseFilters: React.FC<ExpenseFiltersProps> = ({ 
-  filters, 
-  activeFilter, 
-  onFilterChange 
+const ExpenseFilters: React.FC<ExpenseFiltersProps> = ({
+  filters,
+  activeFilter,
+  onFilterChange,
 }) => {
-  // Get icon for filter
-  const getFilterIcon = (filterKey: ExpenseFilterType): string => {
+  const { theme } = useTheme();
+
+  const renderFilterIcon = (filterKey: ExpenseFilterType, selected: boolean) => {
+    const color = selected ? theme.colors.accent : theme.colors.inkSecondary;
+
     switch (filterKey) {
       case 'ALL':
-        return 'list';
+        return <List size={15} strokeWidth={1.75} color={color} />;
       case 'PENDING':
-        return 'time-outline';
+        return <Clock size={15} strokeWidth={1.75} color={color} />;
       case 'APPROVED':
-        return 'checkmark-circle-outline';
+        return <CheckCircle2 size={15} strokeWidth={1.75} color={color} />;
       case 'REJECTED':
-        return 'close-circle-outline';
+        return <XCircle size={15} strokeWidth={1.75} color={color} />;
       case 'REIMBURSED':
-        return 'cash-outline';
+        return <Banknote size={15} strokeWidth={1.75} color={color} />;
       default:
-        return 'filter';
+        return <Filter size={15} strokeWidth={1.75} color={color} />;
     }
   };
 
   return (
-    <ScrollView 
-      horizontal 
+    <ScrollView
+      horizontal
       showsHorizontalScrollIndicator={false}
       style={styles.container}
-      contentContainerStyle={styles.contentContainer}
-      snapToInterval={SCREEN_WIDTH / 3} // Snap to approximately 3 items per screen
-      decelerationRate="fast"
+      contentContainerStyle={{
+        paddingHorizontal: theme.spacing.md,
+        gap: theme.spacing.xs,
+      }}
     >
-      {filters.map((filter) => (
-        <TouchableOpacity
-          key={filter.key}
-          style={[
-            styles.filterButton,
-            activeFilter === filter.key && styles.activeFilterButton
-          ]}
-          onPress={() => onFilterChange(filter.key)}
-          activeOpacity={0.7}
-        >
-          <Ionicons 
-            name={(filter.icon || getFilterIcon(filter.key)) as any} 
-            size={16} 
-            color={activeFilter === filter.key ? '#fff' : '#aaa'} 
-            style={styles.filterIcon}
+      {filters.map((filter) => {
+        const isSelected = activeFilter === filter.key;
+        return (
+          <Chip
+            key={filter.key}
+            label={filter.label}
+            selected={isSelected}
+            onPress={() => onFilterChange(filter.key)}
+            leftIcon={renderFilterIcon(filter.key, isSelected)}
           />
-          <Text 
-            style={[
-              styles.filterButtonText,
-              activeFilter === filter.key && styles.activeFilterButtonText
-            ]}
-          >
-            {filter.label}
-          </Text>
-        </TouchableOpacity>
-      ))}
+        );
+      })}
     </ScrollView>
   );
 };
@@ -91,40 +78,7 @@ const ExpenseFilters: React.FC<ExpenseFiltersProps> = ({
 const styles = StyleSheet.create({
   container: {
     flexGrow: 0,
-    marginBottom: 10,
-  },
-  contentContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 8
-  },
-  filterButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 15,
-    marginRight: 10,
-    borderRadius: 20,
-    backgroundColor: '#333',
-    borderWidth: 1,
-    borderColor: '#444',
-  },
-  activeFilterButton: {
-    backgroundColor: '#7B68EE',
-    borderColor: '#7B68EE',
-  },
-  filterIcon: {
-    marginRight: 6,
-  },
-  filterButtonText: {
-    color: '#aaa',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  activeFilterButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
   },
 });
 
-// Use memo to prevent unnecessary re-renders
 export default memo(ExpenseFilters);

@@ -1,550 +1,513 @@
 // app/(panel)/finances/incomes/create.tsx
-import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  SafeAreaView,
-  StatusBar,
-  ScrollView,
-  TextInput,
-  Alert,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform
-} from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { useFinances } from '../../../../src/hooks/useFinances';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import DateTimePicker, {
+  type DateTimePickerEvent,
+} from '@react-native-community/datetimepicker';
+import { isValid, parse, startOfDay } from 'date-fns';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Calendar, Save } from 'lucide-react-native';
 import { useAuth } from '../../../../src/context/AuthContext';
-import { CreateIncomeRequest, IncomeFormData } from '../../../../src/models/finances.model';
+import {
+  AppText,
+  Button,
+  Chip,
+  Screen,
+  ScreenHeader,
+  StateView,
+  Surface,
+  TextField,
+  useFeedback,
+  useTheme,
+} from '../../../../src/design-system';
+import { useFinances } from '../../../../src/hooks/useFinances';
+import {
+  CreateIncomeRequest,
+  IncomeFormData,
+} from '../../../../src/models/finances.model';
+import { formatCurrencyBRL } from '../../../../src/utils/currencyUtils';
+import {
+  formatLocalDate,
+  formatShortDate,
+  parseISOPreservingTime,
+} from '../../../../src/utils/dateUtils';
+import { ErrorHandler } from '../../../../src/utils/errorHandling';
+import { logger } from '../../../../src/utils/logger';
 
-// Income source options
-const incomeSources = [
-  'Contribuição',
-  'Reembolso',
-  'Evento',
-  'Outros'
-];
+const INCOME_SOURCES = ['Contribuição', 'Reembolso', 'Evento', 'Outros'];
 
-// Source selector component
-const SourceSelector = ({ 
-  sources,
-  selectedSource,
-  onSelectSource,
-  visible,
-  onClose
-}: {
-  sources: string[];
-  selectedSource: string;
-  onSelectSource: (source: string) => void;
-  visible: boolean;
-  onClose: () => void;
-}) => {
-  if (!visible) return null;
-  
-  return (
-    <View style={styles.sourcePicker}>
-      {sources.map((source) => (
-        <TouchableOpacity
-          key={source}
-          style={[
-            styles.sourceOption,
-            selectedSource === source && styles.selectedSourceOption
-          ]}
-          onPress={() => {
-            onSelectSource(source);
-            onClose();
-          }}
-        >
-          <Text style={[
-            styles.sourceOptionText,
-            selectedSource === source && styles.selectedSourceOptionText
-          ]}>
-            {source}
-          </Text>
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
+const parseSafeDate = (isoOrDateString?: string): Date => {
+  if (!isoOrDateString) return new Date();
+  const parsed = parseISOPreservingTime(isoOrDateString);
+  return isValid(parsed) ? parsed : new Date();
+};
+
+const amountToCentavosDigits = (amount: number): string => {
+  if (!Number.isFinite(amount) || amount <= 0) return '';
+  return String(Math.round(amount * 100));
 };
 
 const CreateIncomeScreen = () => {
   const router = useRouter();
+  const { theme } = useTheme();
+  const { toast } = useFeedback();
   const params = useLocalSearchParams<{ id?: string }>();
   const { user } = useAuth();
   const { createIncome, updateIncome, getIncomeById } = useFinances();
-  
-  // Form state
+
+  const isEditing = Boolean(params.id);
+
   const [formData, setFormData] = useState<IncomeFormData>({
     description: '',
     amount: '',
     date: new Date().toISOString(),
-    source: incomeSources[0],
-    notes: ''
+    source: INCOME_SOURCES[0],
+    notes: '',
   });
-  
-  // UI state
-  const [isEditing, setIsEditing] = useState(false);
+
+  const [descriptionError, setDescriptionError] = useState<string | undefined>(
+    undefined
+  );
+  const [amountError, setAmountError] = useState<string | undefined>(undefined);
+  const [sourceError, setSourceError] = useState<string | undefined>(undefined);
+
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showSourcePicker, setShowSourcePicker] = useState(false);
+  const [webDateInput, setWebDateInput] = useState('');
+  const [webDateError, setWebDateError] = useState<string | undefined>(undefined);
+
   const [loading, setLoading] = useState(false);
   const [loadingIncome, setLoadingIncome] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Fetch income details if editing
-  useEffect(() => {
-    const fetchIncomeDetails = async () => {
-      if (params.id) {
-        setIsEditing(true);
-        setLoadingIncome(true);
-        
-        try {
-          // Get income details by ID
-          const income = await getIncomeById(Number(params.id));
-          
-          // Set form data from income
-          setFormData({
-            description: income.description,
-            amount: income.amount.toString(),
-            date: income.incomeDate,
-            source: income.source || incomeSources[0],
-            notes: income.notes || ''
-          });
-        } catch (error) {
-          console.error('Erro ao carregar detalhes da receita:', error);
-          Alert.alert('Erro', 'Não foi possível carregar os detalhes da receita.');
-          router.back();
-        } finally {
-          setLoadingIncome(false);
-        }
-      }
-    };
-
-    fetchIncomeDetails();
-  }, [params.id, getIncomeById, router]);
-  
-  // Handle form field changes
-  const handleChange = (field: keyof IncomeFormData, value: string | number | Date) => {
-    if (field === 'date' && value instanceof Date) {
-      setFormData(prev => ({ ...prev, [field]: value.toISOString() }));
+  const handleBack = useCallback(() => {
+    if (router.canGoBack()) {
+      router.back();
     } else {
-      setFormData(prev => ({ ...prev, [field]: value }));
+      router.replace('/(panel)/finances/incomes');
+    }
+  }, [router]);
+
+  const loadIncomeDetails = useCallback(async () => {
+    if (!params.id) return;
+
+    setLoadingIncome(true);
+    setLoadError(null);
+    try {
+      const income = await getIncomeById(Number(params.id));
+      const parsedDate = parseSafeDate(income.incomeDate);
+      setFormData({
+        description: income.description,
+        amount: amountToCentavosDigits(income.amount),
+        date: parsedDate.toISOString(),
+        source: income.source || INCOME_SOURCES[0],
+        notes: income.notes || '',
+      });
+    } catch (error) {
+      logger.error('Erro ao carregar detalhes da receita:', error);
+      void ErrorHandler.handle(error);
+      setLoadError('Não foi possível carregar os detalhes da receita.');
+    } finally {
+      setLoadingIncome(false);
+    }
+  }, [params.id, getIncomeById]);
+
+  useEffect(() => {
+    if (params.id) {
+      void loadIncomeDetails();
+    }
+  }, [params.id, loadIncomeDetails]);
+
+  const selectedDate = useMemo(
+    () => parseSafeDate(formData.date),
+    [formData.date]
+  );
+
+  const sourcesList = useMemo(() => {
+    if (formData.source && !INCOME_SOURCES.includes(formData.source)) {
+      return [...INCOME_SOURCES, formData.source];
+    }
+    return INCOME_SOURCES;
+  }, [formData.source]);
+
+  const handleChange = (
+    field: keyof IncomeFormData,
+    value: string | number | Date
+  ) => {
+    if (field === 'date' && value instanceof Date) {
+      setFormData((prev) => ({ ...prev, date: value.toISOString() }));
+    } else {
+      setFormData((prev) => ({ ...prev, [field]: value }));
     }
   };
 
-  // Handle amount input
   const handleAmountChange = (text: string) => {
-    // Keep only numbers
-    const numericValue = text.replace(/\D/g, '');
-    handleChange('amount', numericValue);
+    const rawDigits = text.replace(/\D/g, '');
+    const parsedDigits = rawDigits ? parseInt(rawDigits, 10) : 0;
+    const normalized = parsedDigits > 0 ? String(parsedDigits).slice(0, 12) : '';
+    handleChange('amount', normalized);
+    if (amountError) setAmountError(undefined);
   };
 
-  // Format amount for display
   const getFormattedAmount = () => {
     if (!formData.amount) return '';
-    
-    // Convert to number
     const numericValue = parseInt(formData.amount.toString(), 10) / 100;
-    
-    // Format as BRL currency
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(numericValue);
+    if (!Number.isFinite(numericValue) || numericValue === 0) return '';
+    return formatCurrencyBRL(numericValue);
   };
 
-  // Date handling
   const getFormattedDate = () => {
-    try {
-      const date = new Date(formData.date);
-      return format(date, "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
-    } catch (error) {
-      return 'Data inválida';
+    return (
+      formatLocalDate(selectedDate, "dd 'de' MMMM 'de' yyyy") || 'Data inválida'
+    );
+  };
+
+  const toggleDatePicker = () => {
+    if (Platform.OS === 'web') {
+      if (showDatePicker) {
+        setShowDatePicker(false);
+        return;
+      }
+      setWebDateInput(formatShortDate(selectedDate));
+      setWebDateError(undefined);
+    }
+    setShowDatePicker(true);
+  };
+
+  const handleNativeDateChange = (
+    event: DateTimePickerEvent,
+    pickedDate?: Date
+  ) => {
+    if (event?.type === 'dismissed') {
+      setShowDatePicker(false);
+      return;
+    }
+
+    if (Platform.OS !== 'ios') {
+      setShowDatePicker(false);
+    }
+
+    if (pickedDate) {
+      handleChange('date', pickedDate);
     }
   };
 
-  const handleDateChange = (event: any, selectedDate?: Date) => {
+  const handleApplyWebDate = () => {
+    const trimmed = webDateInput.trim();
+    if (!trimmed) {
+      setWebDateError('Informe a data no formato DD/MM/AAAA.');
+      return;
+    }
+
+    const parsed = parse(trimmed, 'dd/MM/yyyy', new Date());
+    if (!isValid(parsed) || formatShortDate(parsed) !== trimmed) {
+      setWebDateError('Data inválida. Use o formato DD/MM/AAAA.');
+      return;
+    }
+
+    if (startOfDay(parsed) > startOfDay(new Date())) {
+      setWebDateError('A data não pode ser futura.');
+      return;
+    }
+
+    handleChange('date', parsed);
+    setWebDateError(undefined);
     setShowDatePicker(false);
-    
-    if (selectedDate) {
-      handleChange('date', selectedDate);
-    }
   };
 
-  // Form validation
   const validateForm = (): boolean => {
+    let valid = true;
+
     if (!formData.description.trim()) {
-      Alert.alert('Erro', 'Por favor, informe uma descrição para a receita.');
-      return false;
+      const msg = 'Por favor, informe uma descrição para a receita.';
+      setDescriptionError(msg);
+      toast({ title: 'Atenção', message: msg, tone: 'warning' });
+      valid = false;
+    } else {
+      setDescriptionError(undefined);
     }
-    
+
     const amountValue = parseInt(formData.amount.toString(), 10);
-    if (!formData.amount || amountValue === 0) {
-      Alert.alert('Erro', 'Por favor, informe um valor válido para a receita.');
-      return false;
+    if (!formData.amount || !Number.isFinite(amountValue) || amountValue <= 0) {
+      const msg = 'Por favor, informe um valor válido para a receita.';
+      setAmountError(msg);
+      if (valid) {
+        toast({ title: 'Atenção', message: msg, tone: 'warning' });
+      }
+      valid = false;
+    } else {
+      setAmountError(undefined);
     }
-    
+
     if (!formData.source) {
-      Alert.alert('Erro', 'Por favor, selecione uma fonte para a receita.');
-      return false;
+      const msg = 'Por favor, selecione uma fonte para a receita.';
+      setSourceError(msg);
+      if (valid) {
+        toast({ title: 'Atenção', message: msg, tone: 'warning' });
+      }
+      valid = false;
+    } else {
+      setSourceError(undefined);
     }
-    
-    return true;
+
+    return valid;
   };
 
-  // Save income
   const handleSaveIncome = async () => {
-    if (!validateForm() || !user?.currentRepublicId) return;
-    
+    if (!validateForm()) return;
+
+    if (!user?.currentRepublicId) {
+      toast({
+        title: 'República não identificada',
+        message: 'Não foi possível identificar sua república atual.',
+        tone: 'danger',
+      });
+      return;
+    }
+
     setLoading(true);
-    
+
     try {
       const incomeData: CreateIncomeRequest = {
-        description: formData.description,
+        description: formData.description.trim(),
         amount: parseInt(formData.amount.toString(), 10) / 100,
         incomeDate: formData.date,
         source: formData.source,
         republicId: user.currentRepublicId,
-        notes: formData.notes
+        notes: formData.notes?.trim() || undefined,
       };
-      
+
       if (isEditing && params.id) {
         await updateIncome(Number(params.id), incomeData);
-        Alert.alert(
-          'Sucesso', 
-          'Receita atualizada com sucesso!',
-          [{ text: 'OK', onPress: () => router.back() }]
-        );
+        toast({
+          title: 'Receita atualizada',
+          message: 'Receita atualizada com sucesso!',
+          tone: 'success',
+        });
       } else {
         await createIncome(incomeData);
-        Alert.alert(
-          'Sucesso', 
-          'Receita cadastrada com sucesso!',
-          [{ text: 'OK', onPress: () => router.back() }]
-        );
+        toast({
+          title: 'Receita cadastrada',
+          message: 'Receita cadastrada com sucesso!',
+          tone: 'success',
+        });
       }
+
+      handleBack();
     } catch (error) {
-      console.error('Erro ao salvar receita:', error);
-      Alert.alert(
-        'Erro', 
-        'Ocorreu um erro ao salvar a receita. Por favor, tente novamente.'
-      );
+      logger.error('Erro ao salvar receita:', error);
+      void ErrorHandler.handle(error);
     } finally {
       setLoading(false);
     }
   };
 
-  // Loading state
+  const screenTitle = isEditing ? 'Editar Receita' : 'Nova Receita';
+
   if (loadingIncome) {
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle="light-content" backgroundColor="#222" />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#7B68EE" />
-          <Text style={styles.loadingText}>Carregando...</Text>
-        </View>
-      </SafeAreaView>
+      <Screen header={<ScreenHeader title={screenTitle} onBack={handleBack} />}>
+        <StateView kind="loading" title="Carregando detalhes da receita..." />
+      </Screen>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <Screen header={<ScreenHeader title={screenTitle} onBack={handleBack} />}>
+        <StateView
+          kind="error"
+          title="Não foi possível carregar"
+          description={loadError}
+          actionLabel="Tentar novamente"
+          onAction={() => void loadIncomeDetails()}
+        />
+      </Screen>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor="#222" />
-      
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.container}
-      >
-        <View style={styles.headerContainer}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.backButton}
+    <Screen
+      scroll
+      keyboardAvoiding
+      header={<ScreenHeader title={screenTitle} onBack={handleBack} />}
+      contentContainerStyle={{
+        gap: theme.spacing.md,
+        paddingBottom: theme.spacing.xxl,
+      }}
+    >
+      <TextField
+        label="Descrição"
+        placeholder="Descreva a receita"
+        value={formData.description}
+        onChangeText={(text) => {
+          handleChange('description', text);
+          if (descriptionError && text.trim()) {
+            setDescriptionError(undefined);
+          }
+        }}
+        error={descriptionError}
+        multiline
+        maxLength={100}
+      />
+
+      <TextField
+        label="Valor"
+        placeholder="R$ 0,00"
+        keyboardType="numeric"
+        value={getFormattedAmount()}
+        onChangeText={handleAmountChange}
+        error={amountError}
+      />
+
+      <View style={{ gap: theme.spacing.xxs }}>
+        <AppText variant="bodyStrong" color="ink">
+          Data
+        </AppText>
+        <Pressable
+          onPress={toggleDatePicker}
+          accessibilityRole="button"
+          accessibilityLabel={`Selecionar data: ${getFormattedDate()}`}
+          style={({ pressed }) => [
+            styles.dateButton,
+            {
+              backgroundColor: theme.colors.surface,
+              borderColor: theme.colors.borderStrong,
+              borderRadius: theme.radius.sm,
+              paddingHorizontal: theme.spacing.sm,
+              gap: theme.spacing.xs,
+              opacity: pressed ? theme.motion.pressOpacity : 1,
+            },
+          ]}
+        >
+          <Calendar size={18} strokeWidth={1.75} color={theme.colors.accent} />
+          <AppText variant="body" color="ink">
+            {getFormattedDate()}
+          </AppText>
+        </Pressable>
+
+        {showDatePicker && Platform.OS === 'web' ? (
+          <Surface
+            tone="subtle"
+            bordered
+            padded="sm"
+            radiusKey="sm"
+            style={{ gap: theme.spacing.xs, marginTop: theme.spacing.xxs }}
           >
-            <Ionicons name="arrow-back" size={24} color="#7B68EE" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>
-            {isEditing ? 'Editar Receita' : 'Nova Receita'}
-          </Text>
-          <View style={{ width: 40 }} />
-        </View>
-        
-        <ScrollView style={styles.formContainer}>
-          {/* Description */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Descrição</Text>
-            <TextInput
-              style={styles.textInput}
-              placeholder="Descreva a receita"
-              placeholderTextColor="#999"
-              value={formData.description}
-              onChangeText={(text) => handleChange('description', text)}
-              multiline
-              maxLength={100}
+            <TextField
+              label="Data (DD/MM/AAAA)"
+              value={webDateInput}
+              onChangeText={(text) => {
+                setWebDateInput(text);
+                if (webDateError) setWebDateError(undefined);
+              }}
+              placeholder="DD/MM/AAAA"
+              error={webDateError}
+              returnKeyType="done"
+              onSubmitEditing={handleApplyWebDate}
             />
-          </View>
-          
-          {/* Amount */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Valor</Text>
-            <View style={styles.amountInputContainer}>
-              <TextInput
-                style={styles.amountInput}
-                placeholder="0,00"
-                placeholderTextColor="#999"
-                keyboardType="numeric"
-                value={getFormattedAmount()}
-                onChangeText={handleAmountChange}
+            <View style={[styles.webDateActions, { gap: theme.spacing.xs }]}>
+              <Button
+                label="Cancelar"
+                variant="ghost"
+                size="sm"
+                onPress={() => setShowDatePicker(false)}
+              />
+              <Button
+                label="Aplicar"
+                variant="secondary"
+                size="sm"
+                onPress={handleApplyWebDate}
               />
             </View>
-          </View>
-          
-          {/* Date */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Data</Text>
-            <TouchableOpacity
-              style={styles.datePickerButton}
-              onPress={() => setShowDatePicker(true)}
-            >
-              <Ionicons name="calendar-outline" size={20} color="#7B68EE" />
-              <Text style={styles.dateText}>{getFormattedDate()}</Text>
-            </TouchableOpacity>
-            
-            {showDatePicker && (
-              <DateTimePicker
-                value={new Date(formData.date)}
-                mode="date"
-                display="default"
-                onChange={handleDateChange}
-                maximumDate={new Date()}
-              />
-            )}
-          </View>
-          
-          {/* Source */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Fonte</Text>
-            <TouchableOpacity
-              style={styles.sourceButton}
-              onPress={() => setShowSourcePicker(!showSourcePicker)}
-            >
-              <Text style={styles.sourceText}>{formData.source}</Text>
-              <Ionicons
-                name={showSourcePicker ? "chevron-up" : "chevron-down"}
-                size={20}
-                color="#7B68EE"
-              />
-            </TouchableOpacity>
-            
-            <SourceSelector
-              sources={incomeSources}
-              selectedSource={formData.source}
-              onSelectSource={(source) => handleChange('source', source)}
-              visible={showSourcePicker}
-              onClose={() => setShowSourcePicker(false)}
+          </Surface>
+        ) : null}
+
+        {showDatePicker && Platform.OS !== 'web' ? (
+          <View style={{ gap: theme.spacing.xs }}>
+            <DateTimePicker
+              value={selectedDate}
+              mode="date"
+              display="default"
+              themeVariant={theme.isDark ? 'dark' : 'light'}
+              accentColor={theme.colors.accent}
+              onChange={handleNativeDateChange}
+              maximumDate={new Date()}
             />
+            {Platform.OS === 'ios' ? (
+              <Button
+                label="Concluir seleção"
+                variant="ghost"
+                size="sm"
+                onPress={() => setShowDatePicker(false)}
+              />
+            ) : null}
           </View>
-          
-          {/* Notes */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Observações (opcional)</Text>
-            <TextInput
-              style={[styles.textInput, styles.notesInput]}
-              placeholder="Adicione informações adicionais sobre a receita"
-              placeholderTextColor="#999"
-              value={formData.notes}
-              onChangeText={(text) => handleChange('notes', text)}
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
+        ) : null}
+      </View>
+
+      <View style={{ gap: theme.spacing.xs }}>
+        <AppText variant="bodyStrong" color="ink">
+          Fonte
+        </AppText>
+        <View style={[styles.chipGrid, { gap: theme.spacing.xs }]}>
+          {sourcesList.map((source) => (
+            <Chip
+              key={source}
+              label={source}
+              selected={formData.source === source}
+              onPress={() => {
+                handleChange('source', source);
+                if (sourceError) setSourceError(undefined);
+              }}
             />
-          </View>
-          
-          {/* Save button */}
-          <TouchableOpacity
-            style={[styles.saveButton, loading && styles.disabledButton]}
-            onPress={handleSaveIncome}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <>
-                <Ionicons name="save-outline" size={20} color="#fff" style={styles.saveButtonIcon} />
-                <Text style={styles.saveButtonText}>
-                  {isEditing ? 'Atualizar Receita' : 'Registrar Receita'}
-                </Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+          ))}
+        </View>
+        {sourceError ? (
+          <AppText variant="caption" color="danger">
+            {sourceError}
+          </AppText>
+        ) : null}
+      </View>
+
+      <TextField
+        label="Observações (opcional)"
+        placeholder="Adicione informações adicionais sobre a receita"
+        value={formData.notes || ''}
+        onChangeText={(text) => handleChange('notes', text)}
+        multiline
+        numberOfLines={4}
+      />
+
+      <View style={{ marginTop: theme.spacing.xs }}>
+        <Button
+          label={isEditing ? 'Atualizar Receita' : 'Registrar Receita'}
+          variant="primary"
+          fullWidth
+          loading={loading}
+          leftIcon={
+            <Save size={18} strokeWidth={1.75} color={theme.colors.onAccent} />
+          }
+          onPress={() => void handleSaveIncome()}
+        />
+      </View>
+    </Screen>
   );
 };
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#222',
-  },
-  container: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    color: '#fff',
-    marginTop: 16,
-    fontSize: 16,
-  },
-  headerContainer: {
+  dateButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#333',
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#444',
-  },
-  backButton: {
-    marginRight: 15,
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
-    textAlign: 'center',
-  },
-  formContainer: {
-    padding: 20,
-  },
-  inputGroup: {
-    marginBottom: 20,
-  },
-  inputLabel: {
-    color: '#ccc',
-    marginBottom: 8,
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  textInput: {
-    backgroundColor: '#333',
-    borderRadius: 8,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    color: '#fff',
-    fontSize: 16,
+    minHeight: 48,
     borderWidth: 1,
-    borderColor: '#444',
   },
-  notesInput: {
-    minHeight: 100,
-    paddingTop: 12,
-  },
-  amountInputContainer: {
+  webDateActions: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#333',
-    borderRadius: 8,
-    paddingHorizontal: 15,
-    borderWidth: 1,
-    borderColor: '#444',
+    justifyContent: 'flex-end',
   },
-  currencySymbol: {
-    color: '#4CAF50',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginRight: 5,
-  },
-  amountInput: {
-    flex: 1,
-    paddingVertical: 12,
-    color: '#4CAF50',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  datePickerButton: {
+  chipGrid: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#333',
-    borderRadius: 8,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: '#444',
-  },
-  dateText: {
-    color: '#fff',
-    fontSize: 16,
-    marginLeft: 10,
-  },
-  sourceButton: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#333',
-    borderRadius: 8,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: '#444',
-  },
-  sourceText: {
-    color: '#fff',
-    fontSize: 16,
-  },
-  sourcePicker: {
-    backgroundColor: '#333',
-    borderRadius: 8,
-    marginTop: 5,
-    borderWidth: 1,
-    borderColor: '#444',
-  },
-  sourceOption: {
-    paddingVertical: 12,
-    paddingHorizontal: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#444',
-  },
-  selectedSourceOption: {
-    backgroundColor: 'rgba(76, 175, 80, 0.15)',
-  },
-  sourceOptionText: {
-    color: '#fff',
-    fontSize: 16,
-  },
-  selectedSourceOptionText: {
-    color: '#4CAF50',
-    fontWeight: 'bold',
-  },
-  saveButton: {
-    backgroundColor: '#4CAF50',
-    borderRadius: 8,
-    paddingVertical: 15,
-    marginTop: 20,
-    marginBottom: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
-  saveButtonIcon: {
-    marginRight: 10,
-  },
-  saveButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  disabledButton: {
-    opacity: 0.7,
+    flexWrap: 'wrap',
   },
 });
 

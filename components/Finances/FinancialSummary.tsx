@@ -1,71 +1,97 @@
 // components/Finances/FinancialSummary.tsx
 import React from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ActivityIndicator,
-  Platform
-} from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+  ArrowDownLeft,
+  ArrowUpRight,
+  CheckCircle2,
+  Clock,
+  Pencil,
+  Wallet,
+} from 'lucide-react-native';
+import {
+  AppText,
+  AppTextColor,
+  Divider,
+  IconButton,
+  Skeleton,
+  StateView,
+  StatusText,
+  Surface,
+  useTheme,
+} from '../../src/design-system';
+import { formatCurrencyBRL } from '../../src/utils/currencyUtils';
 
-interface SummaryCardProps {
+interface MetricCardProps {
   title: string;
-  subtitle?: string;
+  subtitle: string;
   value: string;
-  iconName: string;
-  iconColor: string;
-  backgroundColor: string;
-  valueColor?: string;
+  valueColor?: AppTextColor;
+  icon: React.ReactNode;
   onPress?: () => void;
-  showAdjustOption?: boolean;
-  onAdjust?: () => void;
 }
 
-const SummaryCard: React.FC<SummaryCardProps> = ({
+const MetricCard: React.FC<MetricCardProps> = ({
   title,
   subtitle,
   value,
-  iconName,
-  iconColor,
-  backgroundColor,
-  valueColor,
+  valueColor = 'ink',
+  icon,
   onPress,
-  showAdjustOption,
-  onAdjust
 }) => {
-  const Card = onPress ? TouchableOpacity : View;
-  
-  return (
-    <Card
-      style={[styles.summaryCard, { backgroundColor }]}
-      onPress={onPress}
-      activeOpacity={onPress ? 0.7 : 1}
+  const { theme } = useTheme();
+
+  const inner = (
+    <Surface
+      tone="surface"
+      bordered
+      padded="md"
+      radiusKey="md"
+      style={{ gap: theme.spacing.xs }}
     >
-      <View style={styles.cardContent}>
-        <MaterialCommunityIcons name={iconName as any} size={24} color={iconColor} />
-        <View style={styles.titleContainer}>
-          <Text style={styles.cardTitle}>{title}</Text>
-          {subtitle && <Text style={styles.cardSubtitle}>{subtitle}</Text>}
-        </View>
-        {showAdjustOption && (
-          <TouchableOpacity 
-            style={styles.adjustButton} 
-            onPress={onAdjust}
-          >
-            <Ionicons name="pencil" size={16} color="rgba(255, 255, 255, 0.8)" />
-          </TouchableOpacity>
-        )}
+      <View style={styles.metricTopRow}>
+        <AppText variant="monoLabel" color="inkSecondary" numberOfLines={1}>
+          {title}
+        </AppText>
+        {icon}
       </View>
-      <Text style={[styles.cardValue, valueColor ? { color: valueColor } : null]}>{value}</Text>
-    </Card>
+      <AppText
+        variant="monoValue"
+        color={valueColor}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.85}
+      >
+        {value}
+      </AppText>
+      <AppText variant="caption" color="inkMuted" numberOfLines={1}>
+        {subtitle}
+      </AppText>
+    </Surface>
+  );
+
+  if (!onPress) {
+    return <View style={styles.metricCell}>{inner}</View>;
+  }
+
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${title}: ${value}`}
+      style={({ pressed }) => [
+        styles.metricCell,
+        { opacity: pressed ? theme.motion.pressOpacity : 1 },
+      ]}
+    >
+      {inner}
+    </Pressable>
   );
 };
 
 interface FinancialSummaryProps {
   currentBalance: number;
-  pendingExpenses: number; 
+  pendingExpenses: number;
   approvedExpenses: number;
   totalIncomes: number;
   totalExpensesCurrentMonth?: number;
@@ -94,93 +120,148 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
   onPressBalance,
   onPressExpenses,
   onPressIncomes,
-  onAdjustBalance
+  onAdjustBalance,
 }) => {
-  // Formatar valor monetário
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(value);
-  };
+  const { theme } = useTheme();
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="small" color="#7B68EE" />
-        <Text style={styles.loadingText}>Carregando dados financeiros...</Text>
-      </View>
+      <Surface
+        tone="surface"
+        bordered
+        padded="md"
+        radiusKey="md"
+        style={{ gap: theme.spacing.sm }}
+      >
+        <Skeleton width="40%" height={14} />
+        <Skeleton width="65%" height={32} />
+        <Divider />
+        <View style={[styles.row, { gap: theme.spacing.sm }]}>
+          <Skeleton width="48%" height={84} radiusKey="md" />
+          <Skeleton width="48%" height={84} radiusKey="md" />
+        </View>
+      </Surface>
     );
   }
 
   if (error) {
     return (
-      <View style={styles.errorContainer}>
-        <Ionicons name="alert-circle" size={24} color="#FF6347" />
-        <Text style={styles.errorText}>{error}</Text>
-        {onRetry && (
-          <TouchableOpacity style={styles.retryButton} onPress={onRetry}>
-            <Text style={styles.retryText}>Tentar novamente</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+      <Surface tone="surface" bordered padded="md" radiusKey="md">
+        <StateView
+          kind="error"
+          title="Não foi possível carregar o resumo"
+          description={error}
+          actionLabel={onRetry ? 'Tentar novamente' : undefined}
+          onAction={onRetry}
+        />
+      </Surface>
     );
   }
 
+  const isPositiveBalance = currentBalance >= 0;
+  const formattedBalance = formatCurrencyBRL(currentBalance);
+  const balanceBody = (
+    <View style={{ gap: theme.spacing.xxs }}>
+      <View style={[styles.balanceLabelRow, { gap: theme.spacing.xs }]}>
+        <Wallet size={16} strokeWidth={1.75} color={theme.colors.accent} />
+        <AppText variant="monoLabel" color="inkSecondary">
+          Saldo Total
+        </AppText>
+      </View>
+      <AppText
+        variant="monoHero"
+        color={isPositiveBalance ? 'success' : 'danger'}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.85}
+      >
+        {formattedBalance}
+      </AppText>
+    </View>
+  );
+
   return (
-    <View style={styles.container}>
-      <SummaryCard
-        title="Saldo Total"
-        value={formatCurrency(currentBalance)}
-        iconName="wallet"
-        iconColor="#64B5F6"
-        backgroundColor="#243447"
-        valueColor={currentBalance >= 0 ? "#4CAF50" : "#FF6347"}
-        onPress={onPressBalance}
-        showAdjustOption={isAdmin}
-        onAdjust={onAdjustBalance}
-      />
-      
-      <View style={styles.row}>
-        <SummaryCard
+    <View style={{ gap: theme.spacing.sm }}>
+      <Surface
+        tone="surface"
+        bordered
+        padded="md"
+        radiusKey="md"
+        style={{ gap: theme.spacing.xs }}
+      >
+        <View style={[styles.balanceHeader, { gap: theme.spacing.xs }]}>
+          {onPressBalance ? (
+            <Pressable
+              onPress={onPressBalance}
+              accessibilityRole="button"
+              accessibilityLabel={`Saldo total: ${formattedBalance}`}
+              style={({ pressed }) => [
+                styles.balancePressable,
+                { opacity: pressed ? theme.motion.pressOpacity : 1 },
+              ]}
+            >
+              {balanceBody}
+            </Pressable>
+          ) : (
+            <View style={styles.balancePressable}>{balanceBody}</View>
+          )}
+
+          <View style={[styles.balanceActions, { gap: theme.spacing.xs }]}>
+            <StatusText
+              label={isPositiveBalance ? 'Positivo' : 'Negativo'}
+              tone={isPositiveBalance ? 'success' : 'danger'}
+              showDot
+            />
+            {isAdmin && onAdjustBalance ? (
+              <IconButton
+                icon={<Pencil size={18} strokeWidth={1.75} color={theme.colors.accent} />}
+                onPress={onAdjustBalance}
+                accessibilityLabel="Ajustar saldo"
+                variant="subtle"
+              />
+            ) : null}
+          </View>
+        </View>
+      </Surface>
+
+      <View style={[styles.row, { gap: theme.spacing.sm }]}>
+        <MetricCard
           title="Despesas"
           subtitle="Neste mês"
-          value={formatCurrency(totalExpensesCurrentMonth ?? (approvedExpenses + pendingExpenses))}
-          iconName="cash-minus"
-          iconColor="#FF6347"
-          backgroundColor="#4F2220"
+          value={formatCurrencyBRL(
+            totalExpensesCurrentMonth ?? approvedExpenses + pendingExpenses
+          )}
+          valueColor="danger"
+          icon={<ArrowUpRight size={18} strokeWidth={1.75} color={theme.colors.danger} />}
           onPress={onPressExpenses}
         />
-        
-        <SummaryCard
+
+        <MetricCard
           title="Receitas"
           subtitle="Neste mês"
-          value={formatCurrency(totalIncomesCurrentMonth ?? totalIncomes)}
-          iconName="cash-plus"
-          iconColor="#4CAF50"
-          backgroundColor="#1F4F22"
+          value={formatCurrencyBRL(totalIncomesCurrentMonth ?? totalIncomes)}
+          valueColor="success"
+          icon={<ArrowDownLeft size={18} strokeWidth={1.75} color={theme.colors.success} />}
           onPress={onPressIncomes}
         />
       </View>
-      
-      <View style={styles.row}>
-        <SummaryCard
+
+      <View style={[styles.row, { gap: theme.spacing.sm }]}>
+        <MetricCard
           title="Pendentes"
           subtitle="Neste mês"
-          value={formatCurrency(pendingExpenses)}
-          iconName="clock-time-four"
-          iconColor="#FFC107"
-          backgroundColor="#4F3F1F"
+          value={formatCurrencyBRL(pendingExpenses)}
+          valueColor="warning"
+          icon={<Clock size={18} strokeWidth={1.75} color={theme.colors.warning} />}
           onPress={onPressExpenses}
         />
-        
-        <SummaryCard
+
+        <MetricCard
           title="Aprovadas"
           subtitle="Neste mês"
-          value={formatCurrency(approvedExpenses)}
-          iconName="check-circle"
-          iconColor="#2196F3"
-          backgroundColor="#1F334F"
+          value={formatCurrencyBRL(approvedExpenses)}
+          valueColor="accent"
+          icon={<CheckCircle2 size={18} strokeWidth={1.75} color={theme.colors.accent} />}
           onPress={onPressExpenses}
         />
       </View>
@@ -189,96 +270,35 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
 };
 
 const styles = StyleSheet.create({
-  container: {
-    padding: 16,
-    backgroundColor: 'transparent',
-  },
-  loadingContainer: {
-    padding: 20,
+  balanceHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
   },
-  loadingText: {
-    color: '#aaa',
-    marginTop: 10,
-    fontSize: 14,
+  balancePressable: {
+    flex: 1,
+    minWidth: 0,
   },
-  errorContainer: {
-    padding: 20,
+  balanceLabelRow: {
+    flexDirection: 'row',
     alignItems: 'center',
   },
-  errorText: {
-    color: '#FF6347',
-    marginTop: 10,
-    textAlign: 'center',
-    marginBottom: 10,
-  },
-  retryButton: {
-    backgroundColor: 'rgba(255, 99, 71, 0.15)',
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginTop: 10,
-  },
-  retryText: {
-    color: '#FF6347',
-    fontWeight: 'bold',
+  balanceActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   row: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 16,
-    gap: 12,
   },
-  summaryCard: {
-    borderRadius: 16,
-    padding: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 0,
-      },
-    }),
+  metricCell: {
     flex: 1,
-    marginHorizontal: 0,
-    minHeight: 100,
-    justifyContent: 'space-between',
+    minWidth: 0,
   },
-  cardContent: {
+  metricTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingBottom: 8,
+    justifyContent: 'space-between',
   },
-  titleContainer: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  cardTitle: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  cardSubtitle: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontSize: 12,
-    marginTop: 2,
-  },
-  cardValue: {
-    color: '#fff',
-    fontSize: 19,
-    fontWeight: 'bold',
-    alignSelf: 'flex-start',
-  },
-  adjustButton: {
-    padding: 4,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  }
 });
 
 export default FinancialSummary;

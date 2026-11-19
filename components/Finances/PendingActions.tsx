@@ -1,18 +1,24 @@
 // components/Finances/PendingActions.tsx
-import React from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TouchableOpacity, 
-  Image,
-  ActivityIndicator,
-  Alert
-} from 'react-native';
-import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import { PendingAction, Expense } from '../../src/models/finances.model';
-import { format, parseISO } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import React, { useState } from 'react';
+import { StyleSheet, View } from 'react-native';
+import {
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  XCircle,
+} from 'lucide-react-native';
+import {
+  AppText,
+  BottomSheetModal,
+  Button,
+  Skeleton,
+  StateView,
+  Surface,
+  TextField,
+  useFeedback,
+  useTheme,
+} from '../../src/design-system';
+import { PendingAction } from '../../src/models/finances.model';
 import FinanceItem from './FinanceItem';
 
 interface PendingActionsProps {
@@ -23,96 +29,78 @@ interface PendingActionsProps {
   onPressAction: (action: PendingAction) => void;
   onPressViewAll: () => void;
   onApprove?: (id: number) => Promise<void>;
-  onReject?: (id: number) => Promise<void>;
+  onReject?: (id: number, reason?: string) => Promise<void>;
   maxItems?: number;
 }
 
-const PendingActionItem: React.FC<{ 
-  item: PendingAction; 
+const PendingActionItem: React.FC<{
+  item: PendingAction;
   onPress: (action: PendingAction) => void;
   onApprove?: (id: number) => Promise<void>;
-  onReject?: (id: number) => Promise<void>;
-}> = ({ item, onPress, onApprove, onReject }) => {
-  
-  // Handle approve action
+  onRequestReject?: (action: PendingAction) => void;
+}> = ({ item, onPress, onApprove, onRequestReject }) => {
+  const { theme } = useTheme();
+  const { toast } = useFeedback();
+  const [approving, setApproving] = useState(false);
+
   const handleApprove = async () => {
     if (!onApprove) return;
-    
+
     try {
+      setApproving(true);
       await onApprove(item.id);
-    } catch (error) {
-      console.error('Error approving expense:', error);
-      Alert.alert('Erro', 'Não foi possível aprovar esta despesa. Tente novamente.');
+    } catch {
+      toast({
+        title: 'Erro',
+        message: 'Não foi possível aprovar esta despesa. Tente novamente.',
+        tone: 'danger',
+      });
+    } finally {
+      setApproving(false);
     }
   };
 
-  // Handle reject action
-  const handleReject = async () => {
-    if (!onReject) return;
-
-    Alert.prompt(
-      'Motivo da rejeição',
-      'Informe o motivo para rejeitar esta despesa:',
-      [
-        {
-          text: 'Cancelar',
-          style: 'cancel'
-        },
-        {
-          text: 'Rejeitar',
-          style: 'destructive',
-          onPress: async (reason) => {
-            if (!reason || reason.trim() === '') {
-              Alert.alert('Erro', 'É necessário informar um motivo para rejeitar a despesa.');
-              return;
-            }
-
-            try {
-              // We would pass the reason here if onReject supported it
-              await onReject(item.id);
-            } catch (error) {
-              console.error('Error rejecting expense:', error);
-              Alert.alert('Erro', 'Não foi possível rejeitar esta despesa. Tente novamente.');
-            }
-          }
-        }
-      ],
-      'plain-text'
-    );
-  };
-
   return (
-    <View style={styles.pendingItemWrapper}>
-      <FinanceItem 
-        item={item} 
-        type="expense" 
-        onPress={() => onPress(item)}
-      />
-      
-      {/* Quick action buttons */}
-      {(onApprove || onReject) && (
-        <View style={styles.quickActions}>
-          {onApprove && (
-            <TouchableOpacity 
-              style={[styles.actionButton, styles.approveButton]}
-              onPress={handleApprove}
-            >
-              <MaterialIcons name="check-circle" size={16} color="#fff" />
-              <Text style={styles.actionButtonText}>Aprovar</Text>
-            </TouchableOpacity>
-          )}
-          
-          {onReject && (
-            <TouchableOpacity 
-              style={[styles.actionButton, styles.rejectButton]}
-              onPress={handleReject}
-            >
-              <MaterialIcons name="cancel" size={16} color="#fff" />
-              <Text style={styles.actionButtonText}>Rejeitar</Text>
-            </TouchableOpacity>
-          )}
+    <View style={{ gap: theme.spacing.xs }}>
+      <FinanceItem item={item} type="expense" onPress={() => onPress(item)} />
+
+      {onApprove || onRequestReject ? (
+        <View style={[styles.quickActions, { gap: theme.spacing.xs }]}>
+          {onApprove ? (
+            <Button
+              label="Aprovar"
+              variant="primary"
+              size="sm"
+              loading={approving}
+              onPress={() => void handleApprove()}
+              leftIcon={
+                <CheckCircle2
+                  size={16}
+                  strokeWidth={1.75}
+                  color={theme.colors.onAccent}
+                />
+              }
+            />
+          ) : null}
+
+          {onRequestReject ? (
+            <Button
+              label="Rejeitar"
+              variant="danger"
+              size="sm"
+              disabled={approving}
+              onPress={() => onRequestReject(item)}
+              leftIcon={
+                <XCircle
+                  size={16}
+                  strokeWidth={1.75}
+                  color={theme.colors.onDanger}
+                />
+              }
+            />
+          ) : null}
         </View>
-      )}
+      ) : null}
     </View>
   );
 };
@@ -126,220 +114,235 @@ const PendingActions: React.FC<PendingActionsProps> = ({
   onPressViewAll,
   onApprove,
   onReject,
-  maxItems = 3 // Limitando a 3 itens por padrão
+  maxItems = 3,
 }) => {
-  // Make sure actions is always an array
-  const safeActions = Array.isArray(actions) ? actions : [];
-  
-  // Filter to include only PENDING status items and limit number of items
-  const pendingActions = safeActions
-    .filter(action => action.status === 'PENDING')
-    .slice(0, maxItems);
+  const { theme } = useTheme();
+  const { toast } = useFeedback();
 
-  // Log for debugging
-  console.log(`Rendering ${pendingActions.length} pending actions (from ${safeActions.length} total)`);
+  const [rejectTarget, setRejectTarget] = useState<PendingAction | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [rejectionError, setRejectionError] = useState<string | undefined>(undefined);
+  const [rejecting, setRejecting] = useState(false);
+
+  const safeActions = Array.isArray(actions) ? actions : [];
+  const allPending = safeActions.filter((action) => action.status === 'PENDING');
+  const pendingActions = allPending.slice(0, maxItems);
+
+  const openRejectSheet = (action: PendingAction) => {
+    setRejectTarget(action);
+    setRejectionReason('');
+    setRejectionError(undefined);
+  };
+
+  const closeRejectSheet = () => {
+    if (rejecting) return;
+    setRejectTarget(null);
+    setRejectionReason('');
+    setRejectionError(undefined);
+  };
+
+  const handleConfirmReject = async () => {
+    if (!onReject || !rejectTarget) return;
+
+    const trimmed = rejectionReason.trim();
+    if (!trimmed) {
+      setRejectionError('É necessário informar um motivo para rejeitar a despesa.');
+      return;
+    }
+
+    try {
+      setRejecting(true);
+      await onReject(rejectTarget.id, trimmed);
+      setRejectTarget(null);
+      setRejectionReason('');
+      setRejectionError(undefined);
+    } catch {
+      toast({
+        title: 'Erro',
+        message: 'Não foi possível rejeitar esta despesa. Tente novamente.',
+        tone: 'danger',
+      });
+    } finally {
+      setRejecting(false);
+    }
+  };
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        <View style={styles.headerRow}>
-          <Text style={styles.sectionTitle}>Ações Pendentes</Text>
-        </View>
-        
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="small" color="#7B68EE" />
-          <Text style={styles.loadingText}>Carregando ações pendentes...</Text>
-        </View>
-      </View>
+      <Surface
+        tone="surface"
+        bordered
+        padded="md"
+        radiusKey="md"
+        style={{ gap: theme.spacing.sm }}
+      >
+        <AppText variant="heading" color="ink">
+          Ações Pendentes
+        </AppText>
+        <Skeleton width="100%" height={56} radiusKey="sm" />
+        <Skeleton width="100%" height={56} radiusKey="sm" />
+      </Surface>
     );
   }
 
   if (error) {
     return (
-      <View style={styles.container}>
-        <View style={styles.headerRow}>
-          <Text style={styles.sectionTitle}>Ações Pendentes</Text>
-        </View>
-        
-        <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={24} color="#FF6347" />
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity 
-            style={styles.retryButton}
-            onPress={onRetry}
-          >
-            <Text style={styles.retryText}>Tentar novamente</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      <Surface
+        tone="surface"
+        bordered
+        padded="md"
+        radiusKey="md"
+        style={{ gap: theme.spacing.xs }}
+      >
+        <AppText variant="heading" color="ink">
+          Ações Pendentes
+        </AppText>
+        <StateView
+          kind="error"
+          title="Não foi possível carregar"
+          description={error}
+          actionLabel="Tentar novamente"
+          onAction={onRetry}
+        />
+      </Surface>
     );
   }
 
-  // If no pending actions, don't render the component at all
   if (pendingActions.length === 0) {
     return null;
   }
 
-  // Calculate total pending actions not shown in this view
-  const remainingCount = safeActions.filter(action => action.status === 'PENDING').length - pendingActions.length;
+  const remainingCount = allPending.length - pendingActions.length;
 
   return (
-    <View style={styles.container}>
-      <View style={styles.headerRow}>
-        <Text style={styles.sectionTitle}>Ações Pendentes</Text>
-        
-        <TouchableOpacity
-          style={styles.viewAllButton}
-          onPress={onPressViewAll}
-        >
-          <Text style={styles.viewAllText}>Ver todas</Text>
-          <Ionicons name="chevron-forward" size={16} color="#7B68EE" />
-        </TouchableOpacity>
-      </View>
-      
-      <View style={styles.actionsList}>
-        {pendingActions.map(item => (
-          <PendingActionItem 
-            key={`pending-${item.id}`}
-            item={item} 
-            onPress={onPressAction}
-            onApprove={onApprove}
-            onReject={onReject}
-          />
-        ))}
-        
-        {remainingCount > 0 && (
-          <TouchableOpacity 
-            style={styles.viewMoreButton}
+    <>
+      <Surface
+        tone="surface"
+        bordered
+        padded="md"
+        radiusKey="md"
+        style={{ gap: theme.spacing.sm }}
+      >
+        <View style={[styles.headerRow, { gap: theme.spacing.xs }]}>
+          <AppText variant="heading" color="ink" style={styles.sectionTitle}>
+            Ações Pendentes
+          </AppText>
+
+          <Button
+            label="Ver todas"
+            variant="ghost"
+            size="sm"
             onPress={onPressViewAll}
-          >
-            <Text style={styles.viewMoreText}>
-              Ver mais {remainingCount} ações pendentes
-            </Text>
-            <Ionicons name="chevron-down" size={16} color="#7B68EE" />
-          </TouchableOpacity>
-        )}
-      </View>
-    </View>
+            leftIcon={
+              <ChevronRight size={16} strokeWidth={1.75} color={theme.colors.accent} />
+            }
+          />
+        </View>
+
+        <View style={{ gap: theme.spacing.sm }}>
+          {pendingActions.map((item) => (
+            <PendingActionItem
+              key={`pending-${item.id}`}
+              item={item}
+              onPress={onPressAction}
+              onApprove={onApprove}
+              onRequestReject={onReject ? openRejectSheet : undefined}
+            />
+          ))}
+
+          {remainingCount > 0 ? (
+            <Button
+              label={`Ver mais ${remainingCount} ações pendentes`}
+              variant="ghost"
+              size="sm"
+              fullWidth
+              onPress={onPressViewAll}
+              leftIcon={
+                <ChevronDown size={16} strokeWidth={1.75} color={theme.colors.accent} />
+              }
+            />
+          ) : null}
+        </View>
+      </Surface>
+
+      <BottomSheetModal
+        visible={rejectTarget !== null}
+        onClose={closeRejectSheet}
+        title="Rejeitar Despesa"
+        dismissable={!rejecting}
+        dismissOnBackdropPress={!rejecting}
+        footer={
+          <View style={[styles.sheetFooter, { gap: theme.spacing.xs }]}>
+            <View style={styles.sheetFooterButton}>
+              <Button
+                label="Cancelar"
+                variant="secondary"
+                fullWidth
+                disabled={rejecting}
+                onPress={closeRejectSheet}
+              />
+            </View>
+            <View style={styles.sheetFooterButton}>
+              <Button
+                label="Rejeitar"
+                variant="danger"
+                fullWidth
+                loading={rejecting}
+                onPress={() => void handleConfirmReject()}
+              />
+            </View>
+          </View>
+        }
+      >
+        <View style={{ gap: theme.spacing.sm }}>
+          {rejectTarget ? (
+            <AppText variant="body" color="inkSecondary">
+              Informe o motivo para rejeitar{' '}
+              <AppText variant="bodyStrong" color="ink">
+                {rejectTarget.description}
+              </AppText>
+              :
+            </AppText>
+          ) : null}
+
+          <TextField
+            label="Motivo da rejeição"
+            value={rejectionReason}
+            onChangeText={(text) => {
+              setRejectionReason(text);
+              if (rejectionError) setRejectionError(undefined);
+            }}
+            placeholder="Descreva o motivo..."
+            multiline
+            numberOfLines={3}
+            maxLength={250}
+            error={rejectionError}
+            editable={!rejecting}
+          />
+        </View>
+      </BottomSheetModal>
+    </>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: '#333',
-    borderRadius: 16,
-    padding: 16,
-    margin: 16,
-    marginTop: 0,
-  },
   headerRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    justifyContent: 'space-between',
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  viewAllButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  viewAllText: {
-    color: '#7B68EE',
-    fontSize: 14,
-    marginRight: 4,
-  },
-  loadingContainer: {
-    padding: 20,
-    alignItems: 'center',
-  },
-  loadingText: {
-    color: '#aaa',
-    marginTop: 10,
-    fontSize: 14,
-  },
-  errorContainer: {
-    padding: 20,
-    alignItems: 'center',
-  },
-  errorText: {
-    color: '#FF6347',
-    marginTop: 10,
-    textAlign: 'center',
-    marginBottom: 10,
-  },
-  retryButton: {
-    backgroundColor: 'rgba(255, 99, 71, 0.15)',
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginTop: 10,
-  },
-  retryText: {
-    color: '#FF6347',
-    fontWeight: 'bold',
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 30,
-  },
-  emptyText: {
-    color: '#aaa',
-    fontSize: 16,
-    marginTop: 10,
-    textAlign: 'center',
-  },
-  actionsList: {
-    // Removendo a propriedade maxHeight, pois não estamos mais usando FlatList
-  },
-  actionsListContent: {
-    // Isso pode ser removido, pois não estamos mais usando FlatList
-  },
-  pendingItemWrapper: {
-    marginBottom: 12,
+    flex: 1,
   },
   quickActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    marginTop: 8,
-    gap: 8,
   },
-  actionButton: {
+  sheetFooter: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
   },
-  approveButton: {
-    backgroundColor: '#4CAF50',
-  },
-  rejectButton: {
-    backgroundColor: '#FF6347',
-  },
-  actionButtonText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
-    marginLeft: 4,
-  },
-  viewMoreButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#444',
-  },
-  viewMoreText: {
-    color: '#7B68EE',
-    fontSize: 14,
-    marginRight: 4,
+  sheetFooterButton: {
+    flex: 1,
   },
 });
 

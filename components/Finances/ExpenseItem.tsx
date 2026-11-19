@@ -9,14 +9,17 @@ interface ExpenseItemProps {
   currentUserId?: string;
 }
 
-const ExpenseItem: React.FC<ExpenseItemProps> = ({ expense, onPress, currentUserId }) => {
-  // Wrapper para o item para manter a API atual
-  const handlePress = (item: Expense | any) => {
-    onPress(item as Expense);
+const ExpenseItem: React.FC<ExpenseItemProps> = ({
+  expense,
+  onPress,
+  currentUserId,
+}) => {
+  const handlePress = (item: Expense) => {
+    onPress(item);
   };
 
   return (
-    <FinanceItem 
+    <FinanceItem
       item={expense}
       type="expense"
       onPress={handlePress}

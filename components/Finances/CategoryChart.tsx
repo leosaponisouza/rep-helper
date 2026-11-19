@@ -1,13 +1,16 @@
 // components/Finances/CategoryChart.tsx
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { StyleSheet, View } from 'react-native';
+import { ChevronDown, ChevronRight, ChevronUp } from 'lucide-react-native';
+import {
+  AppText,
+  Button,
+  StateView,
+  Surface,
+  useTheme,
+} from '../../src/design-system';
 import { CategoryExpense } from '../../src/models/finances.model';
-
-const categoryColors = [
-  '#FF6347', '#4CAF50', '#2196F3', '#FFC107', '#9C27B0', 
-  '#FF9800', '#00BCD4', '#795548', '#607D8B', '#E91E63',
-];
+import { formatCurrencyBRL } from '../../src/utils/currencyUtils';
 
 interface CategoryChartProps {
   data: CategoryExpense[];
@@ -15,206 +18,179 @@ interface CategoryChartProps {
   onViewDetails?: () => void;
 }
 
-const CategoryChart: React.FC<CategoryChartProps> = ({ 
-  data, 
+const CategoryChart: React.FC<CategoryChartProps> = ({
+  data,
   title = 'Despesas por Categoria',
-  onViewDetails
+  onViewDetails,
 }) => {
+  const { theme } = useTheme();
   const [expanded, setExpanded] = useState(false);
-  
+
   if (!data || data.length === 0) {
     return (
-      <View style={styles.emptyContainer}>
-        <Text style={styles.title}>{title}</Text>
-        <Text style={styles.emptyText}>Sem dados para exibir</Text>
-      </View>
+      <Surface
+        tone="surface"
+        bordered
+        padded="md"
+        radiusKey="md"
+        style={{ gap: theme.spacing.xs }}
+      >
+        <AppText variant="heading" color="ink">
+          {title}
+        </AppText>
+        <StateView
+          kind="empty"
+          title="Sem dados para exibir"
+          description="As categorias aparecerão quando houver despesas aprovadas."
+        />
+      </Surface>
     );
   }
 
-  // Preparar dados do gráfico
-  const chartData = data.map((item, index) => ({
-    name: item.category,
-    amount: item.amount,
-    percentage: item.percentage,
-    color: item.color || categoryColors[index % categoryColors.length],
-    legendFontColor: '#fff',
-    legendFontSize: 12,
-  }));
-
-  // Formatar valor monetário
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(value);
-  };
-
-  // Mostrar apenas as top 3 categorias quando não expandido
+  const seriesPalette = theme.colors.chartSeries;
   const displayData = expanded ? data : data.slice(0, 3);
   const hasMoreData = data.length > 3;
 
   return (
-    <View style={styles.container}>
-      <View style={styles.headerRow}>
-        <Text style={styles.title}>{title}</Text>
-        
-        {onViewDetails && (
-          <TouchableOpacity
-            style={styles.viewDetailsButton}
+    <Surface
+      tone="surface"
+      bordered
+      padded="md"
+      radiusKey="md"
+      style={{ gap: theme.spacing.md }}
+    >
+      <View style={[styles.headerRow, { gap: theme.spacing.xs }]}>
+        <AppText variant="heading" color="ink" style={styles.titleText}>
+          {title}
+        </AppText>
+
+        {onViewDetails ? (
+          <Button
+            label="Detalhes"
+            variant="ghost"
+            size="sm"
             onPress={onViewDetails}
-          >
-            <Text style={styles.viewDetailsText}>Detalhes</Text>
-            <Ionicons name="chevron-forward" size={16} color="#7B68EE" />
-          </TouchableOpacity>
-        )}
-      </View>
-      
-      {/* Lista de categorias */}
-      <View style={styles.categoriesList}>
-        {displayData.map((item, index) => (
-          <View key={index} style={styles.categoryItem}>
-            <View style={styles.categoryHeader}>
-              <View style={[styles.categoryColor, { backgroundColor: chartData[index].color }]} />
-              <Text style={styles.categoryName}>{item.category}</Text>
-              <Text style={styles.categoryPercentage}>{item.percentage.toFixed(1)}%</Text>
-            </View>
-            
-            <View style={styles.progressBarContainer}>
-              <View 
-                style={[
-                  styles.progressBar, 
-                  { 
-                    width: `${item.percentage}%`, 
-                    backgroundColor: chartData[index].color 
-                  }
-                ]} 
-              />
-            </View>
-            
-            <Text style={styles.categoryAmount}>{formatCurrency(item.amount)}</Text>
-          </View>
-        ))}
+            leftIcon={
+              <ChevronRight size={16} strokeWidth={1.75} color={theme.colors.accent} />
+            }
+          />
+        ) : null}
       </View>
 
-      {/* Botão "Ver mais" ou "Ver menos" */}
-      {hasMoreData && (
-        <TouchableOpacity 
-          style={styles.toggleButton}
-          onPress={() => setExpanded(!expanded)}
-        >
-          <Text style={styles.toggleButtonText}>
-            {expanded ? 'Ver menos' : `Ver mais ${data.length - 3} categorias`}
-          </Text>
-          <Ionicons 
-            name={expanded ? "chevron-up" : "chevron-down"} 
-            size={16} 
-            color="#7B68EE" 
-          />
-        </TouchableOpacity>
-      )}
-    </View>
+      <View style={{ gap: theme.spacing.sm }}>
+        {displayData.map((item, index) => {
+          const seriesColor =
+            item.color || seriesPalette[index % seriesPalette.length];
+          const safePercentage = Number.isFinite(item.percentage)
+            ? Math.min(100, Math.max(0, item.percentage))
+            : 0;
+
+          return (
+            <View
+              key={`${item.category}-${index}`}
+              style={{ gap: theme.spacing.xxs }}
+            >
+              <View style={[styles.categoryHeader, { gap: theme.spacing.xs }]}>
+                <View
+                  style={[
+                    styles.categoryDot,
+                    {
+                      backgroundColor: seriesColor,
+                      borderRadius: theme.radius.full,
+                    },
+                  ]}
+                />
+                <AppText
+                  variant="bodyStrong"
+                  color="ink"
+                  numberOfLines={1}
+                  style={styles.categoryName}
+                >
+                  {item.category}
+                </AppText>
+                <AppText variant="monoLabel" color="inkSecondary">
+                  {safePercentage.toFixed(1)}%
+                </AppText>
+                <AppText variant="monoValue" color="ink">
+                  {formatCurrencyBRL(item.amount)}
+                </AppText>
+              </View>
+
+              <View
+                style={[
+                  styles.progressTrack,
+                  {
+                    backgroundColor: theme.colors.subtle,
+                    borderRadius: theme.radius.full,
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.progressFill,
+                    {
+                      width: `${safePercentage}%`,
+                      backgroundColor: seriesColor,
+                      borderRadius: theme.radius.full,
+                    },
+                  ]}
+                />
+              </View>
+            </View>
+          );
+        })}
+      </View>
+
+      {hasMoreData ? (
+        <Button
+          label={
+            expanded ? 'Ver menos' : `Ver mais ${data.length - 3} categorias`
+          }
+          variant="ghost"
+          size="sm"
+          onPress={() => setExpanded((prev) => !prev)}
+          leftIcon={
+            expanded ? (
+              <ChevronUp size={16} strokeWidth={1.75} color={theme.colors.accent} />
+            ) : (
+              <ChevronDown size={16} strokeWidth={1.75} color={theme.colors.accent} />
+            )
+          }
+        />
+      ) : null}
+    </Surface>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: '#333',
-    borderRadius: 16,
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 16,
-  },
   headerRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
   },
-  emptyContainer: {
-    backgroundColor: '#333',
-    borderRadius: 16,
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 100,
-  },
-  title: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  viewDetailsButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  viewDetailsText: {
-    color: '#7B68EE',
-    fontSize: 14,
-    marginRight: 4,
-  },
-  emptyText: {
-    color: '#aaa',
-    fontSize: 14,
-    marginTop: 10,
-  },
-  categoriesList: {
-    // Sem height fixa para expandir conforme necessário
-  },
-  categoryItem: {
-    marginBottom: 12,
+  titleText: {
+    flex: 1,
   },
   categoryHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
   },
-  categoryColor: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 8,
+  categoryDot: {
+    width: 10,
+    height: 10,
   },
   categoryName: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '500',
     flex: 1,
+    minWidth: 0,
   },
-  categoryPercentage: {
-    color: '#ccc',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  progressBarContainer: {
+  progressTrack: {
     height: 6,
-    backgroundColor: '#444',
-    borderRadius: 3,
-    marginBottom: 4,
     overflow: 'hidden',
+    width: '100%',
   },
-  progressBar: {
+  progressFill: {
     height: '100%',
-    borderRadius: 3,
   },
-  categoryAmount: {
-    color: '#ccc',
-    fontSize: 12,
-    textAlign: 'right',
-  },
-  toggleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 8,
-    paddingVertical: 8,
-  },
-  toggleButtonText: {
-    color: '#7B68EE',
-    fontSize: 14,
-    marginRight: 4,
-  }
 });
 
 export default CategoryChart;

@@ -1,241 +1,194 @@
-// Modificação do componente IncomesScreen para embutir na tab
-// Arquivo: components/Finances/EmbeddedIncomesScreen.tsx
-
-import React, { useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  RefreshControl,
-  ActivityIndicator,
-  Alert
-} from 'react-native';
+// app/(panel)/finances/incomes/index.tsx
+import React, { useCallback, useMemo, useState } from 'react';
+import { FlatList, Platform, RefreshControl, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useFinances } from '@/src/hooks/useFinances';
-import IncomeItem from '@/components/Finances/IncomeItem';
-import { Income } from '@/src/models/finances.model';
-import { useAuth } from '@/src/context/AuthContext';
+import { Plus, Wallet } from 'lucide-react-native';
+import IncomeItem from '../../../../components/Finances/IncomeItem';
+import { useAuth } from '../../../../src/context/AuthContext';
+import {
+  Button,
+  Screen,
+  ScreenHeader,
+  StateView,
+  StatusText,
+  Surface,
+  useTheme,
+} from '../../../../src/design-system';
+import { useFinances } from '../../../../src/hooks/useFinances';
+import { Income } from '../../../../src/models/finances.model';
 
-const IncomesScreen = ({ hideHeader = false }) => {
+interface IncomesScreenProps {
+  hideHeader?: boolean;
+}
+
+const IncomesScreen: React.FC<IncomesScreenProps> = ({ hideHeader = false }) => {
   const router = useRouter();
-  const [refreshing, setRefreshing] = useState(false);
+  const { theme } = useTheme();
   const { user } = useAuth();
-  
-  // Get incomes data from the hook
-  const {
-    incomes,
-    loadingIncomes,
-    incomesError,
-    fetchIncomes
-  } = useFinances();
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Refresh incomes
+  const { incomes, loadingIncomes, incomesError, fetchIncomes } = useFinances();
+
+  const handleBack = useCallback(() => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(panel)/finances');
+    }
+  }, [router]);
+
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
       await fetchIncomes();
-    } catch (error) {
-      console.error('Erro ao recarregar receitas:', error);
-      Alert.alert('Erro', 'Não foi possível atualizar as receitas.');
     } finally {
       setRefreshing(false);
     }
   }, [fetchIncomes]);
 
-  // Navigate to income details
-  const handleIncomePress = useCallback((income: Income) => {
-    router.push(`/(panel)/finances/incomes/${income.id}`);
-  }, [router]);
+  const handleIncomePress = useCallback(
+    (income: Income) => {
+      router.push(`/(panel)/finances/incomes/${income.id}`);
+    },
+    [router]
+  );
 
-  // Navigate to create income
   const navigateToCreateIncome = useCallback(() => {
     router.push('/(panel)/finances/incomes/create');
   }, [router]);
 
-  // Render empty state
-  const renderEmptyState = useCallback(() => {
-    if (loadingIncomes) {
-      return (
-        <View style={styles.emptyContainer}>
-          <ActivityIndicator size="large" color="#4CAF50" />
-          <Text style={styles.loadingText}>Carregando receitas...</Text>
-        </View>
-      );
-    }
-    
-    if (incomesError) {
-      return (
-        <View style={styles.emptyContainer}>
-          <MaterialCommunityIcons name="alert-circle-outline" size={64} color="#FF6347" />
-          <Text style={styles.errorText}>{incomesError}</Text>
-          <TouchableOpacity 
-            style={styles.retryButton}
-            onPress={handleRefresh}
-          >
-            <Text style={styles.retryButtonText}>Tentar novamente</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-    
-    return (
-      <View style={styles.emptyContainer}>
-        <MaterialCommunityIcons 
-          name="cash-plus" 
-          size={64} 
-          color="#4CAF50" 
-          style={{ opacity: 0.6 }} 
+  const subtitle = useMemo(() => {
+    if (loadingIncomes && incomes.length === 0) return 'Carregando...';
+    const count = incomes.length;
+    return `${count} ${count === 1 ? 'receita' : 'receitas'}`;
+  }, [loadingIncomes, incomes.length]);
+
+  const body = (
+    <View style={styles.body}>
+      {loadingIncomes && incomes.length === 0 ? (
+        <StateView kind="loading" title="Carregando receitas..." />
+      ) : incomesError && incomes.length === 0 ? (
+        <StateView
+          kind="error"
+          title="Erro ao carregar receitas"
+          description={incomesError}
+          actionLabel="Tentar novamente"
+          onAction={() => void handleRefresh()}
         />
-        <Text style={styles.emptyText}>
-          Nenhuma receita cadastrada
-        </Text>
-        <TouchableOpacity 
-          style={styles.createButton}
-          onPress={navigateToCreateIncome}
-        >
-          <Text style={styles.createButtonText}>Registrar Receita</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }, [loadingIncomes, incomesError, handleRefresh, navigateToCreateIncome]);
+      ) : (
+        <FlatList<Income>
+          data={incomes}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={({ item }) => (
+            <IncomeItem
+              income={item}
+              onPress={handleIncomePress}
+              currentUserId={user?.uid}
+            />
+          )}
+          ItemSeparatorComponent={() => (
+            <View style={{ height: theme.spacing.sm }} />
+          )}
+          ListHeaderComponent={
+            incomesError ? (
+              <Surface
+                tone="subtle"
+                bordered
+                padded="sm"
+                radiusKey="sm"
+                style={{
+                  marginBottom: theme.spacing.sm,
+                  gap: theme.spacing.xs,
+                }}
+              >
+                <StatusText label={incomesError} tone="danger" showDot />
+                <Button
+                  label="Tentar novamente"
+                  variant="secondary"
+                  size="sm"
+                  onPress={() => void handleRefresh()}
+                />
+              </Surface>
+            ) : null
+          }
+          ListEmptyComponent={
+            <StateView
+              kind="empty"
+              icon={
+                <Wallet
+                  size={32}
+                  strokeWidth={1.75}
+                  color={theme.colors.inkMuted}
+                />
+              }
+              title="Nenhuma receita cadastrada"
+              description="Registre contribuições, reembolsos e entradas financeiras da república."
+              actionLabel="Registrar Receita"
+              onAction={navigateToCreateIncome}
+            />
+          }
+          contentContainerStyle={[
+            styles.listContainer,
+            {
+              padding: theme.spacing.md,
+              paddingBottom: theme.spacing.xxl,
+            },
+          ]}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => void handleRefresh()}
+              colors={[theme.colors.accent]}
+              tintColor={theme.colors.accent}
+            />
+          }
+          removeClippedSubviews={Platform.OS !== 'web'}
+        />
+      )}
+    </View>
+  );
+
+  if (hideHeader) {
+    return body;
+  }
 
   return (
-    <View style={styles.container}>
-      {/* Oculta o header quando solicitado */}
-      {!hideHeader && (
-        <View style={styles.headerContainer}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <Ionicons name="arrow-back" size={24} color="#7B68EE" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Receitas</Text>
-          
-          <TouchableOpacity 
-            style={styles.headerActionButton}
-            onPress={navigateToCreateIncome}
-          >
-            <Ionicons name="add-circle-outline" size={24} color="#7B68EE" />
-          </TouchableOpacity>
-        </View>
-      )}
-      
-      {/* Incomes List */}
-      <FlatList
-        data={incomes}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => (
-          <IncomeItem 
-            income={item}
-            onPress={() => handleIncomePress(item)}
-            currentUserId={user?.uid}
-          />
-        )}
-        contentContainerStyle={[
-          styles.listContainer,
-          incomes.length === 0 && styles.emptyListContainer
-        ]}
-        ListEmptyComponent={renderEmptyState}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            colors={['#4CAF50']}
-            tintColor={'#4CAF50'}
-          />
-        }
-      />
-    </View>
+    <Screen
+      width="wide"
+      padded={false}
+      header={
+        <ScreenHeader
+          title="Receitas"
+          subtitle={subtitle}
+          onBack={handleBack}
+          rightActions={
+            <Button
+              label="Nova"
+              variant="primary"
+              size="sm"
+              leftIcon={
+                <Plus size={16} strokeWidth={1.75} color={theme.colors.onAccent} />
+              }
+              onPress={navigateToCreateIncome}
+              accessibilityLabel="Registrar nova receita"
+            />
+          }
+        />
+      }
+    >
+      {body}
+    </Screen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  body: {
     flex: 1,
-    backgroundColor: '#222',
-  },
-  headerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#333',
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#444',
-  },
-  backButton: {
-    marginRight: 15,
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  headerActionButton: {
-    padding: 8,
+    minHeight: 0,
   },
   listContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 80,
-  },
-  emptyListContainer: {
     flexGrow: 1,
-    justifyContent: 'center',
   },
-  emptyContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 40,
-    minHeight: 300,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#aaa',
-    textAlign: 'center',
-    marginTop: 16,
-    marginBottom: 24,
-  },
-  loadingText: {
-    fontSize: 16,
-    color: '#aaa',
-    marginTop: 16,
-  },
-  errorText: {
-    fontSize: 16,
-    color: '#FF6347',
-    textAlign: 'center',
-    marginTop: 16,
-    marginBottom: 16,
-  },
-  retryButton: {
-    backgroundColor: 'rgba(255, 99, 71, 0.2)',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 99, 71, 0.5)',
-  },
-  retryButtonText: {
-    color: '#FF6347',
-    fontWeight: 'bold',
-  },
-  createButton: {
-    backgroundColor: '#4CAF50',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-  },
-  createButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-  }
 });
 
 export default IncomesScreen;

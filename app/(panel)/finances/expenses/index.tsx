@@ -1,283 +1,240 @@
-import React, { useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  RefreshControl,
-  ActivityIndicator,
-  Alert
-} from 'react-native';
+// app/(panel)/finances/expenses/index.tsx
+import React, { useCallback, useMemo, useState } from 'react';
+import { FlatList, Platform, RefreshControl, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useFinances, ExpenseFilterType } from '@/src/hooks/useFinances';
-import ExpenseItem from '@/components/Finances/ExpenseItem';
-import ExpenseFilters from '@/components/Finances/ExpenseFilters';
-import { Expense } from '@/src/models/finances.model';
-import { useAuth } from '@/src/context/AuthContext';
+import { Plus, Receipt } from 'lucide-react-native';
+import ExpenseFilters, {
+  FilterOption,
+} from '../../../../components/Finances/ExpenseFilters';
+import ExpenseItem from '../../../../components/Finances/ExpenseItem';
+import { useAuth } from '../../../../src/context/AuthContext';
+import {
+  Button,
+  Divider,
+  Screen,
+  ScreenHeader,
+  StateView,
+  StatusText,
+  Surface,
+  useTheme,
+} from '../../../../src/design-system';
+import { ExpenseFilterType, useFinances } from '../../../../src/hooks/useFinances';
+import { Expense } from '../../../../src/models/finances.model';
 
-// Define the filter option interface
-interface FilterOption {
-  key: ExpenseFilterType;
-  label: string;
-}
-
-// The available filter options
-const availableFilters: FilterOption[] = [
+const AVAILABLE_FILTERS: FilterOption[] = [
   { key: 'ALL', label: 'Todas' },
   { key: 'PENDING', label: 'Pendentes' },
   { key: 'APPROVED', label: 'Aprovadas' },
   { key: 'REJECTED', label: 'Rejeitadas' },
-  { key: 'REIMBURSED', label: 'Reembolsadas' }
+  { key: 'REIMBURSED', label: 'Reembolsadas' },
 ];
 
-const ExpensesScreen = ({ hideHeader = false }) => {
-  const router = useRouter();
-  const [refreshing, setRefreshing] = useState(false);
-  const { user } = useAuth();
+interface ExpensesScreenProps {
+  hideHeader?: boolean;
+}
 
-  // Get expenses and related functions from useFinances hook
+const ExpensesScreen: React.FC<ExpensesScreenProps> = ({ hideHeader = false }) => {
+  const router = useRouter();
+  const { theme } = useTheme();
+  const { user } = useAuth();
+  const [refreshing, setRefreshing] = useState(false);
+
   const {
     expenses,
     loadingExpenses,
     expensesError,
     fetchExpenses,
     applyExpenseFilter,
-    expenseFilter
+    expenseFilter,
   } = useFinances({
-    initialFilter: 'ALL'
+    initialFilter: 'ALL',
   });
 
-  // Refresh expenses
+  const handleBack = useCallback(() => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(panel)/finances');
+    }
+  }, [router]);
+
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
       await fetchExpenses();
-    } catch (error) {
-      console.error('Erro ao recarregar despesas:', error);
-      Alert.alert('Erro', 'Não foi possível atualizar as despesas.');
     } finally {
       setRefreshing(false);
     }
   }, [fetchExpenses]);
 
-  // Navigate to expense details
-  const handleExpensePress = useCallback((expense: Expense) => {
-    router.push(`/(panel)/finances/expenses/${expense.id}`);
-  }, [router]);
+  const handleExpensePress = useCallback(
+    (expense: Expense) => {
+      router.push(`/(panel)/finances/expenses/${expense.id}`);
+    },
+    [router]
+  );
 
-  // Handle filter change
-  const handleFilterChange = useCallback((newFilter: ExpenseFilterType) => {
-    applyExpenseFilter(newFilter);
-  }, [applyExpenseFilter]);
+  const handleFilterChange = useCallback(
+    (newFilter: ExpenseFilterType) => {
+      applyExpenseFilter(newFilter);
+    },
+    [applyExpenseFilter]
+  );
 
-  // Navigate to create expense
   const navigateToCreateExpense = useCallback(() => {
     router.push('/(panel)/finances/expenses/create');
   }, [router]);
 
-  // Render the empty state
-  const renderEmptyState = useCallback(() => {
-    if (loadingExpenses) {
-      return (
-        <View style={styles.emptyContainer}>
-          <ActivityIndicator size="large" color="#FF6347" />
-          <Text style={styles.loadingText}>Carregando despesas...</Text>
-        </View>
-      );
-    }
-    
-    if (expensesError) {
-      return (
-        <View style={styles.emptyContainer}>
-          <MaterialCommunityIcons name="alert-circle-outline" size={64} color="#FF6347" />
-          <Text style={styles.errorText}>{expensesError}</Text>
-          <TouchableOpacity 
-            style={styles.retryButton}
-            onPress={handleRefresh}
-          >
-            <Text style={styles.retryButtonText}>Tentar novamente</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-    
-    return (
-      <View style={styles.emptyContainer}>
-        <MaterialCommunityIcons 
-          name="cash-remove" 
-          size={64} 
-          color="#FF6347" 
-          style={{ opacity: 0.6 }} 
-        />
-        <Text style={styles.emptyText}>
-          Nenhuma despesa {expenseFilter !== 'ALL' ? `com status '${getStatusLabel(expenseFilter)}'` : ''}
-        </Text>
-        <TouchableOpacity 
-          style={styles.createButton}
-          onPress={navigateToCreateExpense}
-        >
-          <Text style={styles.createButtonText}>Registrar Despesa</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }, [loadingExpenses, expensesError, expenseFilter, handleRefresh, navigateToCreateExpense]);
-
-  // Get the status label for empty message
   const getStatusLabel = (filter: ExpenseFilterType): string => {
-    const filterOption = availableFilters.find(f => f.key === filter);
+    const filterOption = AVAILABLE_FILTERS.find((f) => f.key === filter);
     return filterOption ? filterOption.label.toLowerCase() : '';
   };
 
-  return (
-    <View style={styles.container}>
-      {/* Oculta o header quando solicitado */}
-      {!hideHeader && (
-        <View style={styles.headerContainer}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <Ionicons name="arrow-back" size={24} color="#7B68EE" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Despesas</Text>
-          
-          <TouchableOpacity 
-            style={styles.headerActionButton}
-            onPress={navigateToCreateExpense}
-          >
-            <Ionicons name="add-circle-outline" size={24} color="#7B68EE" />
-          </TouchableOpacity>
-        </View>
-      )}
-      
-      {/* Filters */}
-      <View style={styles.filtersContainer}>
+  const subtitle = useMemo(() => {
+    if (loadingExpenses && expenses.length === 0) return 'Carregando...';
+    const count = expenses.length;
+    return `${count} ${count === 1 ? 'despesa' : 'despesas'}`;
+  }, [loadingExpenses, expenses.length]);
+
+  const body = (
+    <View style={styles.body}>
+      <View style={{ paddingVertical: theme.spacing.sm }}>
         <ExpenseFilters
-          filters={availableFilters}
+          filters={AVAILABLE_FILTERS}
           activeFilter={expenseFilter}
           onFilterChange={handleFilterChange}
         />
       </View>
-      
-      {/* Expenses List */}
-      <FlatList
-        data={expenses}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => (
-          <ExpenseItem 
-            expense={item}
-            onPress={() => handleExpensePress(item)}
-            currentUserId={user?.uid}
-          />
-        )}
-        contentContainerStyle={[
-          styles.listContainer,
-          expenses.length === 0 && styles.emptyListContainer
-        ]}
-        ListEmptyComponent={renderEmptyState}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            colors={['#7B68EE']}
-            tintColor={'#7B68EE'}
-          />
-        }
-      />
+      <Divider />
+
+      {loadingExpenses && expenses.length === 0 ? (
+        <StateView kind="loading" title="Carregando despesas..." />
+      ) : expensesError && expenses.length === 0 ? (
+        <StateView
+          kind="error"
+          title="Erro ao carregar despesas"
+          description={expensesError}
+          actionLabel="Tentar novamente"
+          onAction={() => void handleRefresh()}
+        />
+      ) : (
+        <FlatList<Expense>
+          data={expenses}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={({ item }) => (
+            <ExpenseItem
+              expense={item}
+              onPress={handleExpensePress}
+              currentUserId={user?.uid}
+            />
+          )}
+          ItemSeparatorComponent={() => (
+            <View style={{ height: theme.spacing.sm }} />
+          )}
+          ListHeaderComponent={
+            expensesError ? (
+              <Surface
+                tone="subtle"
+                bordered
+                padded="sm"
+                radiusKey="sm"
+                style={{
+                  marginBottom: theme.spacing.sm,
+                  gap: theme.spacing.xs,
+                }}
+              >
+                <StatusText label={expensesError} tone="danger" showDot />
+                <Button
+                  label="Tentar novamente"
+                  variant="secondary"
+                  size="sm"
+                  onPress={() => void handleRefresh()}
+                />
+              </Surface>
+            ) : null
+          }
+          ListEmptyComponent={
+            <StateView
+              kind="empty"
+              icon={
+                <Receipt
+                  size={32}
+                  strokeWidth={1.75}
+                  color={theme.colors.inkMuted}
+                />
+              }
+              title={
+                expenseFilter !== 'ALL'
+                  ? `Nenhuma despesa ${getStatusLabel(expenseFilter)}`
+                  : 'Nenhuma despesa cadastrada'
+              }
+              description="Registre uma despesa para acompanhar aprovações e reembolsos."
+              actionLabel="Registrar Despesa"
+              onAction={navigateToCreateExpense}
+            />
+          }
+          contentContainerStyle={[
+            styles.listContainer,
+            {
+              padding: theme.spacing.md,
+              paddingBottom: theme.spacing.xxl,
+            },
+          ]}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => void handleRefresh()}
+              colors={[theme.colors.accent]}
+              tintColor={theme.colors.accent}
+            />
+          }
+          removeClippedSubviews={Platform.OS !== 'web'}
+        />
+      )}
     </View>
+  );
+
+  if (hideHeader) {
+    return body;
+  }
+
+  return (
+    <Screen
+      width="wide"
+      padded={false}
+      header={
+        <ScreenHeader
+          title="Despesas"
+          subtitle={subtitle}
+          onBack={handleBack}
+          rightActions={
+            <Button
+              label="Nova"
+              variant="primary"
+              size="sm"
+              leftIcon={
+                <Plus size={16} strokeWidth={1.75} color={theme.colors.onAccent} />
+              }
+              onPress={navigateToCreateExpense}
+              accessibilityLabel="Registrar nova despesa"
+            />
+          }
+        />
+      }
+    >
+      {body}
+    </Screen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  body: {
     flex: 1,
-    backgroundColor: '#222',
-  },
-  headerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#333',
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#444',
-  },
-  backButton: {
-    marginRight: 15,
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  headerActionButton: {
-    padding: 8,
-  },
-  filtersContainer: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#444',
-    backgroundColor: '#2A2A2A',
+    minHeight: 0,
   },
   listContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 80,
-  },
-  emptyListContainer: {
     flexGrow: 1,
-    justifyContent: 'center',
   },
-  emptyContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 40,
-    minHeight: 300,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#aaa',
-    textAlign: 'center',
-    marginTop: 16,
-    marginBottom: 24,
-  },
-  loadingText: {
-    fontSize: 16,
-    color: '#aaa',
-    marginTop: 16,
-  },
-  errorText: {
-    fontSize: 16,
-    color: '#FF6347',
-    textAlign: 'center',
-    marginTop: 16,
-    marginBottom: 16,
-  },
-  retryButton: {
-    backgroundColor: 'rgba(255, 99, 71, 0.2)',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 99, 71, 0.5)',
-  },
-  retryButtonText: {
-    color: '#FF6347',
-    fontWeight: 'bold',
-  },
-  createButton: {
-    backgroundColor: '#FF6347',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-  },
-  createButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-  }
 });
+
 export default ExpensesScreen;

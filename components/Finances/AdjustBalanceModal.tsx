@@ -1,19 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  Modal,
-  StyleSheet,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  TextInput,
-  Platform,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Alert
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+// components/Finances/AdjustBalanceModal.tsx
+import React, { useEffect, useState } from 'react';
+import { Platform, StyleSheet, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import {
+  AppText,
+  BottomSheetModal,
+  Button,
+  Surface,
+  TextField,
+  useFeedback,
+  useTheme,
+} from '../../src/design-system';
+import { formatCurrencyBRL } from '../../src/utils/currencyUtils';
 
 interface AdjustBalanceModalProps {
   visible: boolean;
@@ -22,275 +20,195 @@ interface AdjustBalanceModalProps {
   onSubmit: (newBalance: number, description: string) => Promise<boolean>;
 }
 
+const formatCentavosInput = (value: number): string => {
+  const safe = Number.isFinite(value) ? value : 0;
+  const sign = safe < 0 ? '-' : '';
+  const absFormatted = Math.abs(safe).toFixed(2).replace('.', ',');
+  return `${sign}${absFormatted}`;
+};
+
+const triggerImpactHaptic = () => {
+  if (Platform.OS === 'web') return;
+  try {
+    void Promise.resolve(
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+    ).catch(() => {});
+  } catch {
+    // Ignore haptics errors on unsupported devices
+  }
+};
+
+const triggerNotificationHaptic = (type: Haptics.NotificationFeedbackType) => {
+  if (Platform.OS === 'web') return;
+  try {
+    void Promise.resolve(Haptics.notificationAsync(type)).catch(() => {});
+  } catch {
+    // Ignore haptics errors on unsupported devices
+  }
+};
+
 const AdjustBalanceModal: React.FC<AdjustBalanceModalProps> = ({
   visible,
   currentBalance,
   onClose,
-  onSubmit
+  onSubmit,
 }) => {
+  const { theme } = useTheme();
+  const { toast } = useFeedback();
+
   const [balance, setBalance] = useState<string>('');
+  const [balanceError, setBalanceError] = useState<string | undefined>(undefined);
   const [description, setDescription] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
 
-  // Formatar valor monetário
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(value);
-  };
-
-  // Reset form when modal opens
   useEffect(() => {
     if (visible) {
-      setBalance(currentBalance.toString());
+      setBalance(formatCentavosInput(currentBalance));
+      setBalanceError(undefined);
       setDescription('');
     }
   }, [visible, currentBalance]);
 
-  // Format input as currency
-  const handleChangeText = (text: string) => {
-    // Remove non-numeric characters
-    const numericValue = text.replace(/[^0-9]/g, '');
-    
-    // Convert to float value (divide by 100 to handle decimals)
-    const floatValue = numericValue ? parseInt(numericValue) / 100 : 0;
-    
-    // Format as currency without symbol
+  const handleChangeBalance = (text: string) => {
+    const isNegative = text.trim().startsWith('-');
+    const numericDigits = text.replace(/\D/g, '');
+    if (!numericDigits) {
+      setBalance(isNegative ? '-' : '');
+      if (balanceError) setBalanceError(undefined);
+      return;
+    }
+
+    const cappedDigits = numericDigits.slice(0, 12);
+    const floatValue = parseInt(cappedDigits, 10) / 100;
     const formattedValue = floatValue.toFixed(2).replace('.', ',');
-    
-    setBalance(formattedValue);
+    setBalance(`${isNegative ? '-' : ''}${formattedValue}`);
+    if (balanceError) setBalanceError(undefined);
   };
 
   const handleSubmit = async () => {
-    // Show haptic feedback
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
+    triggerImpactHaptic();
+
+    const normalized = balance.replace(',', '.');
+    const newBalance = parseFloat(normalized);
+
+    if (!Number.isFinite(newBalance)) {
+      const message = 'Por favor, insira um valor válido.';
+      setBalanceError(message);
+      toast({
+        title: 'Valor inválido',
+        message,
+        tone: 'warning',
+      });
+      return;
+    }
+
     try {
       setLoading(true);
-      
-      // Parse balance value to number
-      const valueText = balance.replace(',', '.');
-      const newBalance = parseFloat(valueText);
-      
-      if (isNaN(newBalance)) {
-        Alert.alert('Erro', 'Por favor, insira um valor válido');
-        return;
-      }
-      
-      const success = await onSubmit(newBalance, description);
-      
+      const success = await onSubmit(newBalance, description.trim());
+
       if (success) {
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        triggerNotificationHaptic(Haptics.NotificationFeedbackType.Success);
         onClose();
       } else {
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        triggerNotificationHaptic(Haptics.NotificationFeedbackType.Error);
       }
-    } catch (error) {
-      console.error('Erro ao ajustar saldo:', error);
-      Alert.alert('Erro', 'Não foi possível ajustar o saldo. Tente novamente.');
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } catch {
+      toast({
+        title: 'Erro',
+        message: 'Não foi possível ajustar o saldo. Tente novamente.',
+        tone: 'danger',
+      });
+      triggerNotificationHaptic(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Modal
+    <BottomSheetModal
       visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <TouchableWithoutFeedback onPress={onClose}>
-        <View style={styles.overlay}>
-          <TouchableWithoutFeedback onPress={() => {}}>
-            <KeyboardAvoidingView
-              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            >
-              <View style={styles.modalContainer}>
-                <View style={styles.header}>
-                  <Text style={styles.title}>Ajustar Saldo</Text>
-                  <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-                    <Ionicons name="close" size={24} color="#666" />
-                  </TouchableOpacity>
-                </View>
-                
-                <View style={styles.content}>
-                  <Text style={styles.label}>Saldo Atual</Text>
-                  <Text style={styles.currentBalance}>
-                    {formatCurrency(currentBalance)}
-                  </Text>
-                  
-                  <Text style={styles.label}>Novo Saldo</Text>
-                  <View style={styles.inputContainer}>
-                    <Text style={styles.currencySymbol}>R$</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={balance}
-                      onChangeText={handleChangeText}
-                      keyboardType="numeric"
-                      placeholder="0,00"
-                      autoFocus
-                    />
-                  </View>
-                  
-                  <Text style={styles.label}>Descrição</Text>
-                  <View style={styles.inputContainer}>
-                    <TextInput
-                      style={styles.input}
-                      value={description}
-                      onChangeText={setDescription}
-                      placeholder="Motivo do ajuste (opcional)"
-                      maxLength={100}
-                    />
-                  </View>
-                  
-                  <Text style={styles.helpText}>
-                    Ajuste o saldo da república para refletir o valor real compartilhado.
-                  </Text>
-                </View>
-                
-                <View style={styles.footer}>
-                  <TouchableOpacity
-                    style={styles.cancelButton}
-                    onPress={onClose}
-                    disabled={loading}
-                  >
-                    <Text style={styles.cancelButtonText}>Cancelar</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={[styles.submitButton, loading && styles.disabledButton]}
-                    onPress={handleSubmit}
-                    disabled={loading}
-                  >
-                    {loading ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <Text style={styles.submitButtonText}>Confirmar</Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </KeyboardAvoidingView>
-          </TouchableWithoutFeedback>
+      onClose={onClose}
+      title="Ajustar Saldo"
+      dismissable={!loading}
+      dismissOnBackdropPress={!loading}
+      footer={
+        <View style={[styles.footerRow, { gap: theme.spacing.xs }]}>
+          <View style={styles.footerButton}>
+            <Button
+              label="Cancelar"
+              variant="secondary"
+              fullWidth
+              onPress={onClose}
+              disabled={loading}
+            />
+          </View>
+          <View style={styles.footerButton}>
+            <Button
+              label="Confirmar"
+              variant="primary"
+              fullWidth
+              loading={loading}
+              onPress={() => void handleSubmit()}
+            />
+          </View>
         </View>
-      </TouchableWithoutFeedback>
-    </Modal>
+      }
+    >
+      <View style={{ gap: theme.spacing.md }}>
+        <Surface
+          tone="subtle"
+          bordered
+          padded="sm"
+          radiusKey="sm"
+          style={{ gap: theme.spacing.xxs }}
+        >
+          <AppText variant="monoLabel" color="inkSecondary">
+            Saldo Atual
+          </AppText>
+          <AppText
+            variant="monoValue"
+            color={currentBalance >= 0 ? 'success' : 'danger'}
+          >
+            {formatCurrencyBRL(currentBalance)}
+          </AppText>
+        </Surface>
+
+        <TextField
+          label="Novo Saldo"
+          value={balance}
+          onChangeText={handleChangeBalance}
+          keyboardType="numeric"
+          placeholder="0,00"
+          error={balanceError}
+          editable={!loading}
+          leftIcon={
+            <AppText variant="monoValue" color="inkSecondary">
+              R$
+            </AppText>
+          }
+        />
+
+        <TextField
+          label="Descrição (opcional)"
+          value={description}
+          onChangeText={setDescription}
+          placeholder="Motivo do ajuste"
+          maxLength={100}
+          editable={!loading}
+          helperText="Ajuste o saldo da república para refletir o valor real compartilhado."
+        />
+      </View>
+    </BottomSheetModal>
   );
 };
 
 const styles = StyleSheet.create({
-  overlay: {
+  footerRow: {
+    flexDirection: 'row',
+  },
+  footerButton: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContainer: {
-    width: 320,
-    backgroundColor: '#222',
-    borderRadius: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 3.84,
-      },
-      android: {
-        elevation: 5,
-      },
-    }),
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#333',
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  closeButton: {
-    padding: 4,
-  },
-  content: {
-    padding: 16,
-  },
-  label: {
-    fontSize: 14,
-    color: '#ccc',
-    marginBottom: 4,
-  },
-  currentBalance: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 16,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#444',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
-    backgroundColor: '#333',
-  },
-  currencySymbol: {
-    fontSize: 16,
-    color: '#fff',
-    marginRight: 4,
-  },
-  input: {
-    flex: 1,
-    fontSize: 16,
-    color: '#fff',
-  },
-  helpText: {
-    fontSize: 12,
-    color: '#999',
-    marginTop: 8,
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#333',
-  },
-  cancelButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    marginRight: 8,
-  },
-  cancelButtonText: {
-    color: '#ccc',
-    fontWeight: '500',
-  },
-  submitButton: {
-    backgroundColor: '#7B68EE',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 100,
-  },
-  submitButtonText: {
-    color: '#fff',
-    fontWeight: '500',
-  },
-  disabledButton: {
-    opacity: 0.7,
   },
 });
 
-export default AdjustBalanceModal; 
+export default AdjustBalanceModal;

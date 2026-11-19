@@ -1,6 +1,13 @@
+// components/Finances/ExpenseDetails/ExpenseTimeline.tsx
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { StyleSheet, View } from 'react-native';
+import { Check, Clock, X } from 'lucide-react-native';
+import {
+  AppText,
+  Divider,
+  Surface,
+  useTheme,
+} from '../../../src/design-system';
 import { Expense } from '../../../src/models/finances.model';
 import { formatLocalDate } from '../../../src/utils/dateUtils';
 
@@ -64,70 +71,115 @@ const TimelineItem: React.FC<Omit<ExpenseTimelineStep, 'key'>> = ({
   isLast,
   isFuture,
 }) => {
+  const { theme } = useTheme();
   const formattedDate = date
     ? formatLocalDate(date, "dd 'de' MMMM 'de' yyyy") || date
     : null;
 
   const isPending = !isCompleted && !isRejected;
-  const itemStyle = [
-    styles.timelineItem,
-    isRejected && styles.rejectedTimelineItem,
-    isPending && styles.pendingTimelineItem,
-    isFuture && styles.futureTimelineItem,
-  ];
+
+  const dotBackground = isCompleted
+    ? theme.colors.success
+    : isRejected
+      ? theme.colors.danger
+      : theme.colors.subtle;
+
+  const dotBorderColor = isCompleted
+    ? theme.colors.success
+    : isRejected
+      ? theme.colors.danger
+      : isFuture
+        ? theme.colors.line
+        : theme.colors.borderStrong;
+
+  const connectorColor = isCompleted
+    ? theme.colors.success
+    : isRejected
+      ? theme.colors.danger
+      : theme.colors.line;
+
+  const titleColor = isRejected
+    ? 'danger'
+    : isCompleted
+      ? 'ink'
+      : isFuture
+        ? 'inkMuted'
+        : 'inkSecondary';
 
   return (
-    <View style={itemStyle}>
-      <View style={styles.timelineDotContainer}>
+    <View style={[styles.timelineItem, isFuture ? styles.futureItem : undefined]}>
+      <View style={styles.timelineDotColumn}>
         <View
           style={[
             styles.timelineDot,
-            isCompleted && styles.completedTimelineDot,
-            isRejected && styles.rejectedTimelineDot,
-            isPending && styles.pendingTimelineDot,
-            isFuture && styles.futureTimelineDot,
+            {
+              backgroundColor: dotBackground,
+              borderColor: dotBorderColor,
+              borderRadius: theme.radius.full,
+            },
           ]}
         >
-          {isCompleted && <Ionicons name="checkmark" size={10} color="#fff" />}
-          {isRejected && <Ionicons name="close" size={10} color="#fff" />}
+          {isCompleted ? (
+            <Check size={12} strokeWidth={2.5} color={theme.colors.onAccent} />
+          ) : isRejected ? (
+            <X size={12} strokeWidth={2.5} color={theme.colors.onDanger} />
+          ) : isPending ? (
+            <Clock size={11} strokeWidth={2} color={theme.colors.inkMuted} />
+          ) : null}
         </View>
-        {!isLast && (
+
+        {!isLast ? (
           <View
             style={[
               styles.timelineConnector,
-              isCompleted && styles.completedTimelineConnector,
-              isRejected && styles.rejectedTimelineConnector,
-              isPending && styles.pendingTimelineConnector,
-              isFuture && styles.futureTimelineConnector,
+              {
+                backgroundColor: connectorColor,
+              },
             ]}
           />
-        )}
+        ) : null}
       </View>
-      <View style={styles.timelineContent}>
-        <Text
-          style={[
-            styles.timelineTitle,
-            isPending && styles.pendingTimelineText,
-            isRejected && styles.rejectedTimelineText,
-            isFuture && styles.futureTimelineText,
-          ]}
-        >
+
+      <View
+        style={[
+          styles.timelineContent,
+          {
+            paddingBottom: isLast ? 0 : theme.spacing.lg,
+            gap: theme.spacing.xxs,
+          },
+        ]}
+      >
+        <AppText variant="bodyStrong" color={titleColor}>
           {title}
-        </Text>
+        </AppText>
 
         {formattedDate ? (
-          <Text style={styles.timelineDate}>{formattedDate}</Text>
-        ) : isFuture ? (
-          <Text style={styles.futureDateText}>Aguardando status anterior</Text>
+          <AppText variant="caption" color="inkSecondary">
+            {formattedDate}
+          </AppText>
         ) : (
-          <Text style={styles.pendingDateText}>Pendente</Text>
+          <AppText variant="caption" color="inkMuted">
+            {isFuture ? 'Aguardando status anterior' : 'Pendente'}
+          </AppText>
         )}
 
-        {isRejected && rejectionReason && (
-          <View>
-            <Text style={styles.rejectionReason}>Motivo: {rejectionReason}</Text>
-          </View>
-        )}
+        {isRejected && rejectionReason ? (
+          <Surface
+            tone="subtle"
+            bordered
+            padded="xs"
+            radiusKey="sm"
+            style={{
+              backgroundColor: theme.colors.dangerSoft,
+              borderColor: theme.colors.danger,
+              marginTop: theme.spacing.xxs,
+            }}
+          >
+            <AppText variant="caption" color="danger">
+              Motivo: {rejectionReason}
+            </AppText>
+          </Surface>
+        ) : null}
       </View>
     </View>
   );
@@ -138,159 +190,62 @@ export interface ExpenseTimelineProps {
 }
 
 export const ExpenseTimeline: React.FC<ExpenseTimelineProps> = ({ expense }) => {
+  const { theme } = useTheme();
   const steps = buildExpenseTimelineSteps(expense);
 
   return (
-    <View style={styles.sectionContainer}>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Timeline de Status</Text>
+    <Surface tone="surface" bordered radiusKey="md" style={styles.sectionContainer}>
+      <View
+        style={{
+          paddingHorizontal: theme.spacing.md,
+          paddingVertical: theme.spacing.sm,
+        }}
+      >
+        <AppText variant="monoLabel" color="inkSecondary">
+          Timeline de Status
+        </AppText>
       </View>
-
-      <View style={styles.timelineContainer}>
+      <Divider />
+      <View style={{ padding: theme.spacing.md }}>
         {steps.map(({ key, ...stepProps }) => (
           <TimelineItem key={key} {...stepProps} />
         ))}
       </View>
-    </View>
+    </Surface>
   );
 };
 
 const styles = StyleSheet.create({
   sectionContainer: {
-    marginTop: 20,
-    backgroundColor: '#444',
-    borderRadius: 12,
     overflow: 'hidden',
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#555',
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#FF6347',
-  },
-  timelineContainer: {
-    marginTop: 0,
-    padding: 16,
   },
   timelineItem: {
     flexDirection: 'row',
-    marginBottom: 24,
-    position: 'relative',
+    alignItems: 'stretch',
   },
-  pendingTimelineItem: {
-    opacity: 0.5,
+  futureItem: {
+    opacity: 0.6,
   },
-  rejectedTimelineItem: {},
-  futureTimelineItem: {
-    opacity: 0.3,
-  },
-  timelineDotContainer: {
-    position: 'relative',
+  timelineDotColumn: {
+    width: 28,
     alignItems: 'center',
-    width: 30,
-    height: 50,
   },
   timelineDot: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#4CAF50',
-    marginRight: 16,
-    zIndex: 2,
+    width: 22,
+    height: 22,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
   timelineConnector: {
-    position: 'absolute',
-    top: 16,
-    left: 7,
     width: 2,
-    height: 40,
-    backgroundColor: '#444',
-    zIndex: 1,
-  },
-  completedTimelineDot: {
-    backgroundColor: '#4CAF50',
-  },
-  pendingTimelineDot: {
-    backgroundColor: '#aaa',
-    borderWidth: 1,
-    borderColor: '#555',
-  },
-  rejectedTimelineDot: {
-    backgroundColor: '#FF6347',
-  },
-  futureTimelineDot: {
-    backgroundColor: '#333',
-    borderWidth: 1,
-    borderColor: '#444',
-  },
-  completedTimelineConnector: {
-    backgroundColor: '#4CAF50',
-  },
-  rejectedTimelineConnector: {
-    backgroundColor: '#FF6347',
-  },
-  pendingTimelineConnector: {
-    backgroundColor: '#555',
-    opacity: 0.5,
-  },
-  futureTimelineConnector: {
-    backgroundColor: '#333',
-    opacity: 0.3,
-    borderStyle: 'dashed',
+    flex: 1,
+    marginVertical: 4,
   },
   timelineContent: {
     flex: 1,
-    paddingTop: 0,
-    marginLeft: 8,
-  },
-  timelineTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 4,
-  },
-  pendingTimelineText: {
-    color: '#aaa',
-    opacity: 0.8,
-  },
-  rejectedTimelineText: {
-    color: '#FF6347',
-  },
-  futureTimelineText: {
-    color: '#777',
-  },
-  timelineDate: {
-    fontSize: 14,
-    color: '#aaa',
-  },
-  pendingDateText: {
-    fontSize: 14,
-    color: '#aaa',
-    fontStyle: 'italic',
-  },
-  futureDateText: {
-    fontSize: 14,
-    color: '#777',
-    fontStyle: 'italic',
-  },
-  rejectionReason: {
-    fontSize: 14,
-    color: '#FF6347',
-    fontStyle: 'italic',
-    backgroundColor: 'rgba(255, 99, 71, 0.1)',
-    borderRadius: 4,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    marginTop: 8,
+    marginLeft: 12,
+    minWidth: 0,
   },
 });
 
