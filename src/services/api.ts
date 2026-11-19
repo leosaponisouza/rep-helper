@@ -55,6 +55,21 @@ const stripAuthorizationHeader = (headers: unknown): void => {
   delete headerMap.authorization;
 };
 
+const isTrustedApiRequest = (
+  url?: string,
+  requestBaseUrl?: string
+): boolean => {
+  if (
+    API_BASE_URL &&
+    requestBaseUrl &&
+    !isSameOriginRequest(requestBaseUrl, API_BASE_URL)
+  ) {
+    return false;
+  }
+  const targetBaseUrl = requestBaseUrl || API_BASE_URL;
+  return isSameOriginRequest(url, targetBaseUrl);
+};
+
 // Interceptor para adicionar o token JWT apenas para requisições à própria API
 api.interceptors.request.use(
   (config) => {
@@ -62,8 +77,7 @@ api.interceptors.request.use(
       return Promise.reject(apiConfigError);
     }
 
-    const targetBaseUrl = config.baseURL || API_BASE_URL;
-    if (!isSameOriginRequest(config.url, targetBaseUrl)) {
+    if (!isTrustedApiRequest(config.url, config.baseURL)) {
       stripAuthorizationHeader(config.headers);
       return config;
     }
@@ -118,10 +132,10 @@ let failedQueue: Array<{
 
 const processQueue = (error: unknown, token: string | null = null) => {
   failedQueue.forEach((prom) => {
-    if (error) {
-      prom.reject(error);
-    } else if (token) {
+    if (token && !error) {
       prom.resolve(token);
+    } else {
+      prom.reject(error ?? new Error('Falha na renovação do token'));
     }
   });
   failedQueue = [];
@@ -139,8 +153,11 @@ api.interceptors.response.use(
       originalRequest &&
       !originalRequest._retry &&
       !isAuthLifecycleEndpoint(originalRequest.url) &&
-      !isHandlingUnauthorized
+      !isHandlingUnauthorized &&
+      isTrustedApiRequest(originalRequest.url, originalRequest.baseURL)
     ) {
+      originalRequest._retry = true;
+
       if (isRefreshing) {
         return new Promise<string>((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -155,7 +172,6 @@ api.interceptors.response.use(
           .catch((err) => Promise.reject(err));
       }
 
-      originalRequest._retry = true;
       isRefreshing = true;
 
       let shouldResetInFinally = true;
@@ -176,9 +192,11 @@ api.interceptors.response.use(
           ? `${normalizedBaseUrl}/api/v1/auth/refresh`
           : '/api/v1/auth/refresh';
 
-        const response = await axios.post(refreshUrl, {
-          token,
-        });
+        const response = await axios.post(
+          refreshUrl,
+          { token },
+          { timeout: 15000 }
+        );
 
         const newToken: string | undefined = response.data?.token;
         if (!newToken) {

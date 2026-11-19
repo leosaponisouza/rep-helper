@@ -379,13 +379,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const currentToken = await getToken();
       if (!currentToken) return false;
-      
+
       const response = await authService.refreshAuthToken(currentToken);
-      
+      if (!response?.token) return false;
+
       // Atualizar token e dados do usuário
-      setUser(response.user);
+      if (response.user) {
+        setUser(response.user);
+      }
       api.defaults.headers.common['Authorization'] = `Bearer ${response.token}`;
-      
+
       return true;
     } catch (error) {
       logger.error('Erro ao renovar token:', error);

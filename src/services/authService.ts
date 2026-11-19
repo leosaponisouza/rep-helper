@@ -290,11 +290,17 @@ export const refreshAuthToken = async (currentToken: string): Promise<AuthRespon
       '/api/v1/auth/refresh',
       { token: currentToken }
     );
-    
+
+    if (!response.data?.token) {
+      throw new Error('Token de renovação ausente');
+    }
+
     // Armazenar novo token JWT
     await storeToken(response.data.token);
-    await storeData('user', JSON.stringify(response.data.user));
-    
+    if (response.data.user) {
+      await storeData('user', JSON.stringify(response.data.user));
+    }
+
     return response.data;
   } catch (error) {
     logger.error('Erro ao renovar token JWT:', error);

@@ -1,3 +1,12 @@
+jest.mock('../../utils/logger', () => ({
+  logger: {
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  },
+}));
+
 jest.mock('expo-constants', () => ({
   __esModule: true,
   default: { expoConfig: { extra: { apiBaseUrl: 'https://api.rephelper.com' } } },
@@ -72,12 +81,15 @@ describe('api security interceptors', () => {
     api.defaults.headers.common['Authorization'] = 'Bearer expired-jwt';
 
     let resolveRefresh!: (value: any) => void;
-    const postSpy = jest.spyOn(axios, 'post').mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolveRefresh = resolve;
-        })
-    );
+    const postSpy = jest
+      .spyOn(axios, 'post')
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveRefresh = resolve;
+          })
+      )
+      .mockRejectedValue(new Error('unexpected second refresh'));
 
     const events: string[] = [];
     let resolveClear!: () => void;
@@ -171,12 +183,15 @@ describe('api security interceptors', () => {
     (storeToken as jest.Mock).mockResolvedValue(undefined);
 
     let resolveRefresh!: (value: any) => void;
-    const postSpy = jest.spyOn(axios, 'post').mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolveRefresh = resolve;
-        })
-    );
+    const postSpy = jest
+      .spyOn(axios, 'post')
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveRefresh = resolve;
+          })
+      )
+      .mockRejectedValue(new Error('unexpected second refresh'));
 
     const originalAdapter = api.defaults.adapter;
     const adapterSpy = jest.fn(async (config: any) => ({
@@ -219,6 +234,196 @@ describe('api security interceptors', () => {
       expect(adapterSpy).toHaveBeenCalledTimes(2);
     } finally {
       api.defaults.adapter = originalAdapter;
+      postSpy.mockRestore();
+    }
+  });
+
+  it('strips Authorization header when caller overrides baseURL to an untrusted origin with a relative url', async () => {
+    (getToken as jest.Mock).mockResolvedValue('secret-jwt');
+    const reqHandler = (api.interceptors.request as any).handlers.find(
+      (h: any) => h && h.fulfilled && h.fulfilled.toString().includes('getToken')
+    );
+
+    const untrustedBaseConfig = await reqHandler.fulfilled({
+      baseURL: 'https://evil.example.com',
+      url: '/steal',
+      headers: { Authorization: 'Bearer leaked-default' },
+    });
+    expect(untrustedBaseConfig.headers.Authorization).toBeUndefined();
+
+    const sameOriginBaseConfig = await reqHandler.fulfilled({
+      baseURL: 'https://api.rephelper.com',
+      url: '/api/v1/tasks',
+      headers: {},
+    });
+    expect(sameOriginBaseConfig.headers.Authorization).toBe('Bearer secret-jwt');
+  });
+
+  it('does not trigger token refresh, clear auth data, or invoke unauthorizedHandler on 401 from cross-origin URL or overridden untrusted baseURL', async () => {
+    (getToken as jest.Mock).mockResolvedValue('valid-jwt');
+    api.defaults.headers.common['Authorization'] = 'Bearer valid-jwt';
+    const postSpy = jest.spyOn(axios, 'post').mockResolvedValue({ data: { token: 'new-jwt' } } as any);
+    const onUnauthorized = jest.fn();
+    setUnauthorizedHandler(onUnauthorized);
+
+    try {
+      const resHandler = (api.interceptors.response as any).handlers[0].rejected;
+
+      await expect(
+        resHandler({
+          response: { status: 401 },
+          config: { url: 'https://evil.example.com/steal', headers: {} },
+        })
+      ).rejects.toBeDefined();
+
+      await expect(
+        resHandler({
+          response: { status: 401 },
+          config: { baseURL: 'https://evil.example.com', url: '/steal', headers: {} },
+        })
+      ).rejects.toBeDefined();
+
+      expect(postSpy).not.toHaveBeenCalled();
+      expect(clearAuthData).not.toHaveBeenCalled();
+      expect(onUnauthorized).not.toHaveBeenCalled();
+      expect(api.defaults.headers.common['Authorization']).toBe('Bearer valid-jwt');
+    } finally {
+      postSpy.mockRestore();
+    }
+  });
+
+  it('passes timeout: 15000 to axios.post when refreshing token', async () => {
+    (getToken as jest.Mock).mockResolvedValue('expired-jwt');
+    (storeToken as jest.Mock).mockResolvedValue(undefined);
+    const postSpy = jest.spyOn(axios, 'post').mockResolvedValue({ data: { token: 'fresh-jwt' } } as any);
+
+    const originalAdapter = api.defaults.adapter;
+    api.defaults.adapter = jest.fn(async (config: any) => ({
+      data: { ok: true },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config,
+    })) as any;
+
+    try {
+      const resHandler = (api.interceptors.response as any).handlers[0].rejected;
+      await resHandler({
+        response: { status: 401 },
+        config: { url: '/api/v1/tasks', headers: {} },
+      });
+
+      expect(postSpy).toHaveBeenCalledWith(
+        'https://api.rephelper.com/api/v1/auth/refresh',
+        { token: 'expired-jwt' },
+        { timeout: 15000 }
+      );
+    } finally {
+      api.defaults.adapter = originalAdapter;
+      postSpy.mockRestore();
+    }
+  });
+
+  it('marks queued concurrent requests with _retry = true before pushing to failedQueue so a second 401 does not re-enter refresh', async () => {
+    (getToken as jest.Mock).mockResolvedValue('expired-jwt');
+    (storeToken as jest.Mock).mockResolvedValue(undefined);
+
+    let resolveRefresh!: (value: any) => void;
+    const postSpy = jest
+      .spyOn(axios, 'post')
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveRefresh = resolve;
+          })
+      )
+      .mockRejectedValue(new Error('unexpected second refresh'));
+
+    const originalAdapter = api.defaults.adapter;
+    api.defaults.adapter = jest.fn(async (config: any) => {
+      if (config.url === '/api/v1/events') {
+        const retryErr: any = new Error('Still unauthorized');
+        retryErr.response = { status: 401 };
+        retryErr.config = config;
+        throw retryErr;
+      }
+      return {
+        data: { ok: true },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config,
+      };
+    }) as any;
+
+    try {
+      const resHandler = (api.interceptors.response as any).handlers[0].rejected;
+      const err1: any = {
+        response: { status: 401 },
+        config: { url: '/api/v1/tasks', headers: {} },
+      };
+      const err2: any = {
+        response: { status: 401 },
+        config: { url: '/api/v1/events', headers: {} },
+      };
+
+      const p1 = resHandler(err1);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const p2 = resHandler(err2);
+      const retryFlagWhenQueued = err2.config._retry;
+
+      resolveRefresh({ data: { token: 'fresh-jwt' } });
+
+      const [r1, r2] = await Promise.allSettled([p1, p2]);
+      expect(retryFlagWhenQueued).toBe(true);
+      expect(r1.status).toBe('fulfilled');
+      expect(r2.status).toBe('rejected');
+      expect(postSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      resolveRefresh?.({ data: {} });
+      api.defaults.adapter = originalAdapter;
+      postSpy.mockRestore();
+    }
+  });
+
+  it('rejects queued failedQueue promises when refresh fails with a falsy error and token is null', async () => {
+    (getToken as jest.Mock).mockResolvedValue('expired-jwt');
+
+    let rejectRefresh!: (reason?: any) => void;
+    const postSpy = jest.spyOn(axios, 'post').mockImplementation(
+      () =>
+        new Promise((_, reject) => {
+          rejectRefresh = reject;
+        })
+    );
+
+    try {
+      const resHandler = (api.interceptors.response as any).handlers[0].rejected;
+      const err1 = {
+        response: { status: 401 },
+        config: { url: '/api/v1/tasks', headers: {} },
+      };
+      const err2 = {
+        response: { status: 401 },
+        config: { url: '/api/v1/events', headers: {} },
+      };
+
+      const p1 = resHandler(err1).catch(() => 'p1-rejected');
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const p2Outcome = Promise.race([
+        resHandler(err2).then(
+          () => 'resolved',
+          (err: unknown) => (err instanceof Error ? err.message : 'rejected')
+        ),
+        new Promise((resolve) => setTimeout(() => resolve('hung'), 50)),
+      ]);
+
+      rejectRefresh(undefined);
+
+      await expect(p1).resolves.toBe('p1-rejected');
+      await expect(p2Outcome).resolves.toBe('Falha na renovação do token');
+    } finally {
+      rejectRefresh?.(new Error('cleanup'));
       postSpy.mockRestore();
     }
   });
@@ -330,6 +535,61 @@ describe('api security interceptors', () => {
     await expect(authService2.logout()).resolves.toBeUndefined();
     expect(mockSignOut).toHaveBeenCalledTimes(1);
     expect(mockClearAuthData2).toHaveBeenCalledTimes(1);
+
+    jest.resetModules();
+  });
+
+  it('rejects in authService.refreshAuthToken without overwriting token or user when response omits token, and stores only token when user is omitted', async () => {
+    jest.resetModules();
+    const mockPost = jest.fn();
+    const mockStoreToken = jest.fn().mockResolvedValue(undefined);
+    const mockStoreData = jest.fn().mockResolvedValue(undefined);
+
+    jest.doMock('firebase/auth', () => ({
+      createUserWithEmailAndPassword: jest.fn(),
+      signInWithEmailAndPassword: jest.fn(),
+      signInWithCredential: jest.fn(),
+      GoogleAuthProvider: { credential: jest.fn() },
+      FacebookAuthProvider: { credential: jest.fn() },
+      GithubAuthProvider: { credential: jest.fn() },
+      PhoneAuthProvider: { credential: jest.fn() },
+      signInWithPhoneNumber: jest.fn(),
+    }));
+    jest.doMock('../api', () => ({
+      __esModule: true,
+      default: {
+        post: mockPost,
+        defaults: { headers: { common: {} } },
+      },
+    }));
+    jest.doMock('../../utils/firebaseClientConfig', () => ({
+      auth: { currentUser: null },
+      getFreshFirebaseToken: jest.fn(),
+    }));
+    jest.doMock('../../utils/storage', () => ({
+      storeToken: mockStoreToken,
+      storeData: mockStoreData,
+      clearAuthData: jest.fn(),
+      storeRefreshToken: jest.fn(),
+    }));
+    jest.doMock('../../utils/logger', () => ({
+      logger: { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() },
+    }));
+
+    const authService = require('../authService');
+
+    mockPost.mockResolvedValueOnce({ data: {} });
+    await expect(authService.refreshAuthToken('old-jwt')).rejects.toThrow(
+      'Token de renovação ausente'
+    );
+    expect(mockStoreToken).not.toHaveBeenCalled();
+    expect(mockStoreData).not.toHaveBeenCalled();
+
+    mockPost.mockResolvedValueOnce({ data: { token: 'renewed-jwt' } });
+    const res = await authService.refreshAuthToken('old-jwt');
+    expect(res).toEqual({ token: 'renewed-jwt' });
+    expect(mockStoreToken).toHaveBeenCalledWith('renewed-jwt');
+    expect(mockStoreData).not.toHaveBeenCalled();
 
     jest.resetModules();
   });

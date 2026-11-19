@@ -23,6 +23,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { auth } from '../../src/utils/firebaseClientConfig';
 import * as republicService from '../../src/services/republicService';
+import { logger } from '../../src/utils/logger';
 
 const RepublicChoiceScreen = () => {
     const { user, login } = useAuth();
@@ -52,7 +53,7 @@ const RepublicChoiceScreen = () => {
             setNetworkStatus({ connected: true, checking: false });
         } catch (error) {
             setNetworkStatus({ connected: false, checking: false });
-            console.log('API connection check failed:', error);
+            logger.debug('API connection check failed:', error);
         }
     };
 
@@ -81,7 +82,7 @@ const RepublicChoiceScreen = () => {
             // O serviço já trata os erros específicos
             setError(err.message || 'Falha ao entrar na república.');
             Alert.alert('Erro', err.message || 'Falha ao entrar na república.');
-            console.error('Error joining republic:', err);
+            logger.error('Error joining republic:', err);
         } finally {
             setLoading(false);
         }

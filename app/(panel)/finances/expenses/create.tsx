@@ -304,7 +304,12 @@ const CreateExpenseScreen = () => {
       return url;
     } catch (error) {
       logger.error('Erro ao fazer upload da imagem:', error);
-      Alert.alert('Erro', 'Falha ao fazer upload da imagem. Tente novamente.');
+      Alert.alert(
+        'Erro',
+        error instanceof Error && error.message
+          ? error.message
+          : 'Falha ao fazer upload da imagem. Tente novamente.'
+      );
       return null;
     } finally {
       setUploadingImage(false);

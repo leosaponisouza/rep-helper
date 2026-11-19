@@ -26,6 +26,7 @@ import { router, useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as republicService from '../../src/services/republicService';
 import { CreateRepublicRequest } from '../../src/models/republic.model';
+import { logger } from '../../src/utils/logger';
 
 // Função auxiliar para formatar CEP
 const formatCEP = (value: string) => {
@@ -94,12 +95,12 @@ const CreateRepublicScreen: React.FC = () => {
                 zipCode: data.zip_code,
             };
 
-            console.log('Enviando dados para criar república:', republicData);
+            logger.debug('Enviando dados para criar república:', { name: republicData.name });
             
             // Usar o serviço de república para criar uma nova república
             const response = await republicService.createRepublic(republicData);
             
-            console.log('Resposta da API:', response);
+            logger.debug('República criada com sucesso:', { id: response.republic?.id });
             const republicCode = response.republic?.code;
 
             if (republicCode) {

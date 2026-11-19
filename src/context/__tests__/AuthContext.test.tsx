@@ -287,3 +287,75 @@ describe('AuthContext security lifecycle', () => {
     });
   });
 });
+
+describe('AuthContext.refreshToken', () => {
+  let latestAuth!: ReturnType<typeof useAuth>;
+
+  function Consumer() {
+    latestAuth = useAuth();
+    return null;
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    delete api.defaults.headers.common['Authorization'];
+  });
+
+  it('returns false without overwriting Authorization header or user when refreshAuthToken resolves without a token', async () => {
+    (getToken as jest.Mock).mockResolvedValue('valid-jwt');
+    (getData as jest.Mock).mockResolvedValue(JSON.stringify(cachedUser));
+    (api.get as jest.Mock).mockResolvedValue({ data: { user: cachedUser } });
+    (authService.refreshAuthToken as jest.Mock).mockResolvedValueOnce({} as any);
+
+    let tree!: renderer.ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(
+        React.createElement(AuthProvider, null, React.createElement(Consumer))
+      );
+    });
+    await flushEffects();
+
+    let refreshed = true;
+    await act(async () => {
+      refreshed = await latestAuth.refreshToken();
+    });
+
+    expect(refreshed).toBe(false);
+    expect(api.defaults.headers.common['Authorization']).toBe('Bearer valid-jwt');
+    expect(latestAuth.user).toEqual(cachedUser);
+
+    act(() => {
+      tree.unmount();
+    });
+  });
+
+  it('updates Authorization header and preserves existing user when refreshAuthToken returns token without user', async () => {
+    (getToken as jest.Mock).mockResolvedValue('valid-jwt');
+    (getData as jest.Mock).mockResolvedValue(JSON.stringify(cachedUser));
+    (api.get as jest.Mock).mockResolvedValue({ data: { user: cachedUser } });
+    (authService.refreshAuthToken as jest.Mock).mockResolvedValueOnce({
+      token: 'fresh-jwt',
+    } as any);
+
+    let tree!: renderer.ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(
+        React.createElement(AuthProvider, null, React.createElement(Consumer))
+      );
+    });
+    await flushEffects();
+
+    let refreshed = false;
+    await act(async () => {
+      refreshed = await latestAuth.refreshToken();
+    });
+
+    expect(refreshed).toBe(true);
+    expect(api.defaults.headers.common['Authorization']).toBe('Bearer fresh-jwt');
+    expect(latestAuth.user).toEqual(cachedUser);
+
+    act(() => {
+      tree.unmount();
+    });
+  });
+});

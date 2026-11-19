@@ -28,6 +28,7 @@ import api from '../../src/services/api';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
 import { Auth, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
+import { logger } from '../../src/utils/logger';
 
 const LoginScreen = () => {
     const [showPassword, setShowPassword] = useState(false);
@@ -199,7 +200,7 @@ const LoginScreen = () => {
             // Fazer login na API
             await loginWithFirebaseToken(firebaseToken);
         } catch (error) {
-            console.error('Erro no login com Google (ID Token):', error);
+            logger.error('Erro no login com Google (ID Token):', error);
             const parsedError = await ErrorHandler.parseError(error);
             setLocalError(parsedError.message);
             ErrorHandler.logError(parsedError);
@@ -224,7 +225,7 @@ const LoginScreen = () => {
             // Fazer login na API
             await loginWithFirebaseToken(firebaseToken);
         } catch (error) {
-            console.error('Erro no login com Google (Access Token):', error);
+            logger.error('Erro no login com Google (Access Token):', error);
             const parsedError = await ErrorHandler.parseError(error);
             setLocalError(parsedError.message);
             ErrorHandler.logError(parsedError);
