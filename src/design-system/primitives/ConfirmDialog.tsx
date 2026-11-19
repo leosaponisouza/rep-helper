@@ -37,7 +37,17 @@ export function ConfirmDialog({
 }: ConfirmDialogProps): React.ReactElement {
   const { theme } = useTheme();
 
+  const handleCancel = () => {
+    if (loading) {
+      return;
+    }
+    onCancel();
+  };
+
   const handleConfirm = () => {
+    if (loading) {
+      return;
+    }
     if (destructive && Platform.OS !== 'web') {
       try {
         Promise.resolve(
@@ -53,8 +63,9 @@ export function ConfirmDialog({
   return (
     <BottomSheetModal
       visible={visible}
-      onClose={onCancel}
+      onClose={handleCancel}
       title={title}
+      dismissable={!loading}
       dismissOnBackdropPress={!loading}
       testID={testID}
       footer={
@@ -63,7 +74,7 @@ export function ConfirmDialog({
             <Button
               label={cancelLabel}
               variant="secondary"
-              onPress={onCancel}
+              onPress={handleCancel}
               disabled={loading}
               fullWidth
             />

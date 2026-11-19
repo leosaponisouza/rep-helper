@@ -600,6 +600,71 @@ describe('FeedbackProvider, Overlays, ErrorHandler, and NotificationContext inte
     });
   });
 
+  it('prevents ConfirmDialog dismissal via header X button, backdrop press, and onRequestClose while loading=true', async () => {
+    jest.useFakeTimers();
+    const onConfirm = jest.fn();
+    const onCancel = jest.fn();
+
+    let tree!: renderer.ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(
+        <SafeAreaProvider initialMetrics={INITIAL_METRICS}>
+          <ThemeProvider>
+            <ConfirmDialog
+              visible
+              title="Excluindo"
+              message="Aguarde..."
+              loading
+              destructive
+              onConfirm={onConfirm}
+              onCancel={onCancel}
+              testID="loading-dialog"
+            />
+          </ThemeProvider>
+        </SafeAreaProvider>
+      );
+    });
+    await flushMicrotasks();
+    act(() => {
+      jest.advanceTimersByTime(300);
+    });
+
+    const backdrop = tree.root
+      .findAllByType(Pressable)
+      .find((p) => p.props.accessibilityLabel === 'Fechar');
+    const closeIconBtn = tree.root
+      .findAllByType(Pressable)
+      .find((p) => p.props.accessibilityLabel === 'Fechar modal');
+    const cancelBtn = tree.root
+      .findAllByType(Pressable)
+      .find((p) => p.props.accessibilityLabel === 'Cancelar');
+    const confirmBtn = tree.root
+      .findAllByType(Pressable)
+      .find((p) => p.props.accessibilityLabel === 'Confirmar');
+    const modal = tree.root.findByType(Modal);
+
+    expect(closeIconBtn).toBeDefined();
+    expect(closeIconBtn!.props.accessibilityState?.disabled).toBe(true);
+    expect(backdrop!.props.accessibilityState?.disabled).toBe(true);
+    expect(cancelBtn!.props.accessibilityState?.disabled).toBe(true);
+    expect(confirmBtn!.props.accessibilityState).toEqual({ disabled: true, busy: true });
+
+    act(() => {
+      backdrop?.props.onPress?.();
+      closeIconBtn!.props.onPress?.();
+      cancelBtn!.props.onPress?.();
+      confirmBtn!.props.onPress?.();
+      modal.props.onRequestClose?.();
+    });
+
+    expect(onCancel).not.toHaveBeenCalled();
+    expect(onConfirm).not.toHaveBeenCalled();
+
+    act(() => {
+      tree.unmount();
+    });
+  });
+
   it('throws a clear error when useFeedback is called outside FeedbackProvider', () => {
     const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     function BadConsumer() {

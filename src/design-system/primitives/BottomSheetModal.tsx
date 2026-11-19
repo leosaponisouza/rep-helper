@@ -24,6 +24,7 @@ export interface BottomSheetModalProps {
   title?: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  dismissable?: boolean;
   dismissOnBackdropPress?: boolean;
   testID?: string;
 }
@@ -50,6 +51,7 @@ export function BottomSheetModal({
   title,
   children,
   footer,
+  dismissable = true,
   dismissOnBackdropPress = true,
   testID,
 }: BottomSheetModalProps): React.ReactElement {
@@ -111,13 +113,19 @@ export function BottomSheetModal({
   ]);
 
   const isWide = viewportWidth >= DESKTOP_BREAKPOINT;
+  const canDismissBackdrop = dismissable && dismissOnBackdropPress;
+  const handleDismiss = () => {
+    if (dismissable) {
+      onClose();
+    }
+  };
 
   return (
     <Modal
       visible={visible}
       transparent
       animationType="none"
-      onRequestClose={onClose}
+      onRequestClose={handleDismiss}
       statusBarTranslucent
     >
       <View
@@ -130,9 +138,11 @@ export function BottomSheetModal({
       >
         <Pressable
           style={StyleSheet.absoluteFill}
-          onPress={dismissOnBackdropPress ? onClose : undefined}
+          onPress={canDismissBackdrop ? handleDismiss : undefined}
+          disabled={!canDismissBackdrop}
           accessibilityRole="button"
           accessibilityLabel="Fechar"
+          accessibilityState={{ disabled: !canDismissBackdrop }}
           testID={testID ? `${testID}-backdrop` : undefined}
         >
           <Animated.View
@@ -201,7 +211,8 @@ export function BottomSheetModal({
                   </AppText>
                   <IconButton
                     icon={<X size={20} strokeWidth={1.75} color={theme.colors.ink} />}
-                    onPress={onClose}
+                    onPress={handleDismiss}
+                    disabled={!dismissable}
                     accessibilityLabel="Fechar modal"
                     variant="ghost"
                   />
