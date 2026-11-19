@@ -229,8 +229,8 @@ const EventDetailsScreen: React.FC = () => {
           tone: 'success',
         });
       } catch (err) {
+        // EventsService.updateInvitationStatus already displays API error toast via ErrorHandler.handle
         logger.error('Erro ao atualizar status de participação:', err);
-        void ErrorHandler.handle(err);
       } finally {
         setRefreshing(false);
       }
@@ -296,8 +296,8 @@ const EventDetailsScreen: React.FC = () => {
       });
       router.replace('/(panel)/events');
     } catch (err) {
+      // EventsService.deleteEvent already displays API error toast via ErrorHandler.handle
       logger.error('Erro ao excluir evento:', err);
-      void ErrorHandler.handle(err);
       setShowConfirmDelete(false);
     } finally {
       setRefreshing(false);

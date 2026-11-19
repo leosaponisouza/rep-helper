@@ -251,8 +251,8 @@ const InvitationsScreen: React.FC = () => {
         tone: 'success',
       });
     } catch (error) {
+      // EventsService.inviteUsers already displays API error toast via ErrorHandler.handle
       logger.error('Erro ao convidar membros:', error);
-      void ErrorHandler.handle(error);
     } finally {
       setActionLoading(false);
     }

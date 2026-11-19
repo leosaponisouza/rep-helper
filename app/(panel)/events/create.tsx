@@ -18,7 +18,6 @@ import {
 } from '../../../src/design-system';
 import { useEvents } from '../../../src/hooks/useEvents';
 import { formatToBackendDateTime } from '../../../src/utils/dateUtils';
-import { ErrorHandler } from '../../../src/utils/errorHandling';
 import { logger } from '../../../src/utils/logger';
 
 const triggerSuccessHaptic = () => {
@@ -169,32 +168,31 @@ const CreateEventScreen: React.FC = () => {
       };
 
       const createdEvent = await createEvent(eventData);
+      let inviteFailed = false;
 
       if (selectedParticipants.length > 0 && createdEvent && createdEvent.id) {
         try {
           await inviteUsers(createdEvent.id, selectedParticipants);
         } catch (error) {
+          // EventsService.inviteUsers already displays the API error toast via ErrorHandler.handle
           logger.error('Erro ao convidar participantes:', error);
-          toast({
-            title: 'Convites parciais',
-            message:
-              'O evento foi criado, mas ocorreu um erro ao enviar alguns convites.',
-            tone: 'warning',
-          });
+          inviteFailed = true;
         }
       }
 
       triggerSuccessHaptic();
       toast({
         title: 'Evento criado',
-        message: 'Evento criado com sucesso!',
-        tone: 'success',
+        message: inviteFailed
+          ? 'Evento salvo, mas os convites não puderam ser enviados.'
+          : 'Evento criado com sucesso!',
+        tone: inviteFailed ? 'warning' : 'success',
       });
 
       router.replace('/(panel)/events');
     } catch (error: any) {
+      // EventsService.createEvent already displays the API error toast via ErrorHandler.handle
       logger.error('Erro ao criar evento:', error);
-      void ErrorHandler.handle(error);
     } finally {
       setLoading(false);
     }

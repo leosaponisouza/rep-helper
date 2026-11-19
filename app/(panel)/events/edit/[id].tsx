@@ -233,8 +233,8 @@ const EditEventScreen: React.FC = () => {
 
       router.replace(`/(panel)/events/${id}`);
     } catch (error: any) {
+      // EventsService.updateEvent / inviteUsers already display API error toasts via ErrorHandler.handle
       logger.error('Erro ao atualizar evento:', error);
-      void ErrorHandler.handle(error);
     } finally {
       setLoading(false);
     }

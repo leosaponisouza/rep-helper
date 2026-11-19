@@ -75,11 +75,19 @@ const EventsScreen: React.FC = () => {
         setCalendarLoading(true);
       }
 
-      await refreshEventsRef.current('all');
+      const ok = await refreshEventsRef.current('all');
 
-      eventsLoaded.current = true;
-      if (isMountedRef.current) {
-        setLastRefresh(new Date());
+      if (ok) {
+        eventsLoaded.current = true;
+        if (isMountedRef.current) {
+          setLastRefresh(new Date());
+        }
+      } else if (isMountedRef.current) {
+        toast({
+          title: 'Erro ao carregar agenda',
+          message: 'Não foi possível carregar os eventos. Tente novamente.',
+          tone: 'danger',
+        });
       }
 
       if (showSkeleton) {
@@ -104,7 +112,7 @@ const EventsScreen: React.FC = () => {
       }
       isRefreshing.current = false;
     }
-  }, []);
+  }, [toast]);
 
   useFocusEffect(
     useCallback(() => {
@@ -122,16 +130,25 @@ const EventsScreen: React.FC = () => {
     if (isRefreshing.current) return;
 
     try {
+      isRefreshing.current = true;
       setRefreshing(true);
-      await refreshEvents('all');
+      const ok = await refreshEvents('all');
 
       if (isMountedRef.current) {
-        setLastRefresh(new Date());
-        toast({
-          title: 'Agenda atualizada',
-          message: 'Eventos atualizados com sucesso.',
-          tone: 'success',
-        });
+        if (ok) {
+          setLastRefresh(new Date());
+          toast({
+            title: 'Agenda atualizada',
+            message: 'Eventos atualizados com sucesso.',
+            tone: 'success',
+          });
+        } else {
+          toast({
+            title: 'Erro ao atualizar',
+            message: 'Não foi possível atualizar os eventos. Tente novamente.',
+            tone: 'danger',
+          });
+        }
       }
     } catch (error) {
       logger.error('Erro ao atualizar eventos:', error);
@@ -140,6 +157,7 @@ const EventsScreen: React.FC = () => {
       if (isMountedRef.current) {
         setRefreshing(false);
       }
+      isRefreshing.current = false;
     }
   }, [refreshEvents, toast]);
 
