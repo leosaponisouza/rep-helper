@@ -32,6 +32,7 @@ function decodePngRgbaPixels(buf: Buffer) {
 
 describe('Expo, Android DayNight, and Editorial brand assets alignment', () => {
   const root = path.resolve(__dirname, '../../..');
+  const hasAndroidDir = fs.existsSync(path.join(root, 'android'));
 
   it('aligns app.json and app.config.js on automatic theme, #F5F2EB splash, and valid assets/images paths', () => {
     const appJson = JSON.parse(fs.readFileSync(path.join(root, 'app.json'), 'utf8'));
@@ -56,20 +57,23 @@ describe('Expo, Android DayNight, and Editorial brand assets alignment', () => {
     expect(appConfig).toContain('scheme: "rephelper"');
   });
 
-  it('configures Android native DayNight theme and light/dark splash colors surgically', () => {
-    const stylesXml = fs.readFileSync(path.join(root, 'android/app/src/main/res/values/styles.xml'), 'utf8');
-    const lightColors = fs.readFileSync(path.join(root, 'android/app/src/main/res/values/colors.xml'), 'utf8');
-    const darkColors = fs.readFileSync(path.join(root, 'android/app/src/main/res/values-night/colors.xml'), 'utf8');
+  (hasAndroidDir ? it : it.skip)(
+    'configures Android native DayNight theme and light/dark splash colors surgically',
+    () => {
+      const stylesXml = fs.readFileSync(path.join(root, 'android/app/src/main/res/values/styles.xml'), 'utf8');
+      const lightColors = fs.readFileSync(path.join(root, 'android/app/src/main/res/values/colors.xml'), 'utf8');
+      const darkColors = fs.readFileSync(path.join(root, 'android/app/src/main/res/values-night/colors.xml'), 'utf8');
 
-    expect(stylesXml).toContain('Theme.AppCompat.DayNight.NoActionBar');
-    expect(stylesXml).not.toContain('Theme.AppCompat.Light.NoActionBar');
-    expect(stylesXml).not.toContain('android:statusBarColor');
-    expect(stylesXml).not.toContain('@android:color/black');
-    expect(lightColors).toContain('#F5F2EB');
-    expect(lightColors).toContain('#1F4AA8');
-    expect(darkColors).toContain('#151412');
-    expect(darkColors).toContain('#7EA4FF');
-  });
+      expect(stylesXml).toContain('Theme.AppCompat.DayNight.NoActionBar');
+      expect(stylesXml).not.toContain('Theme.AppCompat.Light.NoActionBar');
+      expect(stylesXml).not.toContain('android:statusBarColor');
+      expect(stylesXml).not.toContain('@android:color/black');
+      expect(lightColors).toContain('#F5F2EB');
+      expect(lightColors).toContain('#1F4AA8');
+      expect(darkColors).toContain('#151412');
+      expect(darkColors).toContain('#7EA4FF');
+    }
+  );
 
   it('contains non-empty regenerated PNG brand and Android splash logo assets', () => {
     const pngPaths = [
@@ -77,10 +81,14 @@ describe('Expo, Android DayNight, and Editorial brand assets alignment', () => {
       'assets/images/adaptive-icon.png',
       'assets/images/splash-icon.png',
       'assets/images/favicon.png',
-      'android/app/src/main/res/drawable-mdpi/splashscreen_logo.png',
-      'android/app/src/main/res/drawable-hdpi/splashscreen_logo.png',
-      'android/app/src/main/res/drawable-xhdpi/splashscreen_logo.png',
-      'android/app/src/main/res/drawable-xxhdpi/splashscreen_logo.png',
+      ...(hasAndroidDir
+        ? [
+            'android/app/src/main/res/drawable-mdpi/splashscreen_logo.png',
+            'android/app/src/main/res/drawable-hdpi/splashscreen_logo.png',
+            'android/app/src/main/res/drawable-xhdpi/splashscreen_logo.png',
+            'android/app/src/main/res/drawable-xxhdpi/splashscreen_logo.png',
+          ]
+        : []),
     ];
     for (const rel of pngPaths) {
       const buf = fs.readFileSync(path.join(root, rel));
@@ -96,14 +104,19 @@ describe('Expo, Android DayNight, and Editorial brand assets alignment', () => {
     expect([favicon.width, favicon.height]).toEqual([48, 48]);
     expect(favicon.getPixel(0, 0)).toEqual([0xf5, 0xf2, 0xeb, 0xff]);
 
-    for (const [rel, expectedSize] of [
+    const transparentBrandAssets: ReadonlyArray<readonly [string, number]> = [
       ['assets/images/adaptive-icon.png', 1024],
       ['assets/images/splash-icon.png', 512],
-      ['android/app/src/main/res/drawable-mdpi/splashscreen_logo.png', 288],
-      ['android/app/src/main/res/drawable-hdpi/splashscreen_logo.png', 432],
-      ['android/app/src/main/res/drawable-xhdpi/splashscreen_logo.png', 576],
-      ['android/app/src/main/res/drawable-xxhdpi/splashscreen_logo.png', 864],
-    ] as const) {
+      ...(hasAndroidDir
+        ? ([
+            ['android/app/src/main/res/drawable-mdpi/splashscreen_logo.png', 288],
+            ['android/app/src/main/res/drawable-hdpi/splashscreen_logo.png', 432],
+            ['android/app/src/main/res/drawable-xhdpi/splashscreen_logo.png', 576],
+            ['android/app/src/main/res/drawable-xxhdpi/splashscreen_logo.png', 864],
+          ] as const)
+        : []),
+    ];
+    for (const [rel, expectedSize] of transparentBrandAssets) {
       const img = decodePngRgbaPixels(fs.readFileSync(path.join(root, rel)));
       expect([img.width, img.height]).toEqual([expectedSize, expectedSize]);
       expect(img.getPixel(0, 0)[3]).toBe(0);

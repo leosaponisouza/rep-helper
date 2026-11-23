@@ -91,6 +91,7 @@ describe('FeedbackProvider, Overlays, ErrorHandler, and NotificationContext inte
   });
 
   afterEach(() => {
+    jest.clearAllTimers();
     jest.useRealTimers();
     jest.restoreAllMocks();
     ErrorHandler.registerToastHandler(null);
@@ -101,7 +102,7 @@ describe('FeedbackProvider, Overlays, ErrorHandler, and NotificationContext inte
   });
 
   it('renders editorial Toast on toast(), respects top safe area & max 3 stack, and auto-dismisses after duration', async () => {
-    jest.useFakeTimers();
+    jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] });
     let feedback!: ReturnType<typeof useFeedback>;
 
     function Consumer() {
@@ -168,7 +169,7 @@ describe('FeedbackProvider, Overlays, ErrorHandler, and NotificationContext inte
   });
 
   it('supports manual dismiss and onPress on Toast without leaking timers', async () => {
-    jest.useFakeTimers();
+    jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] });
     let feedback!: ReturnType<typeof useFeedback>;
     const onToastPress = jest.fn();
 
@@ -415,7 +416,7 @@ describe('FeedbackProvider, Overlays, ErrorHandler, and NotificationContext inte
   });
 
   it('BottomSheetModal, ConfirmDialog, and Toast respect reduceMotion and dark theme tokens', async () => {
-    jest.useFakeTimers();
+    jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] });
     (AsyncStorage.getItem as jest.Mock).mockResolvedValue('dark');
     jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(true);
     const timingSpy = jest.spyOn(Animated, 'timing');
@@ -476,7 +477,7 @@ describe('FeedbackProvider, Overlays, ErrorHandler, and NotificationContext inte
   });
 
   it('preserves NotificationProvider API and renders NotificationToast using design-system Toast', async () => {
-    jest.useFakeTimers();
+    jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] });
     let notif!: ReturnType<typeof useNotification>;
     const onNotifPress = jest.fn();
 
@@ -540,7 +541,7 @@ describe('FeedbackProvider, Overlays, ErrorHandler, and NotificationContext inte
   });
 
   it('skips haptics and sets useNativeDriver=false on web, and constrains BottomSheetModal width on desktop', async () => {
-    jest.useFakeTimers();
+    jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] });
     Object.defineProperty(Platform, 'OS', {
       configurable: true,
       value: 'web',
@@ -601,7 +602,7 @@ describe('FeedbackProvider, Overlays, ErrorHandler, and NotificationContext inte
   });
 
   it('prevents ConfirmDialog dismissal via header X button, backdrop press, and onRequestClose while loading=true', async () => {
-    jest.useFakeTimers();
+    jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] });
     const onConfirm = jest.fn();
     const onCancel = jest.fn();
 
@@ -680,7 +681,7 @@ describe('FeedbackProvider, Overlays, ErrorHandler, and NotificationContext inte
   });
 
   it('portals active toastOverlay inside an open BottomSheetModal without duplicating at root', async () => {
-    jest.useFakeTimers();
+    jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] });
     let feedback!: ReturnType<typeof useFeedback>;
     let setModalOpen!: (open: boolean) => void;
 

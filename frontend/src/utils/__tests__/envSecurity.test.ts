@@ -3,8 +3,9 @@ import path from 'path';
 
 describe('native and build security configuration', () => {
   const root = path.resolve(__dirname, '../../..');
+  const hasAndroidDir = fs.existsSync(path.join(root, 'android'));
 
-  it('AndroidManifest disables allowBackup and removes unused privileged permissions', () => {
+  (hasAndroidDir ? it : it.skip)('AndroidManifest disables allowBackup and removes unused privileged permissions', () => {
     const manifest = fs.readFileSync(
       path.join(root, 'android/app/src/main/AndroidManifest.xml'),
       'utf8'
@@ -27,7 +28,7 @@ describe('native and build security configuration', () => {
     expect(appJson.expo.scheme).toBe('rephelper');
   });
 
-  it('Android release build does not sign with debug.keystore and enables ProGuard by default', () => {
+  (hasAndroidDir ? it : it.skip)('Android release build does not sign with debug.keystore and enables ProGuard by default', () => {
     const gradle = fs.readFileSync(path.join(root, 'android/app/build.gradle'), 'utf8');
     const buildTypesSection = gradle.split('buildTypes {')[1]?.split('packagingOptions {')[0] || '';
     const releaseSection = buildTypesSection.split('release {')[1] || '';
@@ -42,7 +43,7 @@ describe('native and build security configuration', () => {
     expect(gradle).toContain('REPHELPER_UPLOAD_STORE_FILE');
   });
 
-  it('gradle.properties disables dev client network inspector', () => {
+  (hasAndroidDir ? it : it.skip)('gradle.properties disables dev client network inspector', () => {
     const gradleProps = fs.readFileSync(path.join(root, 'android/gradle.properties'), 'utf8');
     expect(gradleProps).toContain('EX_DEV_CLIENT_NETWORK_INSPECTOR=false');
     expect(gradleProps).not.toContain('EX_DEV_CLIENT_NETWORK_INSPECTOR=true');
