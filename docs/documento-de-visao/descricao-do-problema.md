@@ -1,0 +1,14 @@
+# Descrição do Problema
+
+A gestão cotidiana de uma república estudantil é frequentemente conduzida de maneira informal e fragmentada — espalhada entre grupos de mensagens instantâneas, planilhas desatualizadas e anotações em papel. Essa ausência de processos estruturados ocasiona gargalos críticos na convivência universitária:
+
+## Matriz de Problemas
+
+| Problema Identificado | Quem é Afetado | Impacto na República | Solução Proposta pelo RepHelper |
+| :--- | :--- | :--- | :--- |
+| **Descontrole do Caixa Comunitário e das Mensalidades** | Moradores e Administrador da República | Atrasos no pagamento de contas da casa, falta de transparência sobre o saldo da poupança coletiva e dificuldade em saber quem já quitou a mensalidade do mês. | Gestão centralizada de mensalidades fixas (configuráveis por morador/quarto), confirmação de pagamentos via comprovante/Pix e livro-caixa transparente da república. |
+| **Atrito no Reembolso de Compras Avulsas** | Moradores que adiantam compras do próprio bolso | Moradores compram itens urgentes (ex.: resistência de chuveiro, produtos de limpeza) e esquecem de cobrar ou demoram a ser ressarcidos pela casa. | Fluxo estruturado de solicitação de reembolso com foto da nota/comprovante, aprovação pelo Administrador e liquidação via Pix do caixa ou desconto automático na próxima mensalidade. |
+| **Falta de Controle de Estoque e Compras Duplicadas** | Todos os moradores | Itens essenciais (alimentos básicos, limpeza, higiene) acabam sem aviso prévio ou são comprados em duplicidade por falta de comunicação. | Controle de materiais com alerta de "em falta", geração automática de Lista de Compras da casa e integração direta da reposição com o pedido de reembolso. |
+| **Sobrecarga e Injustiça nas Tarefas Domésticas** | Todos os moradores | Acúmulo de sujeira, esquecimento de prazos e conflitos interpessoais porque alguns moradores realizam mais tarefas do que outros. | Calendário de tarefas (únicas ou recorrentes com rodízio automático) aliado a um sistema de **Gamificação** com pontos por dificuldade, auditoria e Ranking Mensal ("Morador do Mês"). |
+| **Perda de Histórico de Problemas no Imóvel** | Moradores (inquilinos) perante a Imobiliária/Proprietário | Problemas estruturais (infiltrações, defeitos elétricos) não são documentados com data e fotos, gerando cobranças indevidas na vistoria de entrega do imóvel. | Registro interno de problemas com fotos, nível de urgência, acompanhamento de status (*Aberto*, *Em Manutenção*, *Resolvido*) e exportação de relatório em PDF/link para envio à imobiliária. |
+| **Conflitos por Uso de Espaços e Decisões Coletivas** | Todos os moradores | Eventos marcados sem aviso prévio, disputas pelo uso da churrasqueira/sala e decisões importantes tomadas sem consenso. | Agenda compartilhada com bloqueio de conflito de horário para eventos/espaços comuns e módulo de **Votações/Enquetes** com prazo de encerramento. |
