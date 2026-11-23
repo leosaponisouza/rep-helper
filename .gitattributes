@@ -1,0 +1,6 @@
+# Mark documentation, specs, and generated lockfiles for accurate GitHub Linguist statistics
+docs/** linguist-documentation
+frontend/package-lock.json linguist-generated=true
+*.png binary
+*.jpg binary
+*.ttf binary
