@@ -1,11 +1,13 @@
 # RepHelper
 
+[![CI](https://github.com/leosaponisouza/rep-helper/actions/workflows/ci.yml/badge.svg)](https://github.com/leosaponisouza/rep-helper/actions/workflows/ci.yml)
 ![Java 21](https://img.shields.io/badge/Java-21-ED8B00?style=flat-square&logo=openjdk&logoColor=white)
 ![Spring Boot 3.4](https://img.shields.io/badge/Spring%20Boot-3.4-6DB33F?style=flat-square&logo=springboot&logoColor=white)
 ![PostgreSQL 16](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql&logoColor=white)
 ![React Native / Expo](https://img.shields.io/badge/Expo-React%20Native-000020?style=flat-square&logo=expo&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)
 ![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 
 Full-stack shared-housing ("república estudantil") management platform built as a unified monorepo: a **Java 21 + Spring Boot 3.4 + PostgreSQL 16** REST API paired with a **React Native / Expo (Mobile & Web)** client, engineered for self-hosted single-VPS deployment with zero external BaaS dependencies.
 
@@ -31,41 +33,41 @@ flowchart LR
 | **Multi-Tenant Membership (RBAC)** | Household ("republic") isolation enforced server-side (`RepublicSecurityService`) with `OWNER`, `ADMIN`, and `MEMBER` roles, invite code generation/regeneration, and member lifecycle tracking. |
 | **Recurring Household Tasks** | Filtered/paginated task engine with status transitions (`PENDING` → `IN_PROGRESS` → `COMPLETED`) and automatic next-occurrence scheduling for recurring chores (`DAILY`, `WEEKLY`, `MONTHLY`). |
 | **Shared Financial Ledger** | Income tracking, expense approval & reimbursement workflow (`PENDING` → `APPROVED` → `REIMBURSED`), manual balance adjustment, monthly/category analytics, and receipt image uploads. |
-| **Events & Notifications** | Household calendar with RSVP status management (`INVITED`, `CONFIRMED`, `DECLINED`), upcoming agenda feed, and in-app notification center. |
+| **Events & Notifications** | Household calendar with `OffsetDateTime` timezone preservation, RSVP status management (`INVITED`, `CONFIRMED`, `DECLINED`), upcoming agenda feed, and in-app notification center. |
 | **Editorial Design System** | Custom React Native / Web design system with light/dark/system themes, semantic tokens, WCAG contrast guardrails, and 125 automated Jest unit & component tests. |
 
 ---
 
-## Visual Showcase (Alpha E2E)
+## Visual Showcase (E2E QA)
 
-Captured from live end-to-end browser testing (`Expo Web` + `Spring Boot` + `Flyway`) — full report in [`alpha/relatorio-testes-alpha.md`](alpha/relatorio-testes-alpha.md).
+Captured from live end-to-end browser testing (`Expo Web` + `Spring Boot` + `Flyway`) — full QA report and fix tracking in [`docs/qa/relatorio-testes-alpha.md`](docs/qa/relatorio-testes-alpha.md).
 
 <table>
   <tr>
     <td align="center">
-      <img src="alpha/14-painel-home-populado.png" width="210" alt="Home Dashboard" /><br />
+      <img src="docs/qa/14-painel-home-populado.png" width="210" alt="Home Dashboard" /><br />
       <sub><b>Home Dashboard</b></sub>
     </td>
     <td align="center">
-      <img src="alpha/13-financas-saldo-ajustado.png" width="210" alt="Financial Dashboard" /><br />
+      <img src="docs/qa/13-financas-saldo-ajustado.png" width="210" alt="Financial Dashboard" /><br />
       <sub><b>Financial Ledger</b></sub>
     </td>
     <td align="center">
-      <img src="alpha/08-tarefas-recorrencia-lista.png" width="210" alt="Recurring Tasks" /><br />
+      <img src="docs/qa/08-tarefas-recorrencia-lista.png" width="210" alt="Recurring Tasks" /><br />
       <sub><b>Recurring Tasks</b></sub>
     </td>
   </tr>
   <tr>
     <td align="center">
-      <img src="alpha/11-eventos-agenda.png" width="210" alt="Events Calendar" /><br />
+      <img src="docs/qa/11-eventos-agenda.png" width="210" alt="Events Calendar" /><br />
       <sub><b>Events &amp; Calendar</b></sub>
     </td>
     <td align="center">
-      <img src="alpha/20-configuracoes-aparencia.png" width="210" alt="Dark Theme" /><br />
+      <img src="docs/qa/20-configuracoes-aparencia.png" width="210" alt="Dark Theme" /><br />
       <sub><b>Editorial Dark Theme</b></sub>
     </td>
     <td align="center">
-      <img src="alpha/21-tema-claro-aparencia.png" width="210" alt="Light Theme" /><br />
+      <img src="docs/qa/21-tema-claro-aparencia.png" width="210" alt="Light Theme" /><br />
       <sub><b>Editorial Light Theme</b></sub>
     </td>
   </tr>
@@ -77,12 +79,17 @@ Captured from live end-to-end browser testing (`Expo Web` + `Spring Boot` + `Fly
 
 ```text
 rep-helper/
+├── .github/workflows/    # GitHub Actions CI (Maven JDK 21 + Node 20 Typecheck & Jest)
 ├── backend/              # Java 21, Spring Boot 3.4, Spring Security, JPA, Flyway, OpenAPI
 ├── frontend/             # React Native, Expo Router, TypeScript, Editorial Design System
-├── docs/                 # Architecture, REST API contract, PostgreSQL schema, design specs
-├── alpha/                # End-to-end browser QA report & 22 live application screenshots
+├── docs/
+│   ├── arquitetura-e-modelagem/  # Architecture, REST API contract, PostgreSQL schema & diagrams
+│   ├── designs/                  # Monorepo & backend system design specification
+│   ├── specs/                    # Spec-Driven Development (SDD) plans & technical specs
+│   └── qa/                       # E2E browser QA report & 22 verified captures
 ├── docker-compose.yml    # PostgreSQL 16 + Spring Boot API + persistent media volume
-└── .env.example          # Environment template for local & VPS deployments
+├── .env.example          # Environment template for local & VPS deployments
+└── LICENSE               # MIT License
 ```
 
 ---
@@ -112,11 +119,13 @@ EXPO_PUBLIC_API_BASE_URL=http://localhost:8080 npm run start
 
 ## Testing & Verification
 
+Automated on every push and pull request via [GitHub Actions CI](.github/workflows/ci.yml):
+
 | Layer | Command | Coverage |
 |---|---|---|
-| **Backend (Java 21 / Maven)** | `cd backend && mvn test` | Spring Boot integration & domain tests (H2 PostgreSQL mode + Flyway) |
-| **Frontend (TypeScript / Jest)** | `cd frontend && npm run typecheck && npm run test:ci` | Type safety + 26 Jest test suites (125 tests) |
-| **Full-Stack E2E (Browser)** | See [`alpha/relatorio-testes-alpha.md`](alpha/relatorio-testes-alpha.md) | 22 end-to-end verified flows across auth, tasks, finances, events, and settings |
+| **Backend (Java 21 / Maven)** | `cd backend && mvn test` | 6 Spring Boot MockMvc integration test suites (27 tests: auth, RBAC, recurring tasks, financial ledger, events, notifications, media magic bytes) |
+| **Frontend (TypeScript / Jest)** | `cd frontend && npm run typecheck && npm run test:ci` | Strict TypeScript typecheck + 26 Jest test suites (125 tests) |
+| **Full-Stack E2E (Browser)** | See [`docs/qa/relatorio-testes-alpha.md`](docs/qa/relatorio-testes-alpha.md) | 22 end-to-end verified flows across auth, tasks, finances, events, and settings |
 
 ---
 
@@ -129,3 +138,10 @@ EXPO_PUBLIC_API_BASE_URL=http://localhost:8080 npm run start
 - [State & Sequence Diagrams](docs/arquitetura-e-modelagem/diagramas-de-estados-e-sequencia.md)
 - [Environment & VPS Setup](docs/arquitetura-e-modelagem/setup-ambiente-e-infraestrutura.md)
 - [System Design Document](docs/designs/rep-helper-backend-monorepo.md)
+- [Engineering Specs & Plans (SDD)](docs/specs/)
+
+---
+
+## License
+
+Released under the [MIT License](LICENSE).
