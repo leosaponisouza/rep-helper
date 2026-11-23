@@ -1,0 +1,53 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: rephelper-postgres
+    restart: unless-stopped
+    mem_limit: 512m
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-rephelper}
+      POSTGRES_USER: ${POSTGRES_USER:-rephelper}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rephelper_dev_password}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rephelper} -d ${POSTGRES_DB:-rephelper}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rephelper-backend
+    restart: unless-stopped
+    mem_limit: 1024m
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-rephelper}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-rephelper}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-rephelper_dev_password}
+      JWT_SECRET: ${JWT_SECRET:-rephelper-dev-secret-change-in-production-minimum-256-bits-key}
+      JWT_ACCESS_EXPIRATION_MS: ${JWT_ACCESS_EXPIRATION_MS:-1800000}
+      JWT_REFRESH_EXPIRATION_MS: ${JWT_REFRESH_EXPIRATION_MS:-2592000000}
+      APP_PUBLIC_BASE_URL: ${APP_PUBLIC_BASE_URL:-http://localhost:8080}
+      MEDIA_STORAGE_ROOT: /var/lib/rephelper/media
+      APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:-*}
+      GOOGLE_CLIENT_IDS: ${GOOGLE_CLIENT_IDS:-}
+      EMAIL_PROVIDER_URL: ${EMAIL_PROVIDER_URL:-https://api.resend.com/emails}
+      EMAIL_PROVIDER_API_KEY: ${EMAIL_PROVIDER_API_KEY:-}
+      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-no-reply@rephelper.local}
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=60.0 -XX:+UseG1GC"
+    volumes:
+      - media_data:/var/lib/rephelper/media
+
+volumes:
+  pgdata:
+  media_data:

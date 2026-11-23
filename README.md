@@ -1,25 +1,54 @@
-## Configuração do Supabase para Upload de Imagens
+# RepHelper Monorepo
 
-Para configurar o upload de imagens usando o Supabase Storage, siga os passos abaixo:
+Plataforma de gestão para repúblicas estudantis composta por aplicativo mobile/web (**React Native / Expo**) e API REST autossuficiente (**Java 21 + Spring Boot 3.4 + PostgreSQL 16**) projetada para execução em VPS única via Docker Compose.
 
-1. Crie uma conta no [Supabase](https://supabase.com/) e inicie um novo projeto.
+## Estrutura do Repositório
 
-2. Crie um bucket público chamado `avatars`:
-   - No dashboard do Supabase, navegue até "Storage" > "Buckets"
-   - Clique em "Create New Bucket"
-   - Dê o nome "avatars"
-   - Marque a opção "Public" para permitir acesso público às imagens
-   - Clique em "Create bucket"
+```text
+rep-helper/
+├── frontend/             # Aplicativo React Native / Expo Router
+├── backend/              # API REST Java 21 / Spring Boot 3.4 / Flyway / PostgreSQL 16
+├── docs/                 # Arquitetura, especificação de API, modelo de dados e designs EGM
+├── docker-compose.yml    # Orquestração PostgreSQL 16 + Backend + volume local de mídia
+└── .env.example          # Variáveis de ambiente para desenvolvimento e produção na VPS
+```
 
-3. Configure as políticas de acesso para o bucket:
-   - No bucket criado, clique em "Policies"
-   - Configure uma política para permitir upload de arquivos autenticados
-   - Configure uma política para permitir leitura pública
+## Executando Back-end + PostgreSQL (Docker Compose)
 
-4. Adicione as credenciais do Supabase ao seu arquivo `.env`:
+1. Copie `.env.example` para `.env` e ajuste `POSTGRES_PASSWORD`, `JWT_SECRET` e `APP_PUBLIC_BASE_URL`:
+   ```bash
+   cp .env.example .env
    ```
-   EXPO_PUBLIC_SUPABASE_URL=sua_url_do_supabase
-   EXPO_PUBLIC_SUPABASE_ANON_KEY=sua_chave_anonima_do_supabase
+2. Suba o banco PostgreSQL 16 e a API Java:
+   ```bash
+   docker compose up -d --build
    ```
+3. Verifique a saúde da API:
+   ```bash
+   curl http://localhost:8080/api/v1/health
+   ```
+   A documentação interativa OpenAPI fica disponível em `http://localhost:8080/swagger-ui.html`.
 
-5. Reinicie o app para que as configurações tenham efeito. 
+## Executando o Front-end (Expo)
+
+```bash
+cd frontend
+npm install
+npm run start
+```
+
+Configure `EXPO_PUBLIC_API_BASE_URL` (ex.: `http://localhost:8080` em desenvolvimento ou `https://api.seu-dominio.com.br` em produção).
+
+## Testes e Verificação
+
+- **Back-end**:
+  ```bash
+  cd backend
+  mvn test
+  ```
+- **Front-end**:
+  ```bash
+  cd frontend
+  npm run typecheck
+  npm run test:ci
+  ```

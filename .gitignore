@@ -1,13 +1,21 @@
-# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
-
-# dependencies
+# Dependencies & Build Artifacts
 node_modules/
+frontend/node_modules/
+backend/target/
+*.jar
+*.war
+*.ear
 
-# Expo
+# Expo / React Native
 .expo/
+frontend/.expo/
 dist/
+frontend/dist/
 web-build/
+frontend/web-build/
 expo-env.d.ts
+frontend/expo-env.d.ts
+.metro-health-check*
 
 # Native
 *.orig.*
@@ -16,31 +24,41 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
-
-# Native folders for prebuild
 /android/
 /ios/
+/frontend/android/
+/frontend/ios/
 
-# Metro
-.metro-health-check*
-
-# debug
+# Logs & Debug
 npm-debug.*
 yarn-debug.*
 yarn-error.*
 
-# macOS
+# OS & IDEs
 .DS_Store
 *.pem
+.idea/
+*.iml
+.vscode/settings.json
 
-# local env files
-.env*.local
-
-# typescript
-*.tsbuildinfo
-
-# .gitignore
+# Environment files
 .env
 .env.local
 .env.development
 .env.production
+.env*.local
+frontend/.env
+frontend/.env.local
+frontend/.env.development
+frontend/.env.production
+backend/.env
+
+# TypeScript
+*.tsbuildinfo
+
+# Local VPS / Docker data
+media_data/
+pgdata/
+
+# Superpowers & EGM scratch
+.superpowers/
