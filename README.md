@@ -1,6 +1,7 @@
 # RepHelper
 
 [![CI](https://github.com/leosaponisouza/rep-helper/actions/workflows/ci.yml/badge.svg)](https://github.com/leosaponisouza/rep-helper/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/leosaponisouza/rep-helper?style=flat-square&color=2ea44f)](https://github.com/leosaponisouza/rep-helper/releases)
 ![Java 21](https://img.shields.io/badge/Java-21-ED8B00?style=flat-square&logo=openjdk&logoColor=white)
 ![Spring Boot 3.4](https://img.shields.io/badge/Spring%20Boot-3.4-6DB33F?style=flat-square&logo=springboot&logoColor=white)
 ![PostgreSQL 16](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql&logoColor=white)
@@ -131,6 +132,7 @@ Automated on every push and pull request via [GitHub Actions CI](.github/workflo
 
 ## Documentation
 
+- [**Backend Architecture & Java 21 Guide (`backend/README.md`)**](backend/README.md)
 - [Architecture Overview](docs/arquitetura-e-modelagem/visao-geral-arquitetura.md)
 - [REST API Specification](docs/arquitetura-e-modelagem/especificacao-api-rest.md)
 - [Data Model](docs/arquitetura-e-modelagem/modelo-de-dados.md)
@@ -139,6 +141,7 @@ Automated on every push and pull request via [GitHub Actions CI](.github/workflo
 - [Environment & VPS Setup](docs/arquitetura-e-modelagem/setup-ambiente-e-infraestrutura.md)
 - [System Design Document](docs/designs/rep-helper-backend-monorepo.md)
 - [Engineering Specs & Plans (SDD)](docs/specs/)
+- [Security Policy](SECURITY.md)
 
 ---
 
