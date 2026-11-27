@@ -45,7 +45,7 @@ src/main/java/com/alpendre/backend/
 
 ## Integration Test Suite (`src/test/`)
 
-Run all **33 MockMvc integration tests** (executing against Flyway-migrated H2 in PostgreSQL compatibility mode with isolated temporary media storage):
+Run all **36 MockMvc integration tests** (executing against Flyway-migrated H2 in PostgreSQL compatibility mode with isolated temporary media storage):
 
 ```bash
 mvn -B test
