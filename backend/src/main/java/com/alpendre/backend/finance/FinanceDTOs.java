@@ -130,7 +130,9 @@ public final class FinanceDTOs {
             BigDecimal rejectedExpenses,
             BigDecimal reimbursedExpenses,
             BigDecimal totalExpensesCurrentMonth,
-            BigDecimal totalIncomesCurrentMonth
+            BigDecimal totalIncomesCurrentMonth,
+            boolean hasSharedFund,
+            boolean requireExpenseApproval
     ) {}
 
     public record MonthlyPointView(String month, BigDecimal expenses, BigDecimal incomes) {}

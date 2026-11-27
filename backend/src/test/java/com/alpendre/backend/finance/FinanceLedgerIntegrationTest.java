@@ -8,6 +8,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.alpendre.backend.AbstractIntegrationTest;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -168,5 +170,219 @@ class FinanceLedgerIntegrationTest extends AbstractIntegrationTest {
                         .header("Authorization", bearer(rep.owner().token())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currentBalance").value(0.0));
+    }
+
+    @Test
+    void shouldTrackMonthlyExpensesWithoutSharedFundAndBlockIncomeAdjustAndReimburse() throws Exception {
+        AuthSession owner = signupUser("fin-couple-1", "Clara");
+        MvcResult houseRes = mockMvc.perform(post("/api/v1/houses")
+                        .header("Authorization", bearer(owner.token()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "name", "Apê Clara & Leo",
+                                "presetType", "COUPLE_FAMILY"
+                        ))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String houseId = readJson(houseRes).get("house").get("id").asText();
+        String token = readJson(houseRes).get("token").asText();
+        String nowIso = OffsetDateTime.now(ZoneOffset.UTC).toString();
+
+        MvcResult expRes = mockMvc.perform(post("/api/v1/expenses")
+                        .header("Authorization", bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "description", "Supermercado",
+                                "amount", 180.00,
+                                "expenseDate", nowIso,
+                                "category", "MERCADO",
+                                "houseId", houseId
+                        ))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("APPROVED"))
+                .andReturn();
+        long expenseId = readJson(expRes).get("id").asLong();
+
+        mockMvc.perform(get("/api/v1/financial-dashboard/summary/" + houseId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.hasSharedFund").value(false))
+                .andExpect(jsonPath("$.requireExpenseApproval").value(false))
+                .andExpect(jsonPath("$.currentBalance").value(0.0))
+                .andExpect(jsonPath("$.totalExpenses").value(180.0))
+                .andExpect(jsonPath("$.totalExpensesCurrentMonth").value(180.0));
+
+        mockMvc.perform(get("/api/v1/financial-dashboard/pending-actions/" + houseId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pendingExpensesCount").value(0));
+
+        mockMvc.perform(put("/api/v1/expenses/" + expenseId)
+                        .header("Authorization", bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("amount", 220.00))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.amount").value(220.0));
+
+        mockMvc.perform(post("/api/v1/incomes")
+                        .header("Authorization", bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "description", "Depósito",
+                                "amount", 100.00,
+                                "incomeDate", nowIso,
+                                "source", "PIX",
+                                "houseId", houseId
+                        ))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("SHARED_FUND_DISABLED"));
+
+        mockMvc.perform(post("/api/v1/finances/" + houseId + "/adjust-balance")
+                        .header("Authorization", bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("amount", 300.00, "description", "Teste"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("SHARED_FUND_DISABLED"));
+
+        mockMvc.perform(post("/api/v1/expenses/" + expenseId + "/reimburse")
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("SHARED_FUND_DISABLED"));
+
+        mockMvc.perform(delete("/api/v1/expenses/" + expenseId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/financial-dashboard/summary/" + houseId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalExpenses").value(0.0))
+                .andExpect(jsonPath("$.currentBalance").value(0.0));
+    }
+
+    @Test
+    void shouldRequireAdminApprovalWithoutSharedFundAndClearPendingQueueWithoutReimbursement() throws Exception {
+        AuthSession owner = signupUser("fin-fam-owner", "Paulo");
+        MvcResult houseRes = mockMvc.perform(post("/api/v1/houses")
+                        .header("Authorization", bearer(owner.token()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "name", "Casa Família",
+                                "hasSharedFund", false,
+                                "requireExpenseApproval", true,
+                                "allMembersAdmin", false
+                        ))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String houseId = readJson(houseRes).get("house").get("id").asText();
+        String code = readJson(houseRes).get("house").get("code").asText();
+        String ownerToken = readJson(houseRes).get("token").asText();
+        AuthSession member = joinHouse("fin-fam-child", code);
+
+        MvcResult expRes = mockMvc.perform(post("/api/v1/expenses")
+                        .header("Authorization", bearer(member.token()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "description", "Farmácia",
+                                "amount", 90.00,
+                                "expenseDate", "2026-11-18T12:00:00Z",
+                                "category", "SAUDE",
+                                "houseId", houseId
+                        ))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("PENDING"))
+                .andReturn();
+        long expenseId = readJson(expRes).get("id").asLong();
+
+        mockMvc.perform(get("/api/v1/financial-dashboard/pending-actions/" + houseId)
+                        .header("Authorization", bearer(ownerToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pendingExpensesCount").value(1));
+
+        mockMvc.perform(post("/api/v1/expenses/" + expenseId + "/approve")
+                        .header("Authorization", bearer(ownerToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("APPROVED"));
+
+        mockMvc.perform(get("/api/v1/financial-dashboard/pending-actions/" + houseId)
+                        .header("Authorization", bearer(ownerToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pendingExpensesCount").value(0));
+
+        mockMvc.perform(post("/api/v1/expenses/" + expenseId + "/reimburse")
+                        .header("Authorization", bearer(ownerToken)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("SHARED_FUND_DISABLED"));
+    }
+
+    @Test
+    void shouldImmediatelyDebitAndAdjustSharedFundWhenApprovalIsDisabled() throws Exception {
+        AuthSession owner = signupUser("fin-direct-owner", "Julia");
+        MvcResult houseRes = mockMvc.perform(post("/api/v1/houses")
+                        .header("Authorization", bearer(owner.token()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "name", "Casa Caixinha Direta",
+                                "hasSharedFund", true,
+                                "requireExpenseApproval", false,
+                                "allMembersAdmin", true
+                        ))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String houseId = readJson(houseRes).get("house").get("id").asText();
+        String token = readJson(houseRes).get("token").asText();
+
+        mockMvc.perform(post("/api/v1/incomes")
+                        .header("Authorization", bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "description", "Aporte Mensal",
+                                "amount", 500.00,
+                                "incomeDate", "2026-11-01T12:00:00Z",
+                                "source", "PIX",
+                                "houseId", houseId
+                        ))))
+                .andExpect(status().isCreated());
+
+        MvcResult expRes = mockMvc.perform(post("/api/v1/expenses")
+                        .header("Authorization", bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "description", "Gás",
+                                "amount", 120.00,
+                                "expenseDate", "2026-11-03T12:00:00Z",
+                                "category", "UTILIDADES",
+                                "houseId", houseId
+                        ))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("REIMBURSED"))
+                .andReturn();
+        long expenseId = readJson(expRes).get("id").asLong();
+
+        mockMvc.perform(get("/api/v1/financial-dashboard/summary/" + houseId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentBalance").value(380.0));
+
+        mockMvc.perform(put("/api/v1/expenses/" + expenseId)
+                        .header("Authorization", bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("amount", 150.00))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.amount").value(150.0));
+
+        mockMvc.perform(get("/api/v1/financial-dashboard/summary/" + houseId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentBalance").value(350.0));
+
+        mockMvc.perform(delete("/api/v1/expenses/" + expenseId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/financial-dashboard/summary/" + houseId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentBalance").value(500.0));
     }
 }

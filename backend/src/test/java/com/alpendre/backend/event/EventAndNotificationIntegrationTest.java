@@ -171,4 +171,55 @@ class EventAndNotificationIntegrationTest extends AbstractIntegrationTest {
                         .header("Authorization", bearer(outsider.token())))
                 .andExpect(status().isForbidden());
     }
+
+    @Test
+    void shouldSupportInformationalAgendaEventWithoutRsvpAndRejectRsvpMutations() throws Exception {
+        HouseFixture house = createHouse("evt-norsvp-owner", "Casa Agenda");
+        AuthSession member = joinHouse("evt-norsvp-mem", house.code());
+
+        MvcResult createRes = mockMvc.perform(post("/api/v1/events")
+                        .header("Authorization", bearer(house.owner().token()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "title", "Técnico da Internet",
+                                "description", "Troca do roteador na sala",
+                                "startDate", "2026-12-28T14:00:00-03:00",
+                                "endDate", "2026-12-28T16:00:00-03:00",
+                                "location", "Sala",
+                                "houseId", house.id(),
+                                "requireRsvp", false,
+                                "invitedUserIds", List.of(member.uid())
+                        ))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.requireRsvp").value(false))
+                .andExpect(jsonPath("$.invitations.length()").value(0))
+                .andReturn();
+
+        long eventId = readJson(createRes).get("id").asLong();
+
+        mockMvc.perform(get("/api/v1/events/upcoming")
+                        .header("Authorization", bearer(member.token())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].requireRsvp").value(false));
+
+        MvcResult unreadRes = mockMvc.perform(get("/api/v1/notifications/unread")
+                        .header("Authorization", bearer(member.token())))
+                .andExpect(status().isOk())
+                .andReturn();
+        assertThat(readJson(unreadRes).get(0).get("title").asText()).contains("agenda");
+
+        mockMvc.perform(put("/api/v1/events/" + eventId + "/respond")
+                        .header("Authorization", bearer(member.token()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("status", "CONFIRMED"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("RSVP_NOT_ENABLED"));
+
+        mockMvc.perform(post("/api/v1/events/" + eventId + "/invite")
+                        .header("Authorization", bearer(house.owner().token()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("userIds", List.of(member.uid())))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("RSVP_NOT_ENABLED"));
+    }
 }

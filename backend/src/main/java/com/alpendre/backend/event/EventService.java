@@ -2,12 +2,12 @@ package com.alpendre.backend.event;
 
 import com.alpendre.backend.common.BusinessException;
 import com.alpendre.backend.event.EventDTOs.*;
-import com.alpendre.backend.notification.NotificationService;
 import com.alpendre.backend.house.House;
 import com.alpendre.backend.house.HouseMember;
 import com.alpendre.backend.house.HouseMemberRepository;
 import com.alpendre.backend.house.HouseRepository;
 import com.alpendre.backend.house.HouseSecurityService;
+import com.alpendre.backend.notification.NotificationService;
 import com.alpendre.backend.user.User;
 import com.alpendre.backend.user.UserRepository;
 import java.time.OffsetDateTime;
@@ -103,6 +103,8 @@ public class EventService {
         User creator = userRepo.findById(callerUid)
                 .orElseThrow(() -> BusinessException.notFound("USER_NOT_FOUND", "Usuário não encontrado."));
 
+        boolean requireRsvp = input.requireRsvp() == null || input.requireRsvp();
+
         Event event = new Event();
         event.setHouse(house);
         event.setCreator(creator);
@@ -111,15 +113,20 @@ public class EventService {
         event.setStartDate(input.startDate());
         event.setEndDate(input.endDate());
         event.setLocation(input.location().trim());
+        event.setRequireRsvp(requireRsvp);
 
         Event saved = eventRepo.save(event);
 
-        EventInvitation creatorInv = new EventInvitation(saved, creator, "CONFIRMED");
-        creatorInv.setRespondedAt(OffsetDateTime.now());
-        saved.getInvitations().add(creatorInv);
+        if (requireRsvp) {
+            EventInvitation creatorInv = new EventInvitation(saved, creator, "CONFIRMED");
+            creatorInv.setRespondedAt(OffsetDateTime.now());
+            saved.getInvitations().add(creatorInv);
 
-        if (input.invitedUserIds() != null && !input.invitedUserIds().isEmpty()) {
-            addInvitationsAndNotify(saved, callerUid, input.invitedUserIds());
+            if (input.invitedUserIds() != null && !input.invitedUserIds().isEmpty()) {
+                addInvitationsAndNotify(saved, callerUid, input.invitedUserIds());
+            }
+        } else if (input.invitedUserIds() != null && !input.invitedUserIds().isEmpty()) {
+            notifyAgendaMembersWithoutRsvp(saved, callerUid, input.invitedUserIds());
         }
 
         return EventView.from(eventRepo.save(saved));
@@ -144,6 +151,17 @@ public class EventService {
         }
         if (input.location() != null && !input.location().isBlank()) {
             event.setLocation(input.location().trim());
+        }
+        if (input.requireRsvp() != null) {
+            boolean nextRsvp = input.requireRsvp();
+            if (!nextRsvp) {
+                event.getInvitations().clear();
+            } else if (!event.isRequireRsvp() && event.getInvitations().isEmpty()) {
+                EventInvitation creatorInv = new EventInvitation(event, event.getCreator(), "CONFIRMED");
+                creatorInv.setRespondedAt(OffsetDateTime.now());
+                event.getInvitations().add(creatorInv);
+            }
+            event.setRequireRsvp(nextRsvp);
         }
         event.setStartDate(nextStart);
         event.setEndDate(nextEnd);
@@ -171,6 +189,13 @@ public class EventService {
                 .orElseThrow(() -> BusinessException.notFound("EVENT_NOT_FOUND", "Evento não encontrado."));
         security.requireActiveMember(event.getHouse().getId(), callerUid);
 
+        if (!event.isRequireRsvp()) {
+            throw BusinessException.badRequest(
+                    "RSVP_NOT_ENABLED",
+                    "Este compromisso não utiliza confirmação de presença."
+            );
+        }
+
         EventInvitation invitation = event.getInvitations().stream()
                 .filter(inv -> inv.getUser().getUid().equals(callerUid))
                 .findFirst()
@@ -195,6 +220,13 @@ public class EventService {
                 .orElseThrow(() -> BusinessException.notFound("EVENT_NOT_FOUND", "Evento não encontrado."));
         security.requireActiveMember(event.getHouse().getId(), callerUid);
 
+        if (!event.isRequireRsvp()) {
+            throw BusinessException.badRequest(
+                    "RSVP_NOT_ENABLED",
+                    "Este compromisso não utiliza confirmação de presença."
+            );
+        }
+
         addInvitationsAndNotify(event, callerUid, input.userIds());
         return EventView.from(eventRepo.save(event));
     }
@@ -204,11 +236,7 @@ public class EventService {
             return;
         }
         UUID houseId = event.getHouse().getId();
-        Map<UUID, User> activeMembersByUid = memberRepo
-                .findByHouseIdAndStatusOrderByJoinedAtAsc(houseId, "ACTIVE")
-                .stream()
-                .map(HouseMember::getUser)
-                .collect(Collectors.toMap(User::getUid, Function.identity(), (a, b) -> a));
+        Map<UUID, User> activeMembersByUid = resolveActiveMembersMap(houseId);
 
         Set<UUID> alreadyInvited = event.getInvitations().stream()
                 .map(inv -> inv.getUser().getUid())
@@ -244,12 +272,48 @@ public class EventService {
         }
     }
 
+    private void notifyAgendaMembersWithoutRsvp(Event event, UUID actorUid, List<UUID> requestedUids) {
+        UUID houseId = event.getHouse().getId();
+        Map<UUID, User> activeMembersByUid = resolveActiveMembersMap(houseId);
+        List<UUID> recipients = new ArrayList<>();
+        for (UUID uid : requestedUids) {
+            if (!activeMembersByUid.containsKey(uid)) {
+                throw BusinessException.badRequest(
+                        "INVALID_INVITEE",
+                        "Todos os destinatários devem ser moradores ativos da casa."
+                );
+            }
+            if (!uid.equals(actorUid) && !recipients.contains(uid)) {
+                recipients.add(uid);
+            }
+        }
+        if (!recipients.isEmpty()) {
+            notificationService.notifyUsers(
+                    recipients,
+                    houseId,
+                    "Novo compromisso na agenda",
+                    "Novo compromisso registrado na agenda da casa: \"" + event.getTitle() + "\".",
+                    "EVENT_NOTICE",
+                    "EVENT",
+                    String.valueOf(event.getId())
+            );
+        }
+    }
+
+    private Map<UUID, User> resolveActiveMembersMap(UUID houseId) {
+        return memberRepo
+                .findByHouseIdAndStatusOrderByJoinedAtAsc(houseId, "ACTIVE")
+                .stream()
+                .map(HouseMember::getUser)
+                .collect(Collectors.toMap(User::getUid, Function.identity(), (a, b) -> a));
+    }
+
     private UUID findCurrentHouseId(UUID callerUid) {
         return userRepo.findById(callerUid).map(User::getCurrentHouseId).orElse(null);
     }
 
-    private void validateDates(OffsetDateTime startDate, OffsetDateTime endDate) {
-        if (startDate == null || endDate == null || !endDate.isAfter(startDate)) {
+    private void validateDates(OffsetDateTime start, OffsetDateTime end) {
+        if (start == null || end == null || !end.isAfter(start)) {
             throw BusinessException.badRequest(
                     "INVALID_EVENT_DATES",
                     "A data de término deve ser posterior à data de início."
@@ -258,8 +322,14 @@ public class EventService {
     }
 
     private void requireCreatorOrAdmin(UUID creatorUid, UUID callerUid, HouseMember caller) {
-        if (!creatorUid.equals(callerUid) && !caller.isAdmin() && !caller.isOwner()) {
-            throw BusinessException.forbidden("FORBIDDEN", "Apenas o criador ou um administrador pode alterar este evento.");
+        boolean isEffectiveAdmin = caller.isAdmin()
+                || caller.isOwner()
+                || (caller.getHouse() != null && caller.getHouse().isAllMembersAdmin());
+        if (!creatorUid.equals(callerUid) && !isEffectiveAdmin) {
+            throw BusinessException.forbidden(
+                    "FORBIDDEN",
+                    "Apenas o criador ou um administrador pode alterar este evento."
+            );
         }
     }
 }

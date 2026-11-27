@@ -41,6 +41,7 @@ public final class EventDTOs {
             OffsetDateTime startDate,
             OffsetDateTime endDate,
             String location,
+            @JsonProperty("requireRsvp") boolean requireRsvp,
             String houseId,
             String houseName,
             String creatorId,
@@ -66,6 +67,7 @@ public final class EventDTOs {
                     event.getStartDate(),
                     event.getEndDate(),
                     event.getLocation(),
+                    event.isRequireRsvp(),
                     event.getHouse().getId().toString(),
                     event.getHouse().getName(),
                     event.getCreator().getUid().toString(),
@@ -85,6 +87,7 @@ public final class EventDTOs {
             @NotNull OffsetDateTime endDate,
             @NotBlank @Size(max = 255) String location,
             @NotNull UUID houseId,
+            Boolean requireRsvp,
             List<UUID> invitedUserIds
     ) {}
 
@@ -93,7 +96,8 @@ public final class EventDTOs {
             String description,
             OffsetDateTime startDate,
             OffsetDateTime endDate,
-            @Size(max = 255) String location
+            @Size(max = 255) String location,
+            Boolean requireRsvp
     ) {}
 
     public record RespondEventInput(
