@@ -1,6 +1,5 @@
-// src/hooks/useRepublicMembers.ts
 import { useState, useEffect, useCallback } from 'react';
-import { getRepublicMembers } from '../services/republicService';
+import { getHouseMembers } from '../services/houseService';
 import { ErrorHandler } from '../utils/errorHandling';
 import { logger } from '../utils/logger';
 
@@ -14,7 +13,7 @@ export interface SelectableMember {
 
 export function normalizeMembers(rawMembers: Array<Record<string, any>>): SelectableMember[] {
   if (!Array.isArray(rawMembers)) return [];
-  return rawMembers.map(member => ({
+  return rawMembers.map((member) => ({
     uid: String(member.uid || member.id || ''),
     name: String(member.name || ''),
     nickname: member.nickname ? String(member.nickname) : undefined,
@@ -23,13 +22,13 @@ export function normalizeMembers(rawMembers: Array<Record<string, any>>): Select
   }));
 }
 
-export function useRepublicMembers(republicId?: string | null) {
+export function useHouseMembers(houseId?: string | null) {
   const [members, setMembers] = useState<SelectableMember[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   const refreshMembers = useCallback(async () => {
-    if (!republicId) {
+    if (!houseId) {
       setMembers([]);
       return;
     }
@@ -37,22 +36,22 @@ export function useRepublicMembers(republicId?: string | null) {
     try {
       setLoading(true);
       setError(null);
-      const raw = await getRepublicMembers(republicId);
+      const raw = await getHouseMembers(houseId);
       setMembers(normalizeMembers(raw as Array<Record<string, any>>));
     } catch (err) {
       const parsedError = await ErrorHandler.parseError(err);
       setError(parsedError.message);
-      logger.error('Erro ao buscar membros da república:', err);
+      logger.error('Erro ao buscar moradores da casa:', err);
     } finally {
       setLoading(false);
     }
-  }, [republicId]);
+  }, [houseId]);
 
   useEffect(() => {
     let isMounted = true;
 
     const load = async () => {
-      if (!republicId) {
+      if (!houseId) {
         if (isMounted) setMembers([]);
         return;
       }
@@ -61,7 +60,7 @@ export function useRepublicMembers(republicId?: string | null) {
           setLoading(true);
           setError(null);
         }
-        const raw = await getRepublicMembers(republicId);
+        const raw = await getHouseMembers(houseId);
         if (isMounted) {
           setMembers(normalizeMembers(raw as Array<Record<string, any>>));
         }
@@ -69,7 +68,7 @@ export function useRepublicMembers(republicId?: string | null) {
         if (isMounted) {
           const parsedError = await ErrorHandler.parseError(err);
           setError(parsedError.message);
-          logger.error('Erro ao buscar membros da república:', err);
+          logger.error('Erro ao buscar moradores da casa:', err);
         }
       } finally {
         if (isMounted) {
@@ -78,12 +77,12 @@ export function useRepublicMembers(republicId?: string | null) {
       }
     };
 
-    load();
+    void load();
 
     return () => {
       isMounted = false;
     };
-  }, [republicId]);
+  }, [houseId]);
 
   return {
     members,

@@ -255,10 +255,10 @@ const CreateIncomeScreen = () => {
   const handleSaveIncome = async () => {
     if (!validateForm()) return;
 
-    if (!user?.currentRepublicId) {
+    if (!user?.currentHouseId) {
       toast({
-        title: 'República não identificada',
-        message: 'Não foi possível identificar sua república atual.',
+        title: 'Casa não identificada',
+        message: 'Não foi possível identificar sua casa atual.',
         tone: 'danger',
       });
       return;
@@ -272,7 +272,7 @@ const CreateIncomeScreen = () => {
         amount: parseInt(formData.amount.toString(), 10) / 100,
         incomeDate: formData.date,
         source: formData.source,
-        republicId: user.currentRepublicId,
+        houseId: user.currentHouseId,
         notes: formData.notes?.trim() || undefined,
       };
 

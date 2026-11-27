@@ -164,7 +164,7 @@ const FinancesDashboardScreen = () => {
     } else {
       toast({
         title: 'Permissão necessária',
-        message: 'Apenas administradores podem ajustar o saldo da república.',
+        message: 'Apenas administradores podem ajustar o saldo da casa.',
         tone: 'warning',
       });
     }
@@ -172,11 +172,11 @@ const FinancesDashboardScreen = () => {
 
   const handleAdjustBalanceSubmit = useCallback(
     async (newBalance: number, description: string): Promise<boolean> => {
-      if (!user?.currentRepublicId) {
+      if (!user?.currentHouseId) {
         toast({
           title: 'Erro',
           message:
-            'Não foi possível identificar sua república. Tente novamente mais tarde.',
+            'Não foi possível identificar sua casa. Tente novamente mais tarde.',
           tone: 'danger',
         });
         return false;
@@ -187,7 +187,7 @@ const FinancesDashboardScreen = () => {
         await refreshFinancialData();
         toast({
           title: 'Saldo atualizado',
-          message: 'Saldo da república atualizado com sucesso!',
+          message: 'Saldo da casa atualizado com sucesso!',
           tone: 'success',
         });
         return true;
@@ -197,7 +197,7 @@ const FinancesDashboardScreen = () => {
         return false;
       }
     },
-    [user?.currentRepublicId, adjustBalance, refreshFinancialData, toast]
+    [user?.currentHouseId, adjustBalance, refreshFinancialData, toast]
   );
 
   const header = (

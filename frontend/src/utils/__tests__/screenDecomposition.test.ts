@@ -11,7 +11,7 @@ describe('buildExpenseTimelineSteps', () => {
     expenseDate: '2026-11-01',
     category: 'Contas',
     status: 'PENDING',
-    republicId: 'rep-1',
+    houseId: 'house-1',
     creatorId: 'u-1',
     creatorName: 'João',
     createdAt: '2026-11-01T12:00:00',

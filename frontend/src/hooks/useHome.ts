@@ -33,7 +33,7 @@ interface HomeData {
 
 export const useHome = (): HomeData => {
   const { user } = useAuth();
-  const republicId = user?.currentRepublicId;
+  const houseId = user?.currentHouseId;
   
   // Estados para tarefas
   const [userTasks, setUserTasks] = useState<Task[]>([]);
@@ -83,7 +83,7 @@ export const useHome = (): HomeData => {
   }, [user]);
   
   const fetchUpcomingEvents = useCallback(async () => {
-    if (!republicId || isFetchingEvents.current) return;
+    if (!houseId || isFetchingEvents.current) return;
     
     try {
       isFetchingEvents.current = true;
@@ -105,10 +105,10 @@ export const useHome = (): HomeData => {
       setLoadingEvents(false);
       isFetchingEvents.current = false;
     }
-  }, [republicId]);
+  }, [houseId]);
   
   const fetchFinancialSummary = useCallback(async () => {
-    if (!republicId || isFetchingFinances.current) return;
+    if (!houseId || isFetchingFinances.current) return;
     
     try {
       isFetchingFinances.current = true;
@@ -116,7 +116,7 @@ export const useHome = (): HomeData => {
       setFinancesError(null);
       
       const response = await api.get<FinancialDashboardSummary>(
-        `/api/v1/financial-dashboard/summary/${republicId}`
+        `/api/v1/financial-dashboard/summary/${houseId}`
       );
       
       setFinancialSummary(response.data);
@@ -128,7 +128,7 @@ export const useHome = (): HomeData => {
       setLoadingFinances(false);
       isFetchingFinances.current = false;
     }
-  }, [republicId]);
+  }, [houseId]);
   
   const refreshData = useCallback(async () => {
     await Promise.all([

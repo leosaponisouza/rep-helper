@@ -7,7 +7,7 @@ export interface User {
   email: string;
   phoneNumber?: string | null;
   profilePictureUrl?: string | null;
-  currentRepublicId?: string | null;
+  currentHouseId?: string | null;
   isAdmin?: boolean;
   createdAt?: string;
   lastLogin?: string;

@@ -164,7 +164,7 @@ const CreateEventScreen: React.FC = () => {
         startDate: formatToBackendDateTime(startDate),
         endDate: formatToBackendDateTime(endDate),
         location: location.trim() || '',
-        republicId: user?.currentRepublicId || '',
+        houseId: user?.currentHouseId || '',
       };
 
       const createdEvent = await createEvent(eventData);
@@ -202,7 +202,7 @@ const CreateEventScreen: React.FC = () => {
     startDate,
     endDate,
     location,
-    user?.currentRepublicId,
+    user?.currentHouseId,
     selectedParticipants,
     validateForm,
     createEvent,
@@ -285,9 +285,9 @@ const CreateEventScreen: React.FC = () => {
         leftIcon={<MapPin size={18} strokeWidth={1.75} color={theme.colors.accent} />}
       />
 
-      {user?.currentRepublicId ? (
+      {user?.currentHouseId ? (
         <InviteUsersSection
-          republicId={user.currentRepublicId}
+          houseId={user.currentHouseId}
           selectedIds={selectedParticipants}
           onSelectionChange={setSelectedParticipants}
         />

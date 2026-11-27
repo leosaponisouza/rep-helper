@@ -67,10 +67,10 @@ import { User } from '../../models/user.model';
 const cachedUser: User = {
   uid: 'user-1',
   name: 'Alice',
-  email: 'alice@rephelper.com',
+  email: 'alice@alpendre.app',
   firebaseUid: 'fb-1',
   provider: 'email',
-  currentRepublicId: 'rep-1',
+  currentHouseId: 'house-1',
 };
 
 const flushEffects = async () => {

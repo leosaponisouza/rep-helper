@@ -5,7 +5,7 @@ jest.mock('expo-system-ui', () => ({
 const mockRouterBack = jest.fn();
 const mockUseSegments = jest.fn(() => ['(panel)', 'home']);
 const mockUseAuth = jest.fn(() => ({
-  user: { currentRepublicId: 'rep-1' } as { currentRepublicId: string | null } | null,
+  user: { currentHouseId: 'house-1' } as { currentHouseId: string | null } | null,
   isAuthenticated: true,
   loading: false,
   error: null as string | null,
@@ -95,7 +95,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import Index from '../../../app/index';
 import AuthLayout from '../../../app/(auth)/_layout';
-import RepublicLayout from '../../../app/(republic)/_layout';
+import HouseLayout from '../../../app/(house)/_layout';
 import PanelLayout from '../../../app/(panel)/_layout';
 import TasksLayout from '../../../app/(panel)/tasks/_layout';
 import EventsLayout from '../../../app/(panel)/events/_layout';
@@ -237,7 +237,7 @@ describe('Themed navigation shell and entry gate', () => {
     (useColorScheme as jest.Mock).mockReturnValue('dark');
     (AsyncStorage.getItem as jest.Mock).mockResolvedValue('dark');
     mockUseAuth.mockReturnValue({
-      user: { currentRepublicId: 'rep-1' },
+      user: { currentHouseId: 'house-1' },
       isAuthenticated: true,
       loading: false,
       error: null,
@@ -372,10 +372,10 @@ describe('Themed navigation shell and entry gate', () => {
         expectHeaderShownFalse: false,
       },
       {
-        Component: RepublicLayout,
-        segments: ['(republic)', 'choice'],
+        Component: HouseLayout,
+        segments: ['(house)', 'choice'],
         authState: {
-          user: { currentRepublicId: null },
+          user: { currentHouseId: null },
           isAuthenticated: true,
           loading: false,
           error: null,
@@ -386,7 +386,7 @@ describe('Themed navigation shell and entry gate', () => {
         Component: TasksLayout,
         segments: ['(panel)', 'tasks'],
         authState: {
-          user: { currentRepublicId: 'rep-1' },
+          user: { currentHouseId: 'house-1' },
           isAuthenticated: true,
           loading: false,
           error: null,
@@ -397,7 +397,7 @@ describe('Themed navigation shell and entry gate', () => {
         Component: EventsLayout,
         segments: ['(panel)', 'events'],
         authState: {
-          user: { currentRepublicId: 'rep-1' },
+          user: { currentHouseId: 'house-1' },
           isAuthenticated: true,
           loading: false,
           error: null,
@@ -408,7 +408,7 @@ describe('Themed navigation shell and entry gate', () => {
         Component: FinancesLayout,
         segments: ['(panel)', 'finances'],
         authState: {
-          user: { currentRepublicId: 'rep-1' },
+          user: { currentHouseId: 'house-1' },
           isAuthenticated: true,
           loading: false,
           error: null,
@@ -419,7 +419,7 @@ describe('Themed navigation shell and entry gate', () => {
         Component: SettingsLayout,
         segments: ['(panel)', 'settings'],
         authState: {
-          user: { currentRepublicId: 'rep-1' },
+          user: { currentHouseId: 'house-1' },
           isAuthenticated: true,
           loading: false,
           error: null,

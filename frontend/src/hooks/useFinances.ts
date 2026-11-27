@@ -27,7 +27,7 @@ interface UseFinancesOptions {
 
 export const useFinances = (options: UseFinancesOptions = {}) => {
   const { user } = useAuth();
-  const republicId = user?.currentRepublicId;
+  const houseId = user?.currentHouseId;
 
   // State for expenses
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -119,10 +119,10 @@ export const useFinances = (options: UseFinancesOptions = {}) => {
 
   // Fetch expenses
   const fetchExpenses = useCallback(async (): Promise<void> => {
-    if (!republicId) return;
+    if (!houseId) return;
 
     const data = await fetchWithErrorHandling(
-      () => financesService.getExpenses(republicId),
+      () => financesService.getExpenses(houseId),
       setLoadingExpenses,
       setExpensesError,
       'Não foi possível carregar as despesas'
@@ -131,14 +131,14 @@ export const useFinances = (options: UseFinancesOptions = {}) => {
     if (data) {
       setExpenses(data);
     }
-  }, [republicId]);
+  }, [houseId]);
 
   // Fetch incomes
   const fetchIncomes = useCallback(async (): Promise<void> => {
-    if (!republicId) return;
+    if (!houseId) return;
 
     const data = await fetchWithErrorHandling(
-      () => financesService.getIncomes(republicId),
+      () => financesService.getIncomes(houseId),
       setLoadingIncomes,
       setIncomesError,
       'Não foi possível carregar as receitas'
@@ -147,20 +147,20 @@ export const useFinances = (options: UseFinancesOptions = {}) => {
     if (data) {
       setIncomes(data);
     }
-  }, [republicId]);
+  }, [houseId]);
 
   // Fetch dashboard data
   const fetchDashboardData = useCallback(async (): Promise<void> => {
-    if (!republicId) return;
+    if (!houseId) return;
 
     setLoadingDashboard(true);
     setDashboardError(null);
 
     try {
       const [summaryData, monthlyChart, pendingData] = await Promise.all([
-        financesService.getDashboardSummary(republicId),
-        financesService.getMonthlyExpensesChart(republicId, 6),
-        financesService.getPendingActions(republicId),
+        financesService.getDashboardSummary(houseId),
+        financesService.getMonthlyExpensesChart(houseId, 6),
+        financesService.getPendingActions(houseId),
       ]);
 
       setDashboardSummary(summaryData);
@@ -185,7 +185,7 @@ export const useFinances = (options: UseFinancesOptions = {}) => {
     } finally {
       setLoadingDashboard(false);
     }
-  }, [republicId]);
+  }, [houseId]);
 
   // Apply expense filter
   const applyExpenseFilter = useCallback((filter: ExpenseFilterType) => {
@@ -326,35 +326,35 @@ export const useFinances = (options: UseFinancesOptions = {}) => {
     }
   }, [fetchIncomes, fetchDashboardData]);
 
-  // Adjust republic balance
+  // Adjust house balance
   const adjustBalance = useCallback(async (newBalance: number, description?: string): Promise<FinancialDashboardSummary> => {
-    if (!republicId) {
-      throw new Error('República não identificada');
+    if (!houseId) {
+      throw new Error('Casa não identificada');
     }
     try {
-      return await financesService.adjustRepublicBalance(republicId, newBalance, description || '');
+      return await financesService.adjustHouseBalance(houseId, newBalance, description || '');
     } catch (err) {
       const error = await ErrorHandler.parseError(err);
       throw error;
     }
-  }, [republicId]);
+  }, [houseId]);
 
   // Fetch expenses by status
   const fetchExpensesByStatus = useCallback(async (status: ExpenseFilterType): Promise<Expense[]> => {
-    if (!republicId || status === 'ALL') return [];
+    if (!houseId || status === 'ALL') return [];
 
     try {
-      return await financesService.getExpensesByStatus(republicId, status);
+      return await financesService.getExpensesByStatus(houseId, status);
     } catch (err) {
       const error = await ErrorHandler.parseError(err);
       logger.error('Error fetching expenses by status:', error);
       return [];
     }
-  }, [republicId]);
+  }, [houseId]);
 
   // Refresh all financial data
   const refreshFinancialData = useCallback(async (): Promise<boolean> => {
-    if (!republicId) return false;
+    if (!houseId) return false;
 
     try {
       await Promise.all([
@@ -367,14 +367,14 @@ export const useFinances = (options: UseFinancesOptions = {}) => {
       logger.error('Error refreshing financial data:', error);
       return false;
     }
-  }, [republicId, fetchExpenses, fetchIncomes, fetchDashboardData]);
+  }, [houseId, fetchExpenses, fetchIncomes, fetchDashboardData]);
 
   // Load initial data
   useEffect(() => {
-    if (republicId) {
+    if (houseId) {
       refreshFinancialData();
     }
-  }, [republicId, refreshFinancialData]);
+  }, [houseId, refreshFinancialData]);
 
   return {
     // Data

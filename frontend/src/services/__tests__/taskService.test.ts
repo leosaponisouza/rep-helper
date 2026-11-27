@@ -18,12 +18,18 @@ describe('taskService', () => {
 
   it('fetches and normalizes a single task by ID via getTaskById', async () => {
     mockedApi.get.mockResolvedValueOnce({
-      data: { id: 9, republic_id: 'rep-1', title: 'Compras', status: 'PENDING', isRecurring: true },
+      data: {
+        id: 9,
+        house_id: 'house-1',
+        title: 'Compras',
+        status: 'PENDING',
+        isRecurring: true,
+      },
     } as any);
 
     const task = await taskService.getTaskById(9);
     expect(mockedApi.get).toHaveBeenCalledWith('/api/v1/tasks/9');
-    expect(task.republicId).toBe('rep-1');
+    expect(task.houseId).toBe('house-1');
     expect(task.recurring).toBe(true);
   });
 });

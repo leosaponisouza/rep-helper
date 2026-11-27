@@ -51,19 +51,19 @@ const SETTINGS_SECTIONS: ReadonlyArray<SettingSectionConfig> = [
     ],
   },
   {
-    title: 'República',
+    title: 'Casa',
     items: [
       {
-        id: 'republic',
-        title: 'Configurações da República',
-        description: 'Gerenciar nome, endereço, código de convite',
+        id: 'house',
+        title: 'Configurações da Casa',
+        description: 'Gerenciar nome, regras, convite e endereço',
         Icon: Home,
-        route: '/(panel)/settings/republic',
+        route: '/(panel)/settings/house',
       },
       {
         id: 'members',
-        title: 'Membros',
-        description: 'Gerenciar os moradores',
+        title: 'Moradores',
+        description: 'Gerenciar quem mora na casa',
         Icon: Users,
         route: '/(panel)/settings/members',
       },
@@ -196,7 +196,7 @@ const SettingsScreen = () => {
         />
 
         <AppText variant="caption" color="inkMuted" style={styles.versionText}>
-          RepHelper v1.0.0
+          Alpendre v1.0.0
         </AppText>
       </View>
     </Screen>

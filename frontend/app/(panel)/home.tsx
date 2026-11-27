@@ -42,7 +42,7 @@ import {
 import { useHome } from '../../src/hooks/useHome';
 import { useNotifications } from '../../src/hooks/useNotifications';
 import { Task, TaskStatus } from '../../src/models/task.model';
-import * as republicService from '../../src/services/republicService';
+import * as houseService from '../../src/services/houseService';
 import * as taskService from '../../src/services/taskService';
 import { formatCurrencyBRL } from '../../src/utils/currencyUtils';
 import {
@@ -90,7 +90,7 @@ const HomeScreen = () => {
 
   const [refreshing, setRefreshing] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [republicName, setRepublicName] = useState<string | null>(null);
+  const [houseName, setHouseName] = useState<string | null>(null);
   const [completingTaskIds, setCompletingTaskIds] = useState<number[]>([]);
   const isMountedRef = useRef(true);
 
@@ -121,30 +121,30 @@ const HomeScreen = () => {
 
   useEffect(() => {
     let isActive = true;
-    const republicId = user?.currentRepublicId;
+    const houseId = user?.currentHouseId;
 
-    if (!republicId) {
-      setRepublicName(null);
+    if (!houseId) {
+      setHouseName(null);
       return;
     }
 
-    republicService
-      .getRepublic(republicId)
-      .then((republic) => {
-        if (isActive && republic?.name) {
-          setRepublicName(republic.name);
+    houseService
+      .getHouse(houseId)
+      .then((house) => {
+        if (isActive && house?.name) {
+          setHouseName(house.name);
         }
       })
       .catch(() => {
         if (isActive) {
-          setRepublicName(null);
+          setHouseName(null);
         }
       });
 
     return () => {
       isActive = false;
     };
-  }, [user?.currentRepublicId]);
+  }, [user?.currentHouseId]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -221,10 +221,10 @@ const HomeScreen = () => {
   const displayName = getDisplayName(user);
   const firstName = getDisplayName(user, true);
   const todayLabel = formatLocalDate(new Date(), "EEEE, d 'de' MMM");
-  const headerTitle = republicName || (firstName ? `Olá, ${firstName}` : 'RepHelper');
-  const headerSubtitle = republicName && displayName
+  const headerTitle = houseName || (firstName ? `Olá, ${firstName}` : 'Alpendre');
+  const headerSubtitle = houseName && displayName
     ? `Bem-vindo, ${displayName}`
-    : 'Resumo da sua república';
+    : 'Resumo da sua casa';
 
   const hasPositiveBalance = (financialSummary?.currentBalance ?? 0) >= 0;
 
@@ -620,7 +620,7 @@ const HomeScreen = () => {
               <StateView
                 kind="empty"
                 title="Não há eventos programados"
-                description="Agende um novo encontro ou compromisso da república."
+                description="Agende um novo encontro ou compromisso da casa."
                 actionLabel="Novo Evento"
                 onAction={() =>
                   navigateWithTimeout('/(panel)/events', '/(panel)/events/create')

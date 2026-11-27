@@ -1,10 +1,10 @@
-// app/(republic)/join.tsx
+// app/(house)/join.tsx
 import React, { useState } from 'react';
 import { Keyboard, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { KeyRound, LogIn } from 'lucide-react-native';
 import { useAuth } from '../../src/context/AuthContext';
-import * as republicService from '../../src/services/republicService';
+import * as houseService from '../../src/services/houseService';
 import {
   AppText,
   Button,
@@ -17,7 +17,7 @@ import {
   useThemedStyles,
 } from '../../src/design-system';
 
-const JoinRepublicScreen = () => {
+const JoinHouseScreen = () => {
   const { theme } = useTheme();
   const { toast } = useFeedback();
   const { login } = useAuth();
@@ -48,11 +48,11 @@ const JoinRepublicScreen = () => {
   const [loading, setLoading] = useState(false);
   const [fieldError, setFieldError] = useState<string | undefined>(undefined);
 
-  const handleJoinRepublic = async () => {
+  const handleJoinHouse = async () => {
     Keyboard.dismiss();
     const trimmedCode = code.trim();
     if (!trimmedCode) {
-      const msg = 'Por favor, insira o código da república';
+      const msg = 'Por favor, insira o código da casa';
       setFieldError(msg);
       toast({
         title: 'Erro',
@@ -66,19 +66,17 @@ const JoinRepublicScreen = () => {
     setFieldError(undefined);
 
     try {
-      const response = await republicService.joinRepublic(trimmedCode);
-
-      // Atualizar contexto de autenticação com os novos dados do usuário
-      await login(response.token, response.user);
+      const response = await houseService.joinHouse(trimmedCode);
+      await login(response.token, response.user, response.refreshToken);
 
       toast({
         title: 'Sucesso',
-        message: 'Você entrou na república com sucesso!',
+        message: 'Você entrou na casa com sucesso!',
         tone: 'success',
       });
       router.replace('/(panel)/home');
     } catch (err: any) {
-      const msg = err?.message || 'Não foi possível entrar na república';
+      const msg = err?.message || 'Não foi possível entrar na casa';
       setFieldError(msg);
       toast({
         title: 'Erro',
@@ -97,8 +95,8 @@ const JoinRepublicScreen = () => {
       width="standard"
       header={
         <ScreenHeader
-          title="Entrar em uma República"
-          subtitle="Digite o código fornecido pelo administrador"
+          title="Entrar em uma Casa"
+          subtitle="Digite o código compartilhado por um morador"
           onBack={() => router.back()}
         />
       }
@@ -114,12 +112,12 @@ const JoinRepublicScreen = () => {
           </View>
 
           <AppText variant="body" color="inkSecondary">
-            Digite o código fornecido pelo administrador da república
+            Digite o código de convite da casa para participar
           </AppText>
 
           <TextField
-            label="Código da República"
-            placeholder="Código da República"
+            label="Código da Casa"
+            placeholder="Código da Casa"
             value={code}
             onChangeText={(text) => {
               setCode(text);
@@ -133,13 +131,13 @@ const JoinRepublicScreen = () => {
           />
 
           <Button
-            label="Entrar na República"
+            label="Entrar na Casa"
             variant="primary"
             fullWidth
             loading={loading}
             disabled={!code.trim()}
             leftIcon={<LogIn size={18} strokeWidth={1.75} color={theme.colors.onAccent} />}
-            onPress={handleJoinRepublic}
+            onPress={() => void handleJoinHouse()}
           />
         </Surface>
       </View>
@@ -147,4 +145,4 @@ const JoinRepublicScreen = () => {
   );
 };
 
-export default JoinRepublicScreen;
+export default JoinHouseScreen;

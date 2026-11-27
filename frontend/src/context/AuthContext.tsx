@@ -279,10 +279,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
       
       // Navegar para tela principal
-      if (response.user.currentRepublicId) {
+      if (response.user.currentHouseId) {
         router.replace('/(panel)/home');
       } else {
-        router.replace('/(republic)/choice');
+        router.replace('/(house)/choice');
       }
     } catch (error) {
       // Verificar se a operação foi cancelada
@@ -336,10 +336,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       // Navegar para tela principal
-      if (response.user.currentRepublicId) {
+      if (response.user.currentHouseId) {
         router.replace('/(panel)/home');
       } else {
-        router.replace('/(republic)/choice');
+        router.replace('/(house)/choice');
       }
     } catch (error) {
       // Verificar se a operação foi cancelada
@@ -447,8 +447,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Não precisamos chamar setIsAuthenticated explicitamente, pois isAuthenticated é calculado com base em !!user
       setLoading(false);
       
-      // Navegar para tela de escolha de república
-      router.replace('/(republic)/choice');
+      // Navegar para tela de escolha de casa
+      router.replace('/(house)/choice');
       
       return response.user;
     } catch (error: any) {

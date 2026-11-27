@@ -14,20 +14,20 @@ import {
 } from '../models/finances.model';
 import { encodePathSegment, validatePositiveIntId } from '../utils/urlSecurity';
 
-export const getExpenses = async (republicId: string): Promise<Expense[]> => {
+export const getExpenses = async (houseId: string): Promise<Expense[]> => {
   const response = await api.get<Expense[]>('/api/v1/expenses', {
-    params: { republicId },
+    params: { houseId },
   });
   return response.data;
 };
 
 export const getExpensesByStatus = async (
-  republicId: string,
+  houseId: string,
   status: string
 ): Promise<Expense[]> => {
   const safeStatus = encodePathSegment(status);
   const response = await api.get<Expense[]>(`/api/v1/expenses/status/${safeStatus}`, {
-    params: { republicId },
+    params: { houseId },
   });
   return response.data;
 };
@@ -84,9 +84,9 @@ export const deleteExpense = async (id: number): Promise<void> => {
   await api.delete(`/api/v1/expenses/${safeId}`);
 };
 
-export const getIncomes = async (republicId: string): Promise<Income[]> => {
+export const getIncomes = async (houseId: string): Promise<Income[]> => {
   const response = await api.get<Income[]>('/api/v1/incomes', {
-    params: { republicId },
+    params: { houseId },
   });
   return response.data;
 };
@@ -117,45 +117,45 @@ export const deleteIncome = async (id: number): Promise<void> => {
 };
 
 export const getDashboardSummary = async (
-  republicId: string
+  houseId: string
 ): Promise<FinancialDashboardSummary> => {
-  const safeRepublicId = encodePathSegment(republicId);
+  const safeHouseId = encodePathSegment(houseId);
   const response = await api.get<FinancialDashboardSummary>(
-    `/api/v1/financial-dashboard/summary/${safeRepublicId}`
+    `/api/v1/financial-dashboard/summary/${safeHouseId}`
   );
   return response.data;
 };
 
 export const getMonthlyExpensesChart = async (
-  republicId: string,
+  houseId: string,
   numberOfMonths: number = 6
 ): Promise<MonthlyChartData> => {
-  const safeRepublicId = encodePathSegment(republicId);
+  const safeHouseId = encodePathSegment(houseId);
   const response = await api.get<MonthlyChartData>(
-    `/api/v1/financial-dashboard/expenses/monthly/${safeRepublicId}`,
+    `/api/v1/financial-dashboard/expenses/monthly/${safeHouseId}`,
     { params: { numberOfMonths } }
   );
   return response.data;
 };
 
 export const getPendingActions = async (
-  republicId: string
+  houseId: string
 ): Promise<PendingActionsResponse> => {
-  const safeRepublicId = encodePathSegment(republicId);
+  const safeHouseId = encodePathSegment(houseId);
   const response = await api.get<PendingActionsResponse>(
-    `/api/v1/financial-dashboard/pending-actions/${safeRepublicId}`
+    `/api/v1/financial-dashboard/pending-actions/${safeHouseId}`
   );
   return response.data;
 };
 
-export const adjustRepublicBalance = async (
-  republicId: string,
+export const adjustHouseBalance = async (
+  houseId: string,
   amount: number,
   description: string = ''
 ): Promise<FinancialDashboardSummary> => {
-  const safeRepublicId = encodePathSegment(republicId);
+  const safeHouseId = encodePathSegment(houseId);
   const response = await api.post<FinancialDashboardSummary>(
-    `/api/v1/finances/${safeRepublicId}/adjust-balance`,
+    `/api/v1/finances/${safeHouseId}/adjust-balance`,
     {
       amount,
       description,

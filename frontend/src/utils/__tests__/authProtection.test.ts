@@ -25,18 +25,18 @@ describe('resolveAuthRedirect', () => {
         isAuthenticated: false,
         loading: true,
         segments: ['(panel)', 'home'],
-        currentRepublicId: null,
+        currentHouseId: null,
       })
     ).toBeNull();
   });
 
-  it('redirects unauthenticated users accessing (panel), (republic), or empty/unknown segments to sign-in', () => {
+  it('redirects unauthenticated users accessing (panel), (house), or empty/unknown segments to sign-in', () => {
     expect(
       resolveAuthRedirect({
         isAuthenticated: false,
         loading: false,
         segments: ['(panel)', 'home'],
-        currentRepublicId: null,
+        currentHouseId: null,
       })
     ).toBe('/(auth)/sign-in');
 
@@ -44,8 +44,8 @@ describe('resolveAuthRedirect', () => {
       resolveAuthRedirect({
         isAuthenticated: false,
         loading: false,
-        segments: ['(republic)', 'choice'],
-        currentRepublicId: null,
+        segments: ['(house)', 'choice'],
+        currentHouseId: null,
       })
     ).toBe('/(auth)/sign-in');
 
@@ -54,7 +54,7 @@ describe('resolveAuthRedirect', () => {
         isAuthenticated: false,
         loading: false,
         segments: [],
-        currentRepublicId: null,
+        currentHouseId: null,
       })
     ).toBe('/(auth)/sign-in');
 
@@ -63,7 +63,7 @@ describe('resolveAuthRedirect', () => {
         isAuthenticated: false,
         loading: false,
         segments: ['unknown'],
-        currentRepublicId: null,
+        currentHouseId: null,
       })
     ).toBe('/(auth)/sign-in');
   });
@@ -74,36 +74,36 @@ describe('resolveAuthRedirect', () => {
         isAuthenticated: false,
         loading: false,
         segments: ['(auth)', 'sign-in'],
-        currentRepublicId: null,
+        currentHouseId: null,
       })
     ).toBeNull();
   });
 
-  it('redirects authenticated users without republic away from (auth) and (panel) to (republic)/choice, but allows (republic)/*', () => {
+  it('redirects authenticated users without house away from (auth) and (panel) to (house)/choice, but allows (house)/*', () => {
     expect(
       resolveAuthRedirect({
         isAuthenticated: true,
         loading: false,
         segments: ['(auth)', 'sign-in'],
-        currentRepublicId: null,
+        currentHouseId: null,
       })
-    ).toBe('/(republic)/choice');
+    ).toBe('/(house)/choice');
 
     expect(
       resolveAuthRedirect({
         isAuthenticated: true,
         loading: false,
         segments: ['(panel)', 'tasks'],
-        currentRepublicId: null,
+        currentHouseId: null,
       })
-    ).toBe('/(republic)/choice');
+    ).toBe('/(house)/choice');
 
     expect(
       resolveAuthRedirect({
         isAuthenticated: true,
         loading: false,
-        segments: ['(republic)', 'choice'],
-        currentRepublicId: null,
+        segments: ['(house)', 'choice'],
+        currentHouseId: null,
       })
     ).toBeNull();
 
@@ -111,19 +111,19 @@ describe('resolveAuthRedirect', () => {
       resolveAuthRedirect({
         isAuthenticated: true,
         loading: false,
-        segments: ['(republic)', 'new'],
-        currentRepublicId: null,
+        segments: ['(house)', 'new'],
+        currentHouseId: null,
       })
     ).toBeNull();
   });
 
-  it('redirects authenticated users with republic away from (auth), (republic)/choice, and (republic)/join to (panel)/home, but allows (republic)/new and (panel)/*', () => {
+  it('redirects authenticated users with house away from (auth), (house)/choice, and (house)/join to (panel)/home, but allows (house)/new and (panel)/*', () => {
     expect(
       resolveAuthRedirect({
         isAuthenticated: true,
         loading: false,
         segments: ['(auth)', 'sign-in'],
-        currentRepublicId: 'rep-1',
+        currentHouseId: 'house-1',
       })
     ).toBe('/(panel)/home');
 
@@ -131,8 +131,8 @@ describe('resolveAuthRedirect', () => {
       resolveAuthRedirect({
         isAuthenticated: true,
         loading: false,
-        segments: ['(republic)', 'choice'],
-        currentRepublicId: 'rep-1',
+        segments: ['(house)', 'choice'],
+        currentHouseId: 'house-1',
       })
     ).toBe('/(panel)/home');
 
@@ -140,8 +140,8 @@ describe('resolveAuthRedirect', () => {
       resolveAuthRedirect({
         isAuthenticated: true,
         loading: false,
-        segments: ['(republic)', 'join'],
-        currentRepublicId: 'rep-1',
+        segments: ['(house)', 'join'],
+        currentHouseId: 'house-1',
       })
     ).toBe('/(panel)/home');
 
@@ -149,8 +149,8 @@ describe('resolveAuthRedirect', () => {
       resolveAuthRedirect({
         isAuthenticated: true,
         loading: false,
-        segments: ['(republic)', 'new'],
-        currentRepublicId: 'rep-1',
+        segments: ['(house)', 'new'],
+        currentHouseId: 'house-1',
       })
     ).toBeNull();
 
@@ -159,7 +159,7 @@ describe('resolveAuthRedirect', () => {
         isAuthenticated: true,
         loading: false,
         segments: ['(panel)', 'home'],
-        currentRepublicId: 'rep-1',
+        currentHouseId: 'house-1',
       })
     ).toBeNull();
 
@@ -168,7 +168,7 @@ describe('resolveAuthRedirect', () => {
         isAuthenticated: true,
         loading: false,
         segments: ['(panel)', 'settings', 'change-password'],
-        currentRepublicId: 'rep-1',
+        currentHouseId: 'house-1',
       })
     ).toBeNull();
   });

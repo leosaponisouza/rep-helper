@@ -13,10 +13,10 @@ export const getTaskById = async (taskId: number | string): Promise<Task> => {
 };
 
 // Obter todas as tarefas (método legado)
-export const getAllTasks = async (republicId?: string): Promise<Task[]> => {
+export const getAllTasks = async (houseId?: string): Promise<Task[]> => {
   const params: Record<string, string> = {};
-  if (republicId) {
-    params.republicId = republicId;
+  if (houseId) {
+    params.houseId = houseId;
   }
   const response = await api.get('/api/v1/tasks', { params });
   return Array.isArray(response.data) ? response.data.map(normalizeTask) : [];
@@ -25,7 +25,7 @@ export const getAllTasks = async (republicId?: string): Promise<Task[]> => {
 // Obter tarefas com filtros e paginação
 export const getTasksWithFilters = async (
   filter?: TaskFilterRequest,
-  republicId?: string,
+  houseId?: string,
   page: number = 0,
   size: number = 20,
   sortBy: string = 'dueDate',
@@ -39,8 +39,8 @@ export const getTasksWithFilters = async (
   if (sortDirection) taskFilter.sortDirection = sortDirection;
 
   const params: Record<string, string> = {};
-  if (republicId) {
-    params.republicId = republicId;
+  if (houseId) {
+    params.houseId = houseId;
   }
 
   const response = await api.post<PagedResponse<Record<string, unknown>>>(

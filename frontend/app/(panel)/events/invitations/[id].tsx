@@ -32,7 +32,7 @@ import {
 } from '../../../../src/design-system';
 import { useEvents } from '../../../../src/hooks/useEvents';
 import { Event } from '../../../../src/services/events';
-import { getRepublicMembers } from '../../../../src/services/republicService';
+import { getHouseMembers } from '../../../../src/services/houseService';
 import { ErrorHandler } from '../../../../src/utils/errorHandling';
 import { logger } from '../../../../src/utils/logger';
 
@@ -104,8 +104,8 @@ const InvitationsScreen: React.FC = () => {
   ]);
 
   const fetchData = useCallback(async () => {
-    if (!id || !user?.currentRepublicId) {
-      setLoadError('Evento ou república não identificados.');
+    if (!id || !user?.currentHouseId) {
+      setLoadError('Evento ou casa não identificados.');
       setLoading(false);
       return;
     }
@@ -146,7 +146,7 @@ const InvitationsScreen: React.FC = () => {
       }
 
       try {
-        const membersData = await getRepublicMembers(user.currentRepublicId);
+        const membersData = await getHouseMembers(user.currentHouseId);
         const normalized = Array.isArray(membersData) ? membersData : [];
 
         const mappedMembers: Member[] = normalized.map((member: any) => {
@@ -183,7 +183,7 @@ const InvitationsScreen: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [id, getEventById, isCurrentUserCreator, user?.currentRepublicId, toast]);
+  }, [id, getEventById, isCurrentUserCreator, user?.currentHouseId, toast]);
 
   useEffect(() => {
     void fetchData();

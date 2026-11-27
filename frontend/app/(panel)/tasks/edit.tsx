@@ -22,7 +22,7 @@ import {
   useFeedback,
   useTheme,
 } from '../../../src/design-system';
-import { useRepublicMembers } from '../../../src/hooks/useRepublicMembers';
+import { useHouseMembers } from '../../../src/hooks/useHouseMembers';
 import { useTasks } from '../../../src/hooks/useTasks';
 import { parseISOPreservingTime } from '../../../src/utils/dateUtils';
 import { ErrorHandler } from '../../../src/utils/errorHandling';
@@ -47,7 +47,7 @@ const EditTaskScreen: React.FC = () => {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const { getTaskById, updateTask } = useTasks();
-  const { members: availableUsers } = useRepublicMembers(user?.currentRepublicId);
+  const { members: availableUsers } = useHouseMembers(user?.currentHouseId);
 
   const [isDatePickerVisible, setDatePickerVisibility] = useState(false);
   const [datePickerMode, setDatePickerMode] = useState<'date' | 'time'>('date');

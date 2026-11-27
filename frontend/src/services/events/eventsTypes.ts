@@ -18,8 +18,9 @@ export interface Event {
   startDate: string;
   endDate: string;
   location: string;
-  republicId: string;
-  republicName: string;
+  houseId: string;
+  houseName: string;
+  requireRsvp?: boolean;
   creatorId: string;
   creatorName: string;
   invitations: EventInvitation[];
@@ -34,7 +35,8 @@ export interface EventFormData {
   startDate: string;
   endDate: string;
   location: string;
-  republicId: string;
+  houseId: string;
+  requireRsvp?: boolean;
 }
 
 export type EventFilterType = 'all' | 'upcoming' | 'invited' | 'confirmed' | 'past' | 'today' | 'mine';

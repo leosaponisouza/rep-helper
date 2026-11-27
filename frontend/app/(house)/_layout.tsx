@@ -1,11 +1,11 @@
-// app/(republic)/_layout.tsx
+// app/(house)/_layout.tsx
 import React from 'react';
 import { Stack, useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 import { AuthProtection } from '../../src/utils/authProtection';
 import { fontFamilies, IconButton, useTheme } from '../../src/design-system';
 
-export default function RepublicLayout() {
+export default function HouseLayout() {
   const router = useRouter();
   const { theme } = useTheme();
 
@@ -46,21 +46,21 @@ export default function RepublicLayout() {
         <Stack.Screen
           name="choice"
           options={{
-            title: 'Escolha de República',
+            title: 'Sua Casa',
             headerShown: false,
           }}
         />
         <Stack.Screen
           name="new"
           options={{
-            title: 'Nova República',
+            title: 'Nova Casa',
             headerShown: false,
           }}
         />
         <Stack.Screen
           name="join"
           options={{
-            title: 'Entrar em República',
+            title: 'Entrar em uma Casa',
             headerShown: false,
           }}
         />

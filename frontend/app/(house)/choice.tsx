@@ -1,11 +1,11 @@
-// app/(republic)/choice.tsx
+// app/(house)/choice.tsx
 import React, { useState, useEffect } from 'react';
 import { Keyboard, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Home, KeyRound, LogIn, PlusCircle, WifiOff } from 'lucide-react-native';
 import api from '../../src/services/api';
 import { useAuth } from '../../src/context/AuthContext';
-import * as republicService from '../../src/services/republicService';
+import * as houseService from '../../src/services/houseService';
 import { logger } from '../../src/utils/logger';
 import {
   AppText,
@@ -19,7 +19,7 @@ import {
   useThemedStyles,
 } from '../../src/design-system';
 
-const RepublicChoiceScreen = () => {
+const HouseChoiceScreen = () => {
   const { theme } = useTheme();
   const { toast } = useFeedback();
   const { login, user } = useAuth();
@@ -86,7 +86,7 @@ const RepublicChoiceScreen = () => {
   const [networkStatus, setNetworkStatus] = useState({ connected: true, checking: true });
 
   useEffect(() => {
-    checkNetworkConnectivity();
+    void checkNetworkConnectivity();
   }, []);
 
   const checkNetworkConnectivity = async () => {
@@ -99,11 +99,11 @@ const RepublicChoiceScreen = () => {
     }
   };
 
-  const handleJoinRepublic = async () => {
+  const handleJoinHouse = async () => {
     Keyboard.dismiss();
     const trimmedCode = joinCode.trim();
     if (!trimmedCode) {
-      const msg = 'Por favor, digite o código da república.';
+      const msg = 'Por favor, digite o código da casa.';
       setError(msg);
       toast({
         title: 'Erro',
@@ -120,25 +120,24 @@ const RepublicChoiceScreen = () => {
         throw new Error('Usuário não autenticado.');
       }
 
-      const response = await republicService.joinRepublic(trimmedCode);
-
+      const response = await houseService.joinHouse(trimmedCode);
       await login(response.token, response.user, response.refreshToken);
 
       toast({
         title: 'Sucesso',
-        message: 'Você entrou na república com sucesso!',
+        message: 'Você entrou na casa com sucesso!',
         tone: 'success',
       });
       router.replace('/(panel)/home');
     } catch (err: any) {
-      const message = err?.message || 'Falha ao entrar na república.';
+      const message = err?.message || 'Falha ao entrar na casa.';
       setError(message);
       toast({
         title: 'Erro',
         message,
         tone: 'danger',
       });
-      logger.error('Error joining republic:', err);
+      logger.error('Error joining house:', err);
     } finally {
       setLoading(false);
     }
@@ -167,10 +166,10 @@ const RepublicChoiceScreen = () => {
             <Home size={28} strokeWidth={1.75} color={theme.colors.accent} />
           </Surface>
           <AppText variant="display" color="ink" style={styles.centeredText}>
-            Bem-vindo
+            Bem-vindo ao Alpendre
           </AppText>
           <AppText variant="body" color="inkSecondary" style={styles.centeredText}>
-            Entre com um código ou crie sua república
+            Rotina, contas e agenda para quem divide o mesmo teto
           </AppText>
         </View>
 
@@ -178,17 +177,17 @@ const RepublicChoiceScreen = () => {
           <View style={styles.sectionHeader}>
             <KeyRound size={20} strokeWidth={1.75} color={theme.colors.accent} />
             <AppText variant="heading" color="ink">
-              Entrar em uma República
+              Entrar em uma Casa
             </AppText>
           </View>
 
           <AppText variant="body" color="inkSecondary">
-            Insira o código de convite fornecido pelo administrador da república
+            Insira o código de convite compartilhado por quem já mora na casa
           </AppText>
 
           <TextField
-            label="Código da República"
-            placeholder="Código da República"
+            label="Código da Casa"
+            placeholder="Código de convite"
             value={joinCode}
             onChangeText={(text) => {
               setJoinCode(text);
@@ -202,13 +201,13 @@ const RepublicChoiceScreen = () => {
           />
 
           <Button
-            label="Entrar na República"
+            label="Entrar na Casa"
             variant="primary"
             fullWidth
             loading={loading}
             disabled={!networkStatus.connected || !joinCode.trim()}
             leftIcon={<LogIn size={18} strokeWidth={1.75} color={theme.colors.onAccent} />}
-            onPress={handleJoinRepublic}
+            onPress={() => void handleJoinHouse()}
           />
         </Surface>
 
@@ -221,15 +220,15 @@ const RepublicChoiceScreen = () => {
         </View>
 
         <Button
-          label="Criar Nova República"
+          label="Criar Nova Casa"
           variant="secondary"
           fullWidth
           leftIcon={<PlusCircle size={18} strokeWidth={1.75} color={theme.colors.ink} />}
-          onPress={() => router.push('/(republic)/new')}
+          onPress={() => router.push('/(house)/new')}
         />
       </View>
     </Screen>
   );
 };
 
-export default RepublicChoiceScreen;
+export default HouseChoiceScreen;

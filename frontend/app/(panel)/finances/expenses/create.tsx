@@ -442,10 +442,10 @@ const CreateExpenseScreen = () => {
   const handleSaveExpense = async () => {
     if (!validateForm()) return;
 
-    if (!user?.currentRepublicId) {
+    if (!user?.currentHouseId) {
       toast({
-        title: 'República não identificada',
-        message: 'Não foi possível identificar sua república atual.',
+        title: 'Casa não identificada',
+        message: 'Não foi possível identificar sua casa atual.',
         tone: 'danger',
       });
       return;
@@ -463,7 +463,7 @@ const CreateExpenseScreen = () => {
         expenseDate: formData.date,
         category: formData.category,
         receiptUrl: safeReceiptUrl,
-        republicId: user.currentRepublicId,
+        houseId: user.currentHouseId,
         notes: formData.notes?.trim() || undefined,
       };
 

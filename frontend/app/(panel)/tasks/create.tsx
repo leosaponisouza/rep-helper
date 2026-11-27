@@ -21,7 +21,7 @@ import {
   useFeedback,
   useTheme,
 } from '../../../src/design-system';
-import { useRepublicMembers } from '../../../src/hooks/useRepublicMembers';
+import { useHouseMembers } from '../../../src/hooks/useHouseMembers';
 import { useTasks } from '../../../src/hooks/useTasks';
 import { RecurrenceType } from '../../../src/models/task.model';
 import { logger } from '../../../src/utils/logger';
@@ -59,7 +59,7 @@ const CreateTaskScreen: React.FC = () => {
   const { toast } = useFeedback();
   const { user } = useAuth();
   const { createTask } = useTasks();
-  const { members: availableUsers } = useRepublicMembers(user?.currentRepublicId);
+  const { members: availableUsers } = useHouseMembers(user?.currentHouseId);
 
   const [isDatePickerVisible, setDatePickerVisibility] = useState(false);
   const [datePickerMode, setDatePickerMode] = useState<'date' | 'time'>('date');
@@ -114,7 +114,7 @@ const CreateTaskScreen: React.FC = () => {
       const taskData = {
         title: data.title,
         description: data.description || '',
-        republicId: user?.currentRepublicId || '',
+        houseId: user?.currentHouseId || '',
         dueDate: data.dueDate ? data.dueDate.toISOString() : undefined,
         category: data.category,
         assigned_users: selectedUsers,

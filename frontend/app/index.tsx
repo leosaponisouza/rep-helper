@@ -43,10 +43,10 @@ export default function Index() {
   }
 
   if (isAuthenticated && canRedirect) {
-    if (user?.currentRepublicId) {
+    if (user?.currentHouseId) {
       return <Redirect href="/(panel)/home" />;
     }
-    return <Redirect href="/(republic)/choice" />;
+    return <Redirect href="/(house)/choice" />;
   }
 
   if (!isAuthenticated && canRedirect) {

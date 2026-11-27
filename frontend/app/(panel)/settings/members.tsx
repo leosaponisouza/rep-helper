@@ -30,27 +30,23 @@ import {
   useTheme,
   type StatusTone,
 } from '../../../src/design-system';
-import api from '../../../src/services/api';
+import * as houseService from '../../../src/services/houseService';
 import { formatShortDate } from '../../../src/utils/dateUtils';
 import { ErrorHandler } from '../../../src/utils/errorHandling';
 import { logger } from '../../../src/utils/logger';
 
-interface RepublicMember {
+interface HouseMemberItem {
   uid: string;
   name: string;
-  nickname?: string;
+  nickname?: string | null;
   email: string;
-  phoneNumber?: string;
-  profilePictureUrl?: string;
-  currentRepublicId?: string;
-  currentRepublicName?: string;
+  phoneNumber?: string | null;
+  profilePictureUrl?: string | null;
   isAdmin: boolean;
-  createdAt: string;
-  lastLogin?: string;
-  status?: string;
-  provider?: string;
+  isOwner?: boolean;
+  joinedAt?: string;
   entryDate?: string;
-  departureDate?: string;
+  status?: string;
 }
 
 type PendingMemberAction = 'promote' | 'demote' | 'remove' | null;
@@ -70,26 +66,30 @@ const MembersSettingsScreen: React.FC = () => {
   const { toast } = useFeedback();
   const { user } = useAuth();
 
-  const [members, setMembers] = useState<RepublicMember[]>([]);
+  const [members, setMembers] = useState<HouseMemberItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [inviteCode, setInviteCode] = useState<string>('');
-  const [republicOwnerId, setRepublicOwnerId] = useState<string | null>(null);
+  const [houseOwnerId, setHouseOwnerId] = useState<string | null>(null);
+  const [allMembersAdmin, setAllMembersAdmin] = useState<boolean>(false);
 
-  const [selectedMember, setSelectedMember] = useState<RepublicMember | null>(null);
+  const [selectedMember, setSelectedMember] = useState<HouseMemberItem | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingMemberAction>(null);
   const [actionLoading, setActionLoading] = useState<boolean>(false);
 
-  const isOwner = Boolean(user && republicOwnerId && user.uid === republicOwnerId);
+  const isOwner = Boolean(user && houseOwnerId && user.uid === houseOwnerId);
   const canManageUsers = Boolean(
-    user && (isOwner || members.some((member) => member.uid === user.uid && member.isAdmin))
+    user &&
+      (isOwner ||
+        allMembersAdmin ||
+        members.some((member) => member.uid === user.uid && member.isAdmin))
   );
 
   const fetchMembersAndInviteCode = useCallback(async () => {
-    if (!user?.currentRepublicId) {
+    if (!user?.currentHouseId) {
       setLoading(false);
-      setError('Você não está associado a nenhuma república.');
+      setError('Você não está vinculado a nenhuma casa.');
       return;
     }
 
@@ -97,33 +97,34 @@ const MembersSettingsScreen: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      const membersResponse = await api.get<RepublicMember[]>(
-        `/api/v1/republics/${user.currentRepublicId}/members`
+      const [rawMembers, houseData] = await Promise.all([
+        houseService.getHouseMembers(user.currentHouseId),
+        houseService.getHouse(user.currentHouseId),
+      ]);
+
+      setMembers(
+        rawMembers.map((m) => ({
+          uid: String(m.uid || m.id),
+          name: m.name,
+          nickname: m.nickname,
+          email: m.email,
+          phoneNumber: m.phoneNumber,
+          profilePictureUrl: m.profilePictureUrl,
+          isAdmin: m.isAdmin,
+          isOwner: m.isOwner,
+          joinedAt: m.joinedAt,
+          entryDate: m.entryDate || m.joinedAt,
+          status: m.status,
+        }))
       );
-      setMembers(membersResponse.data);
 
-      const republicResponse = await api.get<{ ownerId?: string; code?: string }>(
-        `/api/v1/republics/${user.currentRepublicId}`
-      );
-      logger.debug('Resposta completa da república:', republicResponse.data);
-
-      if (republicResponse.data?.ownerId) {
-        setRepublicOwnerId(republicResponse.data.ownerId);
-      } else {
-        logger.error(
-          'ID do dono da república não encontrado na resposta:',
-          republicResponse.data
-        );
+      if (houseData?.ownerId) {
+        setHouseOwnerId(houseData.ownerId);
       }
-
-      if (republicResponse.data?.code) {
-        setInviteCode(republicResponse.data.code);
-      } else {
-        logger.error(
-          'Código da república não encontrado na resposta:',
-          republicResponse.data
-        );
+      if (houseData?.code) {
+        setInviteCode(houseData.code);
       }
+      setAllMembersAdmin(Boolean(houseData?.allMembersAdmin));
     } catch (err) {
       const parsedError = await ErrorHandler.parseError(err);
       setError(parsedError.message);
@@ -131,7 +132,7 @@ const MembersSettingsScreen: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [user?.currentRepublicId]);
+  }, [user?.currentHouseId]);
 
   useEffect(() => {
     void fetchMembersAndInviteCode();
@@ -155,19 +156,10 @@ const MembersSettingsScreen: React.FC = () => {
   };
 
   const executeChangeRole = async (memberId: string, makeAdmin: boolean) => {
-    if (!isOwner) {
+    if (!isOwner || !user?.currentHouseId) {
       toast({
         title: 'Permissão negada',
-        message: 'Apenas o dono da república pode promover membros a administradores.',
-        tone: 'warning',
-      });
-      return;
-    }
-
-    if (!canManageUsers) {
-      toast({
-        title: 'Permissão negada',
-        message: 'Você não tem permissão para gerenciar funções de membros.',
+        message: 'Apenas quem criou a casa pode alterar funções de administrador.',
         tone: 'warning',
       });
       return;
@@ -177,34 +169,33 @@ const MembersSettingsScreen: React.FC = () => {
       setActionLoading(true);
       triggerHaptic(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium));
 
-      const endpoint = `/api/v1/republics/${user?.currentRepublicId}/members/${memberId}/admin`;
-      const response = makeAdmin
-        ? await api.post(endpoint)
-        : await api.delete(endpoint);
-
-      if (response.status >= 200 && response.status < 300) {
-        setMembers((prevMembers) =>
-          prevMembers.map((member) =>
-            member.uid === memberId ? { ...member, isAdmin: makeAdmin } : member
-          )
-        );
-
-        const actionMessage = makeAdmin
-          ? 'promovido a administrador'
-          : 'alterado para membro regular';
-        toast({
-          title: 'Função atualizada',
-          message: `Membro ${actionMessage} com sucesso!`,
-          tone: 'success',
-        });
-        triggerHaptic(() =>
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
-        );
-        setSelectedMember(null);
-        setPendingAction(null);
+      if (makeAdmin) {
+        await houseService.promoteToAdmin(user.currentHouseId, memberId);
+      } else {
+        await houseService.demoteFromAdmin(user.currentHouseId, memberId);
       }
+
+      setMembers((prevMembers) =>
+        prevMembers.map((member) =>
+          member.uid === memberId ? { ...member, isAdmin: makeAdmin } : member
+        )
+      );
+
+      const actionMessage = makeAdmin
+        ? 'promovido a administrador'
+        : 'alterado para morador regular';
+      toast({
+        title: 'Função atualizada',
+        message: `Morador ${actionMessage} com sucesso!`,
+        tone: 'success',
+      });
+      triggerHaptic(() =>
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+      );
+      setSelectedMember(null);
+      setPendingAction(null);
     } catch (err) {
-      logger.error('Erro ao alterar papel do membro:', err);
+      logger.error('Erro ao alterar papel do morador:', err);
       void ErrorHandler.handle(err);
       triggerHaptic(() =>
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
@@ -215,19 +206,19 @@ const MembersSettingsScreen: React.FC = () => {
   };
 
   const executeRemoveMember = async (memberId: string) => {
-    if (!canManageUsers) {
+    if (!canManageUsers || !user?.currentHouseId) {
       toast({
         title: 'Permissão negada',
-        message: 'Você não tem permissão para remover membros.',
+        message: 'Você não tem permissão para remover moradores.',
         tone: 'warning',
       });
       return;
     }
 
-    if (memberId === republicOwnerId) {
+    if (memberId === houseOwnerId) {
       toast({
         title: 'Operação inválida',
-        message: 'O dono da república não pode ser removido.',
+        message: 'Quem criou a casa não pode ser removido.',
         tone: 'warning',
       });
       return;
@@ -237,25 +228,21 @@ const MembersSettingsScreen: React.FC = () => {
       setActionLoading(true);
       triggerHaptic(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy));
 
-      const response = await api.delete(
-        `/api/v1/republics/${user?.currentRepublicId}/members/${memberId}`
-      );
+      await houseService.removeMember(user.currentHouseId, memberId);
 
-      if (response.status >= 200 && response.status < 300) {
-        setMembers((prevMembers) =>
-          prevMembers.filter((member) => member.uid !== memberId)
-        );
-        toast({
-          title: 'Membro removido',
-          message: 'Membro removido da república com sucesso!',
-          tone: 'success',
-        });
-        triggerHaptic(() =>
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
-        );
-        setSelectedMember(null);
-        setPendingAction(null);
-      }
+      setMembers((prevMembers) =>
+        prevMembers.filter((member) => member.uid !== memberId)
+      );
+      toast({
+        title: 'Morador removido',
+        message: 'Morador removido da casa com sucesso!',
+        tone: 'success',
+      });
+      triggerHaptic(() =>
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+      );
+      setSelectedMember(null);
+      setPendingAction(null);
     } catch (err) {
       void ErrorHandler.handle(err);
       triggerHaptic(() =>
@@ -271,7 +258,7 @@ const MembersSettingsScreen: React.FC = () => {
 
     try {
       await Share.share({
-        message: `Entre na minha república no RepHelper usando o código: ${inviteCode}`,
+        message: `Entre na nossa casa no Alpendre usando o código: ${inviteCode}`,
       });
     } catch {
       toast({
@@ -283,21 +270,21 @@ const MembersSettingsScreen: React.FC = () => {
   };
 
   const getRoleDisplay = (
-    member: RepublicMember
+    member: HouseMemberItem
   ): { label: string; tone: StatusTone } => {
-    if (member.uid === republicOwnerId) {
-      return { label: 'Proprietário', tone: 'warning' };
+    if (member.uid === houseOwnerId || member.isOwner) {
+      return { label: 'Responsável', tone: 'warning' };
     }
-    if (member.isAdmin) {
+    if (member.isAdmin || allMembersAdmin) {
       return { label: 'Administrador', tone: 'accent' };
     }
-    return { label: 'Membro', tone: 'neutral' };
+    return { label: 'Morador', tone: 'neutral' };
   };
 
   const header = (
     <ScreenHeader
-      title="Membros da República"
-      subtitle={`${members.length} ${members.length === 1 ? 'membro' : 'membros'} na república`}
+      title="Moradores da Casa"
+      subtitle={`${members.length} ${members.length === 1 ? 'morador' : 'moradores'} na casa`}
       onBack={() => router.back()}
     />
   );
@@ -305,7 +292,8 @@ const MembersSettingsScreen: React.FC = () => {
   const selectedMemberDisplayName = selectedMember
     ? selectedMember.nickname || selectedMember.name
     : '';
-  const isSelectedMemberOwner = selectedMember?.uid === republicOwnerId;
+  const isSelectedMemberOwner =
+    selectedMember?.uid === houseOwnerId || Boolean(selectedMember?.isOwner);
 
   return (
     <>
@@ -315,7 +303,7 @@ const MembersSettingsScreen: React.FC = () => {
         contentContainerStyle={{ gap: theme.spacing.md }}
       >
         <TextField
-          placeholder="Pesquisar membro..."
+          placeholder="Pesquisar morador..."
           value={searchQuery}
           onChangeText={setSearchQuery}
           leftIcon={<Search size={18} strokeWidth={1.75} color={theme.colors.inkMuted} />}
@@ -336,7 +324,7 @@ const MembersSettingsScreen: React.FC = () => {
             <View style={[styles.inviteRow, { gap: theme.spacing.sm }]}>
               <View style={styles.inviteTextBlock}>
                 <AppText variant="caption" color="inkSecondary">
-                  Código para convidar novos membros
+                  Código para convidar novos moradores
                 </AppText>
                 <AppText variant="monoValue" color="accent" style={styles.inviteCodeText}>
                   {inviteCode}
@@ -353,11 +341,11 @@ const MembersSettingsScreen: React.FC = () => {
         ) : null}
 
         {loading ? (
-          <StateView kind="loading" title="Carregando membros..." />
+          <StateView kind="loading" title="Carregando moradores..." />
         ) : error ? (
           <StateView
             kind="error"
-            title="Erro ao carregar membros"
+            title="Erro ao carregar moradores"
             description={error}
             actionLabel="Tentar Novamente"
             onAction={() => void fetchMembersAndInviteCode()}
@@ -368,12 +356,12 @@ const MembersSettingsScreen: React.FC = () => {
             icon={<Users size={32} strokeWidth={1.75} color={theme.colors.inkMuted} />}
             title={
               searchQuery
-                ? 'Nenhum membro encontrado'
-                : 'Nenhum membro na república'
+                ? 'Nenhum morador encontrado'
+                : 'Nenhum morador na casa'
             }
             description={
               searchQuery
-                ? 'Nenhum membro corresponde à sua pesquisa.'
+                ? 'Nenhum morador corresponde à sua pesquisa.'
                 : 'Compartilhe o código de convite para adicionar moradores.'
             }
           />
@@ -381,7 +369,7 @@ const MembersSettingsScreen: React.FC = () => {
           <Surface tone="surface" bordered style={styles.membersSurface}>
             {filteredMembers.map((member, index) => {
               const isCurrentUser = member.uid === user?.uid;
-              const isMemberOwner = member.uid === republicOwnerId;
+              const isMemberOwner = member.uid === houseOwnerId || Boolean(member.isOwner);
               const canManageTarget = Boolean(
                 canManageUsers && !isCurrentUser && !isMemberOwner
               );
@@ -408,7 +396,7 @@ const MembersSettingsScreen: React.FC = () => {
                   }
                   leading={
                     <Avatar
-                      uri={member.profilePictureUrl}
+                      uri={member.profilePictureUrl ?? undefined}
                       name={displayName}
                       size="md"
                     />
@@ -442,7 +430,7 @@ const MembersSettingsScreen: React.FC = () => {
         title={
           selectedMember
             ? `Gerenciar ${selectedMemberDisplayName}`
-            : 'Gerenciar membro'
+            : 'Gerenciar morador'
         }
         dismissable={!actionLoading}
         dismissOnBackdropPress={!actionLoading}
@@ -460,9 +448,7 @@ const MembersSettingsScreen: React.FC = () => {
               </View>
               <View style={styles.flexSlot}>
                 <Button
-                  label={
-                    pendingAction === 'remove' ? 'Remover' : 'Confirmar'
-                  }
+                  label={pendingAction === 'remove' ? 'Remover' : 'Confirmar'}
                   variant={pendingAction === 'remove' ? 'danger' : 'primary'}
                   loading={actionLoading}
                   fullWidth
@@ -486,17 +472,17 @@ const MembersSettingsScreen: React.FC = () => {
             <View style={{ gap: theme.spacing.sm }}>
               <AppText variant="body" color="inkSecondary">
                 {pendingAction === 'remove'
-                  ? `Tem certeza que deseja remover ${selectedMemberDisplayName} da república? Esta ação não pode ser desfeita.`
+                  ? `Tem certeza que deseja remover ${selectedMemberDisplayName} da casa? Esta ação não pode ser desfeita.`
                   : pendingAction === 'promote'
                     ? `Tem certeza que deseja promover ${selectedMemberDisplayName} a administrador?`
-                    : `Tem certeza que deseja rebaixar ${selectedMemberDisplayName} para membro regular?`}
+                    : `Tem certeza que deseja alterar ${selectedMemberDisplayName} para morador regular?`}
               </AppText>
             </View>
           ) : (
             <View style={{ gap: theme.spacing.md }}>
               <View style={[styles.memberModalSummary, { gap: theme.spacing.sm }]}>
                 <Avatar
-                  uri={selectedMember.profilePictureUrl}
+                  uri={selectedMember.profilePictureUrl ?? undefined}
                   name={selectedMemberDisplayName}
                   size="md"
                 />
@@ -516,17 +502,17 @@ const MembersSettingsScreen: React.FC = () => {
               </View>
 
               <Surface tone="surface" bordered style={styles.membersSurface}>
-                {isOwner && !isSelectedMemberOwner ? (
+                {isOwner && !isSelectedMemberOwner && !allMembersAdmin ? (
                   <ListRow
                     title={
                       selectedMember.isAdmin
-                        ? 'Rebaixar para Membro'
+                        ? 'Tornar Morador Regular'
                         : 'Promover a Administrador'
                     }
                     subtitle={
                       selectedMember.isAdmin
-                        ? 'Remove permissões administrativas'
-                        : 'Permite gerenciar convites e membros'
+                        ? 'Remove permissões administrativas individuais'
+                        : 'Permite gerenciar convites, regras e moradores'
                     }
                     showDivider={!isSelectedMemberOwner}
                     onPress={() =>
@@ -552,8 +538,8 @@ const MembersSettingsScreen: React.FC = () => {
 
                 {!isSelectedMemberOwner ? (
                   <ListRow
-                    title="Remover da República"
-                    subtitle="Revoga o acesso deste morador à república"
+                    title="Remover da Casa"
+                    subtitle="Revoga o acesso deste morador à casa"
                     onPress={() => setPendingAction('remove')}
                     leading={
                       <Trash2

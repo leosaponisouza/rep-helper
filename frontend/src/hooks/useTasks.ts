@@ -8,7 +8,7 @@ import * as taskService from '../services/taskService';
 import { logger } from '../utils/logger';
 
 interface UseTasksOptions {
-  republicId?: string;
+  houseId?: string;
   initialFilterStatus?: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'OVERDUE' | 'CANCELLED' | 'all' | 'my-tasks' | 'recurring' | 'created-by-me' | 'other-users';
   pageSize?: number;
   initialSortBy?: string;
@@ -94,7 +94,7 @@ export const useTasks = (options: UseTasksOptions = {}) => {
 
       const response = await taskService.getTasksWithFilters(
         taskFilter,
-        options.republicId,
+        options.houseId,
         pageToFetch,
         pageSize,
         sortBy,
@@ -130,7 +130,7 @@ export const useTasks = (options: UseTasksOptions = {}) => {
         fetchTasks(true);
       }
     }
-  }, [options.republicId, pageSize, sortBy, sortDirection, activeFilter]);
+  }, [options.houseId, pageSize, sortBy, sortDirection, activeFilter]);
 
   const fetchMyTasks = useCallback(async (force = false, page?: number, filter?: TaskFilterRequest) => {
     if (isFetchingMyTasks.current && !force) {

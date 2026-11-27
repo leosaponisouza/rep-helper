@@ -486,7 +486,7 @@ const TaskDetailsScreen: React.FC = () => {
     tone: 'neutral' as StatusTone,
   };
   const updatedTimeLabel = getTimeAgo(task.updatedAt || task.updated_at);
-  const republicDisplayId = task.republicId || task.republic_id;
+  const houseDisplayId = task.houseId || task.house_id;
 
   const header = (
     <ScreenHeader
@@ -559,7 +559,7 @@ const TaskDetailsScreen: React.FC = () => {
             {task.title}
           </AppText>
 
-          {task.recurring || republicDisplayId ? (
+          {task.recurring || houseDisplayId ? (
             <View style={[styles.metaRow, { gap: theme.spacing.md }]}>
               {task.recurring ? (
                 <StatusText
@@ -569,11 +569,11 @@ const TaskDetailsScreen: React.FC = () => {
                 />
               ) : null}
 
-              {republicDisplayId ? (
+              {houseDisplayId ? (
                 <View style={[styles.inlineMeta, { gap: theme.spacing.xxs }]}>
                   <Home size={14} strokeWidth={1.75} color={theme.colors.inkMuted} />
                   <AppText variant="caption" color="inkSecondary">
-                    República ID: {republicDisplayId}
+                    Casa ID: {houseDisplayId}
                   </AppText>
                 </View>
               ) : null}

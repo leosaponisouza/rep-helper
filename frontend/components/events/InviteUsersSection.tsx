@@ -23,22 +23,22 @@ import {
   TextField,
   useTheme,
 } from '../../src/design-system';
-import { SelectableMember, useRepublicMembers } from '../../src/hooks/useRepublicMembers';
+import { SelectableMember, useHouseMembers } from '../../src/hooks/useHouseMembers';
 
 interface InviteUsersSectionProps {
-  republicId: string;
+  houseId: string;
   selectedIds: string[];
   onSelectionChange: (ids: string[]) => void;
 }
 
 const InviteUsersSection: React.FC<InviteUsersSectionProps> = ({
-  republicId,
+  houseId,
   selectedIds,
   onSelectionChange,
 }) => {
   const { theme } = useTheme();
   const { user } = useAuth();
-  const { members: rawMembers, loading } = useRepublicMembers(republicId);
+  const { members: rawMembers, loading } = useHouseMembers(houseId);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [expanded, setExpanded] = useState(false);
