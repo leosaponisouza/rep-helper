@@ -16,16 +16,19 @@ describe('native and build security configuration', () => {
     expect(manifest).not.toContain('android.permission.READ_EXTERNAL_STORAGE');
     expect(manifest).not.toContain('android.permission.WRITE_EXTERNAL_STORAGE');
     expect(manifest).not.toContain('android:scheme="myapp"');
-    expect(manifest).toContain('android:scheme="rephelper"');
+    expect(manifest).not.toContain('android:scheme="rephelper"');
+    expect(manifest).toContain('android:scheme="alpendre"');
+    expect(manifest).toContain('android:scheme="com.alpendre.app"');
   });
 
-  it('app.config.js and app.json align on rephelper scheme', () => {
+  it('app.config.js and app.json align on alpendre scheme', () => {
     const appConfig = fs.readFileSync(path.join(root, 'app.config.js'), 'utf8');
     const appJson = JSON.parse(fs.readFileSync(path.join(root, 'app.json'), 'utf8'));
 
-    expect(appConfig).toContain('scheme: "rephelper"');
+    expect(appConfig).toContain('scheme: "alpendre"');
     expect(appConfig).not.toContain('scheme: "myapp"');
-    expect(appJson.expo.scheme).toBe('rephelper');
+    expect(appConfig).not.toContain('scheme: "rephelper"');
+    expect(appJson.expo.scheme).toBe('alpendre');
   });
 
   (hasAndroidDir ? it : it.skip)('Android release build does not sign with debug.keystore and enables ProGuard by default', () => {
@@ -40,7 +43,10 @@ describe('native and build security configuration', () => {
     expect(releaseSection).toContain(
       "shrinkResources (enableProguardInReleaseBuilds && ((findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'true').toBoolean()))"
     );
-    expect(gradle).toContain('REPHELPER_UPLOAD_STORE_FILE');
+    expect(gradle).toContain("namespace 'com.alpendre.app'");
+    expect(gradle).toContain("applicationId 'com.alpendre.app'");
+    expect(gradle).toContain('ALPENDRE_UPLOAD_STORE_FILE');
+    expect(gradle).not.toContain('REPHELPER_UPLOAD_STORE_FILE');
   });
 
   (hasAndroidDir ? it : it.skip)('gradle.properties disables dev client network inspector', () => {

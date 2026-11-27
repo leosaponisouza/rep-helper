@@ -13,7 +13,7 @@ import { darkTheme } from './darkTheme';
 import { lightTheme } from './lightTheme';
 import { ResolvedTheme, Theme, ThemeMode } from './types';
 
-export const THEME_STORAGE_KEY = '@rephelper:theme_preference';
+export const THEME_STORAGE_KEY = '@alpendre:theme_preference';
 
 export interface ThemeContextValue {
   theme: Theme;

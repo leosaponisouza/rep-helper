@@ -57,7 +57,8 @@ describe('ThemeProvider and adapters', () => {
     });
   });
 
-  it('loads saved "dark" preference from @rephelper:theme_preference and syncs SystemUI', async () => {
+  it('loads saved "dark" preference from @alpendre:theme_preference and syncs SystemUI', async () => {
+    expect(THEME_STORAGE_KEY).toBe('@alpendre:theme_preference');
     (AsyncStorage.getItem as jest.Mock).mockResolvedValueOnce('dark');
 
     let latest!: ReturnType<typeof useTheme>;
@@ -74,7 +75,7 @@ describe('ThemeProvider and adapters', () => {
     });
     await flushEffects();
 
-    expect(AsyncStorage.getItem).toHaveBeenCalledWith(THEME_STORAGE_KEY);
+    expect(AsyncStorage.getItem).toHaveBeenCalledWith('@alpendre:theme_preference');
     expect(latest.ready).toBe(true);
     expect(latest.preference).toBe('dark');
     expect(latest.resolvedMode).toBe('dark');

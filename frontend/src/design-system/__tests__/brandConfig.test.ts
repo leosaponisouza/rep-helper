@@ -38,6 +38,11 @@ describe('Expo, Android DayNight, and Editorial brand assets alignment', () => {
     const appJson = JSON.parse(fs.readFileSync(path.join(root, 'app.json'), 'utf8'));
     const appConfig = fs.readFileSync(path.join(root, 'app.config.js'), 'utf8');
 
+    expect(appJson.expo.name).toBe('Alpendre');
+    expect(appJson.expo.slug).toBe('alpendre');
+    expect(appJson.expo.scheme).toBe('alpendre');
+    expect(appJson.expo.android.package).toBe('com.alpendre.app');
+    expect(appJson.expo.ios.bundleIdentifier).toBe('com.alpendre.app');
     expect(appJson.expo.userInterfaceStyle).toBe('automatic');
     expect(appJson.expo.splash.backgroundColor).toBe('#F5F2EB');
     expect(appJson.expo.android.adaptiveIcon.backgroundColor).toBe('#F5F2EB');
@@ -51,18 +56,31 @@ describe('Expo, Android DayNight, and Editorial brand assets alignment', () => {
       expect(fs.existsSync(path.join(root, relPath))).toBe(true);
     }
 
+    expect(appConfig).toContain('name: IS_DEV ? "Alpendre (Dev)" : "Alpendre"');
+    expect(appConfig).toContain('slug: "alpendre"');
     expect(appConfig).toContain('userInterfaceStyle: "automatic"');
     expect(appConfig).toContain('backgroundColor: "#F5F2EB"');
     expect(appConfig.match(/backgroundColor:\s*"#F5F2EB"/g)).toHaveLength(2);
-    expect(appConfig).toContain('scheme: "rephelper"');
+    expect(appConfig).toContain('scheme: "alpendre"');
+    expect(appConfig).toContain('"com.alpendre.app"');
   });
 
   (hasAndroidDir ? it : it.skip)(
-    'configures Android native DayNight theme and light/dark splash colors surgically',
+    'configures Android native DayNight theme, Alpendre Kotlin package, and light/dark splash colors surgically',
     () => {
       const stylesXml = fs.readFileSync(path.join(root, 'android/app/src/main/res/values/styles.xml'), 'utf8');
+      const stringsXml = fs.readFileSync(path.join(root, 'android/app/src/main/res/values/strings.xml'), 'utf8');
       const lightColors = fs.readFileSync(path.join(root, 'android/app/src/main/res/values/colors.xml'), 'utf8');
       const darkColors = fs.readFileSync(path.join(root, 'android/app/src/main/res/values-night/colors.xml'), 'utf8');
+      const mainActivityPath = path.join(root, 'android/app/src/main/java/com/alpendre/app/MainActivity.kt');
+      const mainApplicationPath = path.join(root, 'android/app/src/main/java/com/alpendre/app/MainApplication.kt');
+
+      expect(stringsXml).toContain('<string name="app_name">Alpendre</string>');
+      expect(fs.existsSync(mainActivityPath)).toBe(true);
+      expect(fs.existsSync(mainApplicationPath)).toBe(true);
+      expect(fs.readFileSync(mainActivityPath, 'utf8')).toContain('package com.alpendre.app');
+      expect(fs.readFileSync(mainApplicationPath, 'utf8')).toContain('package com.alpendre.app');
+      expect(fs.existsSync(path.join(root, 'android/app/src/main/java/com/anonymous'))).toBe(false);
 
       expect(stylesXml).toContain('Theme.AppCompat.DayNight.NoActionBar');
       expect(stylesXml).not.toContain('Theme.AppCompat.Light.NoActionBar');
@@ -99,6 +117,7 @@ describe('Expo, Android DayNight, and Editorial brand assets alignment', () => {
     const icon = decodePngRgbaPixels(fs.readFileSync(path.join(root, 'assets/images/icon.png')));
     expect([icon.width, icon.height]).toEqual([1024, 1024]);
     expect(icon.getPixel(0, 0)).toEqual([0xf5, 0xf2, 0xeb, 0xff]);
+    expect(icon.getPixel(512, 225)).toEqual([0x1f, 0x4a, 0xa8, 0xff]);
 
     const favicon = decodePngRgbaPixels(fs.readFileSync(path.join(root, 'assets/images/favicon.png')));
     expect([favicon.width, favicon.height]).toEqual([48, 48]);

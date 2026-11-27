@@ -5,12 +5,12 @@ const env = require('./env');
 const IS_DEV = process.env.EXPO_PUBLIC_ENV === 'development';
 
 module.exports = {
-  name: IS_DEV ? "RepHelper (Dev)" : "RepHelper",
-  slug: "rep-helper-frontend",
+  name: IS_DEV ? "Alpendre (Dev)" : "Alpendre",
+  slug: "alpendre",
   version: "1.0.0",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
-  scheme: "rephelper",
+  scheme: "alpendre",
   userInterfaceStyle: "automatic",
   newArchEnabled: true,
   splash: {
@@ -26,12 +26,12 @@ module.exports = {
       foregroundImage: "./assets/images/adaptive-icon.png",
       backgroundColor: "#F5F2EB"
     },
-    package: IS_DEV ? "com.anonymous.rephelperfrontend.dev" : "com.anonymous.rephelperfrontend",
+    package: IS_DEV ? "com.alpendre.app.dev" : "com.alpendre.app",
     runtimeVersion: "1.0.0"
   },
   ios: {
     supportsTablet: true,
-    bundleIdentifier: IS_DEV ? "com.anonymous.rephelperfrontend.dev" : "com.anonymous.rephelperfrontend",
+    bundleIdentifier: IS_DEV ? "com.alpendre.app.dev" : "com.alpendre.app",
     runtimeVersion: {
       policy: "appVersion"
     }

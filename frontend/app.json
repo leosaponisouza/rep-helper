@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Rep Helper",
-    "slug": "rep-helper",
+    "name": "Alpendre",
+    "slug": "alpendre",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -16,19 +16,19 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.rephelper"
+      "bundleIdentifier": "com.alpendre.app"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#F5F2EB"
       },
-      "package": "com.anonymous.rephelper"
+      "package": "com.alpendre.app"
     },
     "web": {
       "favicon": "./assets/images/favicon.png"
     },
-    "scheme": "rephelper",
+    "scheme": "alpendre",
     "plugins": [
       "expo-router"
     ]
