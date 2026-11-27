@@ -228,13 +228,13 @@ export const useFinances = (options: UseFinancesOptions = {}) => {
   const updateExpense = useCallback(async (id: number, data: UpdateExpenseRequest): Promise<Expense> => {
     try {
       const updated = await financesService.updateExpense(id, data);
-      await fetchExpenses();
+      await Promise.all([fetchExpenses(), fetchDashboardData()]);
       return updated;
     } catch (err) {
       const error = await ErrorHandler.parseError(err);
       throw error;
     }
-  }, [fetchExpenses]);
+  }, [fetchExpenses, fetchDashboardData]);
 
   // Expense status operations
   const approveExpense = useCallback(async (id: number): Promise<Expense> => {
@@ -385,8 +385,8 @@ export const useFinances = (options: UseFinancesOptions = {}) => {
 
     // Dashboard
     dashboardSummary,
-    hasSharedFund: dashboardSummary?.hasSharedFund ?? true,
-    requireExpenseApproval: dashboardSummary?.requireExpenseApproval ?? true,
+    hasSharedFund: dashboardSummary?.hasSharedFund ?? false,
+    requireExpenseApproval: dashboardSummary?.requireExpenseApproval ?? false,
     monthlyData,
     categoryExpenses,
     pendingActions,

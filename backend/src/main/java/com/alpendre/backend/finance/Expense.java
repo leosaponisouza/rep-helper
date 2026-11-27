@@ -47,6 +47,9 @@ public class Expense {
     @Column(nullable = false, length = 20)
     private String status = "PENDING";
 
+    @Column(name = "shared_fund", nullable = false)
+    private boolean sharedFund = false;
+
     @Column(name = "receipt_url", length = 500)
     private String receiptUrl;
 
@@ -144,6 +147,14 @@ public class Expense {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public boolean isSharedFund() {
+        return sharedFund;
+    }
+
+    public void setSharedFund(boolean sharedFund) {
+        this.sharedFund = sharedFund;
     }
 
     public String getReceiptUrl() {

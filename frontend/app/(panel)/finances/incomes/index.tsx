@@ -1,6 +1,7 @@
 // app/(panel)/finances/incomes/index.tsx
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { FlatList, Platform, RefreshControl, StyleSheet, View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { Plus, Wallet } from 'lucide-react-native';
 import IncomeItem from '../../../../components/finances/IncomeItem';
@@ -28,6 +29,17 @@ const IncomesScreen: React.FC<IncomesScreenProps> = ({ hideHeader = false }) => 
   const [refreshing, setRefreshing] = useState(false);
 
   const { incomes, loadingIncomes, incomesError, fetchIncomes } = useFinances();
+
+  const hasFocusedOnceRef = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasFocusedOnceRef.current) {
+        hasFocusedOnceRef.current = true;
+        return;
+      }
+      void fetchIncomes();
+    }, [fetchIncomes])
+  );
 
   const handleBack = useCallback(() => {
     if (router.canGoBack()) {

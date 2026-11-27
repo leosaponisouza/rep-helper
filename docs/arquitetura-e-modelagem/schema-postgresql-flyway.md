@@ -144,6 +144,7 @@ CREATE TABLE expenses (
     category VARCHAR(80) NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'PENDING'
         CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED', 'REIMBURSED')),
+    shared_fund BOOLEAN NOT NULL DEFAULT FALSE,
     receipt_url VARCHAR(500),
     notes TEXT,
     approver_uid UUID REFERENCES users(uid) ON DELETE SET NULL,

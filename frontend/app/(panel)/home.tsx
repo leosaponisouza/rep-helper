@@ -6,6 +6,7 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
 import {
   ArrowDownLeft,
@@ -119,10 +120,8 @@ const HomeScreen = () => {
 
   const { fetchNotifications, unreadCount } = useNotifications();
 
-  useEffect(() => {
-    let isActive = true;
+  const loadHouseName = useCallback(() => {
     const houseId = user?.currentHouseId;
-
     if (!houseId) {
       setHouseName(null);
       return;
@@ -131,20 +130,33 @@ const HomeScreen = () => {
     houseService
       .getHouse(houseId)
       .then((house) => {
-        if (isActive && house?.name) {
+        if (isMountedRef.current && house?.name) {
           setHouseName(house.name);
         }
       })
       .catch(() => {
-        if (isActive) {
+        if (isMountedRef.current) {
           setHouseName(null);
         }
       });
-
-    return () => {
-      isActive = false;
-    };
   }, [user?.currentHouseId]);
+
+  useEffect(() => {
+    loadHouseName();
+  }, [loadHouseName]);
+
+  const hasFocusedOnceRef = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasFocusedOnceRef.current) {
+        hasFocusedOnceRef.current = true;
+        return;
+      }
+      loadHouseName();
+      void refreshHomeData();
+      void fetchNotifications();
+    }, [loadHouseName, refreshHomeData, fetchNotifications])
+  );
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);

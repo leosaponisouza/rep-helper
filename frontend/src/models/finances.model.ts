@@ -26,6 +26,7 @@ export interface Expense extends Transaction {
   expenseDate: string;
   category: string;
   status: ExpenseStatus;
+  sharedFund?: boolean;
   approvalDate?: string;
   reimbursementDate?: string;
   rejectionReason?: string;
@@ -87,6 +88,7 @@ export interface PendingAction {
   amount: number;
   expenseDate: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  sharedFund?: boolean;
   creatorId: string;
   creatorName: string;
   creatorNickname?: string;

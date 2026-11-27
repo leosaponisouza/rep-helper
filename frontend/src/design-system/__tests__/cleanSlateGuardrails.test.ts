@@ -78,4 +78,27 @@ describe('Alpendre Clean-Slate brand and domain guardrails', () => {
     expect(aboutContent).toContain('www.alpendre.app');
     expect(aboutContent).toContain('@alpendre.app');
   });
+
+  it('has zero legacy RepHelper/república strings in backend Java sources and removes legacy design doc', () => {
+    const repoRoot = path.resolve(root, '..');
+    const legacyDesignDoc = path.join(repoRoot, 'docs/designs/rep-helper-backend-monorepo.md');
+    expect(fs.existsSync(legacyDesignDoc)).toBe(false);
+
+    const collectJavaFiles = (dir: string): string[] => {
+      const out: string[] = [];
+      if (!fs.existsSync(dir)) return out;
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) out.push(...collectJavaFiles(full));
+        else if (entry.name.endsWith('.java')) out.push(full);
+      }
+      return out;
+    };
+
+    const javaFiles = collectJavaFiles(path.join(repoRoot, 'backend/src/main/java'));
+    const backendOffenders = javaFiles
+      .filter((f) => /rep\s?helper|repúblicas?/i.test(fs.readFileSync(f, 'utf8')))
+      .map((f) => path.relative(repoRoot, f).replace(/\\/g, '/'));
+    expect(backendOffenders).toEqual([]);
+  });
 });

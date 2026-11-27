@@ -90,6 +90,7 @@ public class HouseCommandHandler {
             house.setName(in.name().trim());
         }
 
+        boolean wasAllMembersAdmin = house.isAllMembersAdmin();
         boolean touchedRules = in.presetType() != null
                 || in.hasSharedFund() != null
                 || in.requireExpenseApproval() != null
@@ -120,6 +121,14 @@ public class HouseCommandHandler {
             for (HouseMember m : activeMembers) {
                 if (!m.isAdmin()) {
                     m.setAdmin(true);
+                    memberRepo.save(m);
+                }
+            }
+        } else if (wasAllMembersAdmin) {
+            List<HouseMember> activeMembers = memberRepo.findByHouseIdAndStatusOrderByJoinedAtAsc(houseId, "ACTIVE");
+            for (HouseMember m : activeMembers) {
+                if (!m.isOwner() && m.isAdmin()) {
+                    m.setAdmin(false);
                     memberRepo.save(m);
                 }
             }

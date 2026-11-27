@@ -9,6 +9,7 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   Banknote,
@@ -78,6 +79,7 @@ const ExpenseDetailsScreen: React.FC = () => {
   const {
     hasSharedFund,
     requireExpenseApproval,
+    fetchDashboardData,
     getExpenseById,
     approveExpense,
     rejectExpense,
@@ -161,34 +163,39 @@ const ExpenseDetailsScreen: React.FC = () => {
     }
   }, [id, getExpenseById]);
 
-  useEffect(() => {
-    void fetchExpenseDetails();
-  }, [fetchExpenseDetails]);
+  useFocusEffect(
+    useCallback(() => {
+      void fetchExpenseDetails();
+      void fetchDashboardData();
+    }, [fetchExpenseDetails, fetchDashboardData])
+  );
 
   const isCreator = expense?.creatorId === user?.uid;
   const isUserAdmin = user?.isAdmin === true;
-  const canApprove =
-    requireExpenseApproval && expense?.status === 'PENDING' && isUserAdmin;
+  const canApprove = expense?.status === 'PENDING' && isUserAdmin;
   const canReimburse =
     hasSharedFund &&
-    requireExpenseApproval &&
+    expense?.sharedFund !== false &&
     expense?.status === 'APPROVED' &&
     isUserAdmin;
   const canReset =
     requireExpenseApproval &&
     (expense?.status === 'REJECTED' ||
       expense?.status === 'APPROVED' ||
-      (hasSharedFund && expense?.status === 'REIMBURSED')) &&
+      (hasSharedFund &&
+        expense?.sharedFund !== false &&
+        expense?.status === 'REIMBURSED')) &&
     isUserAdmin;
-  const canEdit = !requireExpenseApproval
-    ? Boolean(isCreator || isUserAdmin)
-    : Boolean(
-        (isCreator && expense?.status === 'PENDING') ||
-          (isUserAdmin && expense?.status !== 'REIMBURSED')
-      );
+  const canEdit = Boolean(
+    (isCreator || isUserAdmin) &&
+      (expense?.status === 'PENDING' ||
+        (!requireExpenseApproval && expense?.status !== 'REJECTED'))
+  );
   const canDelete = !requireExpenseApproval
     ? Boolean(isCreator || isUserAdmin)
-    : Boolean((isCreator || isUserAdmin) && expense?.status !== 'REIMBURSED');
+    : Boolean(
+        (isCreator && expense?.status !== 'REIMBURSED') || isUserAdmin
+      );
   const canModifyExpense = canEdit;
 
   const formatDate = (dateString?: string) => {

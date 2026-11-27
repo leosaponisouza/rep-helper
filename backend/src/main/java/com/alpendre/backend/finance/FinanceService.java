@@ -110,6 +110,7 @@ public class FinanceService {
         expense.setCategory(input.category().trim());
         expense.setReceiptUrl(trimToNull(input.receiptUrl()));
         expense.setNotes(trimToNull(input.notes()));
+        expense.setSharedFund(house.isHasSharedFund());
 
         OffsetDateTime now = OffsetDateTime.now();
         if (house.isRequireExpenseApproval()) {
@@ -153,7 +154,7 @@ public class FinanceService {
         }
         if (input.amount() != null) {
             BigDecimal previousAmount = expense.getAmount();
-            if ("REIMBURSED".equals(expense.getStatus()) && house.isHasSharedFund()) {
+            if ("REIMBURSED".equals(expense.getStatus()) && house.isHasSharedFund() && expense.isSharedFund()) {
                 BigDecimal ledgerDelta = previousAmount.subtract(input.amount());
                 if (ledgerDelta.compareTo(BigDecimal.ZERO) != 0) {
                     balanceLedger.applyDelta(houseId, ledgerDelta);
@@ -213,6 +214,12 @@ public class FinanceService {
                 .orElseThrow(() -> BusinessException.notFound("EXPENSE_NOT_FOUND", "Despesa não encontrada."));
         UUID houseId = expense.getHouse().getId();
         security.requireAdmin(houseId, callerUid);
+        House house = houseRepo.findById(houseId)
+                .orElseThrow(() -> BusinessException.notFound("HOUSE_NOT_FOUND", "Casa não encontrada."));
+
+        if (!house.isRequireExpenseApproval() && !"PENDING".equals(expense.getStatus())) {
+            throw BusinessException.badRequest("APPROVAL_NOT_ENABLED", "Esta casa não exige aprovação de despesas.");
+        }
 
         if (!"PENDING".equals(expense.getStatus()) && !"APPROVED".equals(expense.getStatus())) {
             throw BusinessException.badRequest("INVALID_EXPENSE_STATUS", "Não é possível rejeitar esta despesa no status atual.");
@@ -239,6 +246,13 @@ public class FinanceService {
                 .orElseThrow(() -> BusinessException.notFound("HOUSE_NOT_FOUND", "Casa não encontrada."));
         requireSharedFundEnabled(house);
 
+        if (!expense.isSharedFund()) {
+            throw BusinessException.badRequest(
+                    "EXPENSE_NOT_IN_SHARED_FUND",
+                    "Esta despesa foi registrada fora do modo caixinha e não é reembolsável."
+            );
+        }
+
         if (!"APPROVED".equals(expense.getStatus())) {
             throw BusinessException.badRequest("INVALID_EXPENSE_STATUS", "A despesa precisa ser aprovada antes de ser reembolsada.");
         }
@@ -258,8 +272,14 @@ public class FinanceService {
                 .orElseThrow(() -> BusinessException.notFound("EXPENSE_NOT_FOUND", "Despesa não encontrada."));
         UUID houseId = expense.getHouse().getId();
         security.requireAdmin(houseId, callerUid);
+        House house = houseRepo.findById(houseId)
+                .orElseThrow(() -> BusinessException.notFound("HOUSE_NOT_FOUND", "Casa não encontrada."));
 
-        if ("REIMBURSED".equals(expense.getStatus())) {
+        if (!house.isRequireExpenseApproval()) {
+            throw BusinessException.badRequest("APPROVAL_NOT_ENABLED", "Esta casa não exige aprovação de despesas.");
+        }
+
+        if ("REIMBURSED".equals(expense.getStatus()) && house.isHasSharedFund() && expense.isSharedFund()) {
             balanceLedger.applyDelta(houseId, expense.getAmount());
         }
 
@@ -286,7 +306,9 @@ public class FinanceService {
                 HouseMember caller = security.requireActiveMember(houseId, callerUid);
                 requireCreatorOrAdmin(expense.getCreator().getUid(), callerUid, caller);
             }
-            balanceLedger.applyDelta(houseId, expense.getAmount());
+            if (house.isHasSharedFund() && expense.isSharedFund()) {
+                balanceLedger.applyDelta(houseId, expense.getAmount());
+            }
         } else {
             HouseMember caller = security.requireActiveMember(houseId, callerUid);
             requireCreatorOrAdmin(expense.getCreator().getUid(), callerUid, caller);
@@ -518,8 +540,11 @@ public class FinanceService {
                 ? List.of("PENDING", "APPROVED")
                 : List.of("PENDING");
         List<Expense> pending = expenseRepo.findByHouseIdAndStatusInOrderByExpenseDateDescCreatedAtDesc(
-                houseId, actionableStatuses
-        );
+                        houseId, actionableStatuses
+                )
+                .stream()
+                .filter(e -> "PENDING".equals(e.getStatus()) || (house.isHasSharedFund() && e.isSharedFund()))
+                .toList();
         List<PendingActionView> items = pending.stream().map(PendingActionView::from).toList();
         BigDecimal total = pending.stream().map(Expense::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
         return new PendingActionsView(items, items.size(), total);

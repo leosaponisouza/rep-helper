@@ -130,6 +130,7 @@ erDiagram
         TIMESTAMPTZ expense_date
         VARCHAR category
         VARCHAR status
+        BOOLEAN shared_fund
         VARCHAR receipt_url
         TEXT notes
         UUID approver_uid FK

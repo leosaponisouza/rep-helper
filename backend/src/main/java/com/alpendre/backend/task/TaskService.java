@@ -275,7 +275,7 @@ public class TaskService {
         security.requireActiveMember(houseId, callerUid);
 
         HouseMember member = memberRepo.findByHouseIdAndUserUidAndStatus(houseId, targetUid, "ACTIVE")
-                .orElseThrow(() -> BusinessException.badRequest("INVALID_ASSIGNEE", "Usuário não é membro ativo desta república."));
+                .orElseThrow(() -> BusinessException.badRequest("INVALID_ASSIGNEE", "Usuário não é morador ativo desta casa."));
         User targetUser = member.getUser();
         boolean added = task.getAssignedUsers().add(targetUser);
         Task saved = taskRepo.save(task);

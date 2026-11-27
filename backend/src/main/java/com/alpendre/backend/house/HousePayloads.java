@@ -15,13 +15,16 @@ public final class HousePayloads {
     private HousePayloads() {}
 
     public record AddressView(
-            String street,
-            String number,
-            String complement,
-            String neighborhood,
-            String city,
-            String state,
-            @JsonAlias("zip_code") String zipCode,
+            @Size(max = 200) String street,
+            @Size(max = 30) String number,
+            @Size(max = 100) String complement,
+            @Size(max = 120) String neighborhood,
+            @Size(max = 120) String city,
+            @Pattern(regexp = "^$|^[A-Za-z]{2}$", message = "Estado deve ter 2 letras") String state,
+            @JsonAlias("zip_code")
+            @Size(max = 20)
+            @Pattern(regexp = "^$|^\\d{5}-\\d{3}$", message = "CEP deve estar no formato 00000-000")
+            String zipCode,
             String fullAddress
     ) {
         public static AddressView of(HouseAddress entity) {
@@ -124,11 +127,14 @@ public final class HousePayloads {
             @Size(max = 120) String neighborhood,
             @Size(max = 120) String city,
             @Pattern(regexp = "^$|^[A-Za-z]{2}$", message = "Estado deve ter 2 letras") String state,
-            @JsonAlias("zip_code") @Size(max = 20) String zipCode
+            @JsonAlias("zip_code")
+            @Size(max = 20)
+            @Pattern(regexp = "^$|^\\d{5}-\\d{3}$", message = "CEP deve estar no formato 00000-000")
+            String zipCode
     ) {}
 
     public record UpdateInput(
-            @Size(max = 120) String name,
+            @Size(min = 2, max = 120) String name,
             String presetType,
             Boolean hasSharedFund,
             Boolean requireExpenseApproval,
@@ -139,7 +145,10 @@ public final class HousePayloads {
             @Size(max = 120) String neighborhood,
             @Size(max = 120) String city,
             @Pattern(regexp = "^$|^[A-Za-z]{2}$", message = "Estado deve ter 2 letras") String state,
-            @JsonAlias("zip_code") @Size(max = 20) String zipCode,
+            @JsonAlias("zip_code")
+            @Size(max = 20)
+            @Pattern(regexp = "^$|^\\d{5}-\\d{3}$", message = "CEP deve estar no formato 00000-000")
+            String zipCode,
             @Valid AddressView address
     ) {}
 

@@ -360,6 +360,15 @@ const HouseSettingsScreen: React.FC = () => {
       return;
     }
 
+    if (zipCode.trim() && !/^\d{5}-\d{3}$/.test(zipCode.trim())) {
+      toast({
+        title: 'CEP inválido',
+        message: 'Informe o CEP no formato 00000-000 ou deixe em branco.',
+        tone: 'warning',
+      });
+      return;
+    }
+
     try {
       setSaving(true);
 
@@ -407,6 +416,11 @@ const HouseSettingsScreen: React.FC = () => {
   const stateError =
     submittedValidation && state.trim() && !/^[A-Za-z]{2}$/.test(state.trim())
       ? 'Use 2 letras'
+      : undefined;
+
+  const zipCodeError =
+    submittedValidation && zipCode.trim() && !/^\d{5}-\d{3}$/.test(zipCode.trim())
+      ? 'Formato 00000-000'
       : undefined;
 
   const header = (
@@ -736,6 +750,7 @@ const HouseSettingsScreen: React.FC = () => {
                   editable={canEditHouse}
                   keyboardType="number-pad"
                   maxLength={9}
+                  error={zipCodeError}
                   leftIcon={<Mail size={18} strokeWidth={1.75} color={theme.colors.inkMuted} />}
                 />
               </View>

@@ -48,6 +48,12 @@ public class MembershipUseCase {
         if (!grantAdmin && row.isOwner()) {
             throw BusinessException.badRequest("CANNOT_DEMOTE_OWNER", "O proprietário não pode perder permissão.");
         }
+        if (!grantAdmin && row.getHouse() != null && row.getHouse().isAllMembersAdmin()) {
+            throw BusinessException.badRequest(
+                    "ALL_MEMBERS_ADMIN_ENABLED",
+                    "Não é possível remover permissão de administrador enquanto todos os moradores administram a casa."
+            );
+        }
         row.setAdmin(grantAdmin);
         return MemberView.of(memberRepo.save(row));
     }

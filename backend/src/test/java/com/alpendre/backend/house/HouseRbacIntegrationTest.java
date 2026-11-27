@@ -176,4 +176,77 @@ class HouseRbacIntegrationTest extends AbstractIntegrationTest {
                         .header("Authorization", bearer(member.token())))
                 .andExpect(status().isOk());
     }
+
+    @Test
+    void shouldValidateZipCodeNestedAddressStateAndUpdateNameLength() throws Exception {
+        AuthSession owner = signupUser("val-house-owner", "Beatriz");
+
+        mockMvc.perform(post("/api/v1/houses")
+                        .header("Authorization", bearer(owner.token()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "name", "Casa CEP Inválido",
+                                "zipCode", "12345"
+                        ))))
+                .andExpect(status().isBadRequest());
+
+        HouseFixture house = createHouse("val-house-ok", "Casa Válida");
+
+        mockMvc.perform(put("/api/v1/houses/" + house.id())
+                        .header("Authorization", bearer(house.owner().token()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "address", Map.of("state", "SAO_PAULO")
+                        ))))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(put("/api/v1/houses/" + house.id())
+                        .header("Authorization", bearer(house.owner().token()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("name", "A"))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void shouldBlockDemotionWhileAllMembersAdminEnabledAndDemoteRegularMembersWhenDisabled() throws Exception {
+        AuthSession owner = signupUser("gov-toggle-owner", "Henrique");
+        MvcResult createRes = mockMvc.perform(post("/api/v1/houses")
+                        .header("Authorization", bearer(owner.token()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("name", "Casa Horizontal"))))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        var created = readJson(createRes);
+        String houseId = created.get("house").get("id").asText();
+        String ownerToken = created.get("token").asText();
+        String code = created.get("house").get("code").asText();
+
+        AuthSession partner = joinHouse("gov-toggle-partner", code);
+
+        // Cannot manually demote while allMembersAdmin == true
+        mockMvc.perform(delete("/api/v1/houses/" + houseId + "/members/" + partner.uid() + "/admin")
+                        .header("Authorization", bearer(ownerToken)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ALL_MEMBERS_ADMIN_ENABLED"));
+
+        // Toggling allMembersAdmin true -> false demotes non-owner members while keeping owner admin
+        mockMvc.perform(put("/api/v1/houses/" + houseId)
+                        .header("Authorization", bearer(ownerToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("allMembersAdmin", false))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.allMembersAdmin").value(false))
+                .andExpect(jsonPath("$.presetType").value("SHARED_APT"));
+
+        mockMvc.perform(get("/api/v1/users/me")
+                        .header("Authorization", bearer(partner.token())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.user.isAdmin").value(false));
+
+        mockMvc.perform(get("/api/v1/users/me")
+                        .header("Authorization", bearer(ownerToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.user.isAdmin").value(true));
+    }
 }

@@ -1,6 +1,7 @@
 // app/(panel)/finances/expenses/index.tsx
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Platform, RefreshControl, StyleSheet, View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { Plus, Receipt } from 'lucide-react-native';
 import ExpenseFilters, {
@@ -46,11 +47,24 @@ const ExpensesScreen: React.FC<ExpensesScreenProps> = ({ hideHeader = false }) =
     loadingExpenses,
     expensesError,
     fetchExpenses,
+    fetchDashboardData,
     applyExpenseFilter,
     expenseFilter,
   } = useFinances({
     initialFilter: 'ALL',
   });
+
+  const hasFocusedOnceRef = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasFocusedOnceRef.current) {
+        hasFocusedOnceRef.current = true;
+        return;
+      }
+      void fetchExpenses();
+      void fetchDashboardData();
+    }, [fetchExpenses, fetchDashboardData])
+  );
 
   const visibleFilters = useMemo<FilterOption[]>(() => {
     if (!hasSharedFund && !requireExpenseApproval) {
@@ -67,6 +81,15 @@ const ExpensesScreen: React.FC<ExpensesScreenProps> = ({ hideHeader = false }) =
     }
     return AVAILABLE_FILTERS;
   }, [hasSharedFund, requireExpenseApproval]);
+
+  useEffect(() => {
+    if (
+      expenseFilter !== 'ALL' &&
+      !visibleFilters.some((filter) => filter.key === expenseFilter)
+    ) {
+      applyExpenseFilter('ALL');
+    }
+  }, [visibleFilters, expenseFilter, applyExpenseFilter]);
 
   const handleBack = useCallback(() => {
     if (router.canGoBack()) {

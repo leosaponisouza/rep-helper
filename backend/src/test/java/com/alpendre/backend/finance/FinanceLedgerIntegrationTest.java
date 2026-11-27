@@ -385,4 +385,130 @@ class FinanceLedgerIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currentBalance").value(500.0));
     }
+
+    @Test
+    void shouldProtectBalanceAndEligibilityAcrossModeTransitions() throws Exception {
+        AuthSession owner = signupUser("fin-mode-switch", "Marina");
+        MvcResult houseRes = mockMvc.perform(post("/api/v1/houses")
+                        .header("Authorization", bearer(owner.token()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "name", "Casa Mutável",
+                                "presetType", "COUPLE_FAMILY"
+                        ))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String houseId = readJson(houseRes).get("house").get("id").asText();
+        String token = readJson(houseRes).get("token").asText();
+
+        // 1. Create a personal-tracking ("Registrada") expense while hasSharedFund=false, requireExpenseApproval=false
+        MvcResult trackedExpRes = mockMvc.perform(post("/api/v1/expenses")
+                        .header("Authorization", bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "description", "Padaria",
+                                "amount", 60.00,
+                                "expenseDate", "2026-11-10T12:00:00Z",
+                                "category", "MERCADO",
+                                "houseId", houseId
+                        ))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("APPROVED"))
+                .andExpect(jsonPath("$.sharedFund").value(false))
+                .andReturn();
+        long trackedExpenseId = readJson(trackedExpRes).get("id").asLong();
+
+        // Reject and reset must be blocked when requireExpenseApproval=false
+        mockMvc.perform(post("/api/v1/expenses/" + trackedExpenseId + "/reject")
+                        .header("Authorization", bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("reason", "Indevido"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("APPROVAL_NOT_ENABLED"));
+
+        mockMvc.perform(post("/api/v1/expenses/" + trackedExpenseId + "/reset")
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("APPROVAL_NOT_ENABLED"));
+
+        // 2. Switch house to REPUBLIC (hasSharedFund=true, requireExpenseApproval=true) and fund caixinha
+        mockMvc.perform(put("/api/v1/houses/" + houseId)
+                        .header("Authorization", bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("presetType", "REPUBLIC"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.hasSharedFund").value(true))
+                .andExpect(jsonPath("$.requireExpenseApproval").value(true));
+
+        mockMvc.perform(post("/api/v1/incomes")
+                        .header("Authorization", bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "description", "Fundo Inicial",
+                                "amount", 500.00,
+                                "incomeDate", "2026-11-11T12:00:00Z",
+                                "source", "PIX",
+                                "houseId", houseId
+                        ))))
+                .andExpect(status().isCreated());
+
+        // Pre-existing non-fund "Registrada" expense must NOT enter pendingActions or be reimbursable
+        mockMvc.perform(get("/api/v1/financial-dashboard/pending-actions/" + houseId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pendingExpensesCount").value(0));
+
+        mockMvc.perform(post("/api/v1/expenses/" + trackedExpenseId + "/reimburse")
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("EXPENSE_NOT_IN_SHARED_FUND"));
+
+        // 3. Create, approve, and reimburse a real shared-fund expense (500 -> 380)
+        MvcResult fundExpRes = mockMvc.perform(post("/api/v1/expenses")
+                        .header("Authorization", bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "description", "Conta de Luz",
+                                "amount", 120.00,
+                                "expenseDate", "2026-11-12T12:00:00Z",
+                                "category", "UTILIDADES",
+                                "houseId", houseId
+                        ))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.sharedFund").value(true))
+                .andReturn();
+        long fundExpenseId = readJson(fundExpRes).get("id").asLong();
+
+        mockMvc.perform(post("/api/v1/expenses/" + fundExpenseId + "/approve")
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/expenses/" + fundExpenseId + "/reimburse")
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/financial-dashboard/summary/" + houseId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentBalance").value(380.0));
+
+        // 4. Disable shared fund and delete the historical reimbursed expense -> balance must NOT mutate
+        mockMvc.perform(put("/api/v1/houses/" + houseId)
+                        .header("Authorization", bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "hasSharedFund", false,
+                                "requireExpenseApproval", false,
+                                "allMembersAdmin", true
+                        ))))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(delete("/api/v1/expenses/" + fundExpenseId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/financial-dashboard/summary/" + houseId)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentBalance").value(380.0));
+    }
 }

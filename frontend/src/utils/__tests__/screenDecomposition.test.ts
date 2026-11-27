@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { buildExpenseTimelineSteps } from '../../../components/finances/ExpenseDetails/ExpenseTimeline';
 import { Expense } from '../../models/finances.model';
 
@@ -67,5 +69,38 @@ describe('buildExpenseTimelineSteps', () => {
     expect(steps).toHaveLength(2);
     expect(steps.map((s) => s.key)).toEqual(['created', 'approval']);
     expect(steps[1].isLast).toBe(true);
+  });
+
+  it('enforces expense editability parity, focus refreshes, and CEP validation in screens', () => {
+    const frontendRoot = path.resolve(__dirname, '../../..');
+    const expenseDetailsSrc = fs.readFileSync(
+      path.join(frontendRoot, 'app/(panel)/finances/expenses/[id].tsx'),
+      'utf8'
+    );
+    expect(expenseDetailsSrc).not.toContain("(isUserAdmin && expense?.status !== 'REIMBURSED')");
+    expect(expenseDetailsSrc).toContain('expense?.sharedFund !== false');
+    expect(expenseDetailsSrc).toContain('useFocusEffect');
+
+    const houseSettingsSrc = fs.readFileSync(
+      path.join(frontendRoot, 'app/(panel)/settings/house.tsx'),
+      'utf8'
+    );
+    expect(houseSettingsSrc).toMatch(/\\d\{5\}-\\d\{3\}/);
+
+    const expensesListSrc = fs.readFileSync(
+      path.join(frontendRoot, 'app/(panel)/finances/expenses/index.tsx'),
+      'utf8'
+    );
+    const incomesListSrc = fs.readFileSync(
+      path.join(frontendRoot, 'app/(panel)/finances/incomes/index.tsx'),
+      'utf8'
+    );
+    const homeSrc = fs.readFileSync(
+      path.join(frontendRoot, 'app/(panel)/home.tsx'),
+      'utf8'
+    );
+    expect(expensesListSrc).toContain('useFocusEffect');
+    expect(incomesListSrc).toContain('useFocusEffect');
+    expect(homeSrc).toContain('useFocusEffect');
   });
 });
