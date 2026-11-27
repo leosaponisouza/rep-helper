@@ -210,7 +210,14 @@ const EventItem: React.FC<EventItemProps> = ({ event, onPress, currentUserId }) 
           ) : null}
         </View>
 
-        {invitations.length > 0 ? (
+        {event.requireRsvp === false ? (
+          <>
+            <Divider />
+            <View style={[styles.footerRow, { gap: theme.spacing.sm }]}>
+              <StatusText label="Aviso na agenda" tone="neutral" showDot />
+            </View>
+          </>
+        ) : invitations.length > 0 ? (
           <>
             <Divider />
             <View style={[styles.footerRow, { gap: theme.spacing.sm }]}>

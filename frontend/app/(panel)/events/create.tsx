@@ -1,6 +1,6 @@
 // app/(panel)/events/create.tsx
 import React, { useCallback, useState } from 'react';
-import { Keyboard, Platform, View } from 'react-native';
+import { Keyboard, Platform, StyleSheet, Switch, View } from 'react-native';
 import { addHours, isBefore, isValid, setHours, setMinutes } from 'date-fns';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -9,9 +9,11 @@ import InviteUsersSection from '../../../components/events/InviteUsersSection';
 import { DateTimePickerFields } from '../../../components/tasks/TaskEdit/DateTimePickerSection';
 import { useAuth } from '../../../src/context/AuthContext';
 import {
+  AppText,
   Button,
   Screen,
   ScreenHeader,
+  Surface,
   TextField,
   useFeedback,
   useTheme,
@@ -76,6 +78,7 @@ const CreateEventScreen: React.FC = () => {
   const [endPickerMode, setEndPickerMode] = useState<'date' | 'time'>('date');
 
   const [loading, setLoading] = useState(false);
+  const [requireRsvp, setRequireRsvp] = useState(true);
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
 
   const handleBack = useCallback(() => {
@@ -165,12 +168,18 @@ const CreateEventScreen: React.FC = () => {
         endDate: formatToBackendDateTime(endDate),
         location: location.trim() || '',
         houseId: user?.currentHouseId || '',
+        requireRsvp,
       };
 
       const createdEvent = await createEvent(eventData);
       let inviteFailed = false;
 
-      if (selectedParticipants.length > 0 && createdEvent && createdEvent.id) {
+      if (
+        requireRsvp &&
+        selectedParticipants.length > 0 &&
+        createdEvent &&
+        createdEvent.id
+      ) {
         try {
           await inviteUsers(createdEvent.id, selectedParticipants);
         } catch (error) {
@@ -203,6 +212,7 @@ const CreateEventScreen: React.FC = () => {
     endDate,
     location,
     user?.currentHouseId,
+    requireRsvp,
     selectedParticipants,
     validateForm,
     createEvent,
@@ -285,7 +295,37 @@ const CreateEventScreen: React.FC = () => {
         leftIcon={<MapPin size={18} strokeWidth={1.75} color={theme.colors.accent} />}
       />
 
-      {user?.currentHouseId ? (
+      <Surface
+        tone="surface"
+        bordered
+        padded="md"
+        radiusKey="md"
+        style={[styles.rsvpRow, { gap: theme.spacing.sm }]}
+      >
+        <View style={styles.rsvpTextBlock}>
+          <AppText variant="bodyStrong" color="ink">
+            Pedir confirmação de presença dos moradores
+          </AppText>
+          <AppText variant="caption" color="inkSecondary">
+            {requireRsvp
+              ? 'Os moradores poderão confirmar ou recusar presença'
+              : 'Apenas registra um aviso informativo na agenda da casa'}
+          </AppText>
+        </View>
+        <Switch
+          value={requireRsvp}
+          onValueChange={setRequireRsvp}
+          accessibilityLabel="Pedir confirmação de presença dos moradores"
+          trackColor={{
+            false: theme.colors.borderStrong,
+            true: theme.colors.accentSoft,
+          }}
+          thumbColor={requireRsvp ? theme.colors.accent : theme.colors.surface}
+          ios_backgroundColor={theme.colors.subtle}
+        />
+      </Surface>
+
+      {requireRsvp && user?.currentHouseId ? (
         <InviteUsersSection
           houseId={user.currentHouseId}
           selectedIds={selectedParticipants}
@@ -309,5 +349,17 @@ const CreateEventScreen: React.FC = () => {
     </Screen>
   );
 };
+
+const styles = StyleSheet.create({
+  rsvpRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  rsvpTextBlock: {
+    flex: 1,
+    gap: 2,
+  },
+});
 
 export default CreateEventScreen;

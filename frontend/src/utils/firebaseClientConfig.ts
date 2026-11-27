@@ -1,5 +1,5 @@
 // src/utils/firebaseClientConfig.ts
-// Compatibilidade mínima após migração para autenticação JWT interna no backend RepHelper.
+// Compatibilidade mínima após migração para autenticação JWT interna no backend Alpendre.
 
 export const auth = {
   currentUser: null,

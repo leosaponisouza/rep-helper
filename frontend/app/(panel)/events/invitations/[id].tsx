@@ -132,6 +132,13 @@ const InvitationsScreen: React.FC = () => {
 
       setEvent(eventData);
 
+      if (eventData.requireRsvp === false) {
+        setLoadError(
+          'Este evento é apenas um aviso na agenda e não possui lista de confirmação.'
+        );
+        return;
+      }
+
       if (!isCurrentUserCreator(eventData)) {
         setLoadError(
           'Você não tem permissão para gerenciar convites para este evento.'
@@ -236,7 +243,7 @@ const InvitationsScreen: React.FC = () => {
       if (newInviteesIds.length === 0) {
         toast({
           title: 'Nenhum selecionado',
-          message: 'Selecione ao menos um novo membro para convidar.',
+          message: 'Selecione ao menos um novo morador para convidar.',
           tone: 'info',
         });
         return;
@@ -247,7 +254,7 @@ const InvitationsScreen: React.FC = () => {
 
       toast({
         title: 'Convites enviados',
-        message: `${newInviteesIds.length} ${newInviteesIds.length === 1 ? 'membro convidado' : 'membros convidados'} com sucesso!`,
+        message: `${newInviteesIds.length} ${newInviteesIds.length === 1 ? 'morador convidado' : 'moradores convidados'} com sucesso!`,
         tone: 'success',
       });
     } catch (error) {
@@ -388,7 +395,7 @@ const InvitationsScreen: React.FC = () => {
 
   const renderEmptyState = useCallback(() => {
     if (loading) {
-      return <StateView kind="loading" title="Carregando membros..." />;
+      return <StateView kind="loading" title="Carregando moradores..." />;
     }
 
     if (searchQuery && filteredMembers.length === 0) {
@@ -397,7 +404,7 @@ const InvitationsScreen: React.FC = () => {
           kind="empty"
           icon={<Search size={32} strokeWidth={1.75} color={theme.colors.inkMuted} />}
           title="Nenhum resultado"
-          description={`Nenhum membro encontrado com "${searchQuery}".`}
+          description={`Nenhum morador encontrado com "${searchQuery}".`}
           actionLabel="Limpar Busca"
           onAction={() => setSearchQuery('')}
         />
@@ -409,9 +416,9 @@ const InvitationsScreen: React.FC = () => {
         <StateView
           kind="empty"
           icon={<Users size={32} strokeWidth={1.75} color={theme.colors.inkMuted} />}
-          title="Nenhum membro convidado"
-          description="Nenhum membro foi convidado para este evento ainda."
-          actionLabel="Convidar Membros"
+          title="Nenhum morador convidado"
+          description="Nenhum morador foi convidado para este evento ainda."
+          actionLabel="Convidar Moradores"
           onAction={() => setTab('new')}
         />
       );
@@ -424,7 +431,7 @@ const InvitationsScreen: React.FC = () => {
           icon={
             <CheckCircle2 size={32} strokeWidth={1.75} color={theme.colors.success} />
           }
-          title="Todos os membros já foram convidados"
+          title="Todos os moradores já foram convidados"
           description='Você pode acompanhar as respostas na aba "Convidados".'
           actionLabel="Ver Convidados"
           onAction={() => setTab('invited')}
@@ -515,7 +522,7 @@ const InvitationsScreen: React.FC = () => {
         />
 
         <TextField
-          placeholder="Buscar membro por nome ou email"
+          placeholder="Buscar morador por nome ou email"
           value={searchQuery}
           onChangeText={setSearchQuery}
           leftIcon={
@@ -538,8 +545,8 @@ const InvitationsScreen: React.FC = () => {
             <AppText variant="caption" color="inkSecondary">
               {newInviteesIds.length}{' '}
               {newInviteesIds.length === 1
-                ? 'membro selecionado'
-                : 'membros selecionados'}
+                ? 'morador selecionado'
+                : 'moradores selecionados'}
             </AppText>
             {newInviteesIds.length > 0 ? (
               <Button
@@ -591,7 +598,7 @@ const InvitationsScreen: React.FC = () => {
           ]}
         >
           <Button
-            label={`Convidar ${newInviteesIds.length} ${newInviteesIds.length === 1 ? 'Membro' : 'Membros'}`}
+            label={`Convidar ${newInviteesIds.length} ${newInviteesIds.length === 1 ? 'Morador' : 'Moradores'}`}
             variant="primary"
             fullWidth
             loading={actionLoading}

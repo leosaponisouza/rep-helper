@@ -9,9 +9,9 @@ import {
   FileText,
   Globe,
   Mail,
-  MessageSquare,
   Receipt,
   ShieldCheck,
+  Sliders,
   type LucideIcon,
 } from 'lucide-react-native';
 import {
@@ -48,10 +48,10 @@ interface ContactChannelItem {
 }
 
 const FEATURES: ReadonlyArray<FeatureItem> = [
-  { id: 'expenses', title: 'Divisão de Despesas', Icon: Receipt },
-  { id: 'calendar', title: 'Agenda Compartilhada', Icon: Calendar },
-  { id: 'tasks', title: 'Gestão de Tarefas', Icon: CheckSquare },
-  { id: 'chat', title: 'Chat Integrado', Icon: MessageSquare },
+  { id: 'expenses', title: 'Gastos e Caixinha', Icon: Receipt },
+  { id: 'calendar', title: 'Agenda da Casa', Icon: Calendar },
+  { id: 'tasks', title: 'Tarefas Recorrentes', Icon: CheckSquare },
+  { id: 'rules', title: 'Regras Personalizáveis', Icon: Sliders },
 ];
 
 const LEGAL_LINKS: ReadonlyArray<LegalLinkItem> = [
@@ -82,22 +82,22 @@ const CONTACT_CHANNELS: ReadonlyArray<ContactChannelItem> = [
   {
     id: 'email',
     title: 'E-mail',
-    value: 'contato@rephelper.com.br',
-    url: 'mailto:contato@rephelper.com.br',
+    value: 'contato@alpendre.app',
+    url: 'mailto:contato@alpendre.app',
     renderIcon: (color) => <Mail size={20} strokeWidth={1.75} color={color} />,
   },
   {
     id: 'website',
     title: 'Website',
-    value: 'www.rephelper.com.br',
-    url: 'https://www.rephelper.com.br',
+    value: 'www.alpendre.app',
+    url: 'https://www.alpendre.app',
     renderIcon: (color) => <Globe size={20} strokeWidth={1.75} color={color} />,
   },
   {
     id: 'instagram',
     title: 'Instagram',
-    value: '@rephelper',
-    url: 'https://instagram.com/rephelper',
+    value: '@alpendre.app',
+    url: 'https://instagram.com/alpendre.app',
     renderIcon: (color) => <InstagramIcon size={20} color={color} />,
   },
 ];
@@ -136,19 +136,19 @@ const AboutScreen = () => {
             source={require('../../../assets/images/icon.png')}
             style={[styles.logo, { borderRadius: theme.radius.sm }]}
             resizeMode="contain"
-            accessibilityLabel="Logo do RepHelper"
+            accessibilityLabel="Logo do Alpendre"
           />
         </Surface>
         <View style={styles.heroTextBlock}>
           <AppText variant="display" color="accent" style={styles.centeredText}>
-            RepHelper
+            Alpendre
           </AppText>
           <AppText variant="monoLabel" color="inkMuted" style={styles.centeredText}>
             Versão 1.0.0
           </AppText>
         </View>
         <AppText variant="body" color="inkSecondary" style={styles.centeredText}>
-          O aplicativo essencial para gerenciar repúblicas e moradias compartilhadas.
+          Rotina, contas e agenda para quem divide o mesmo teto.
         </AppText>
       </Surface>
 
@@ -159,13 +159,14 @@ const AboutScreen = () => {
         </AppText>
         <Surface tone="surface" bordered padded="md" style={{ gap: theme.spacing.sm }}>
           <AppText variant="body" color="inkSecondary">
-            RepHelper foi criado para simplificar a vida em moradias compartilhadas,
-            ajudando a administrar despesas, tarefas e comunicação entre os moradores de
-            forma eficiente e transparente.
+            O Alpendre foi criado para simplificar o dia a dia de casais, famílias,
+            amigos dividindo apartamento e repúblicas, organizando tarefas, gastos e
+            compromissos da casa em um só lugar.
           </AppText>
           <AppText variant="body" color="inkSecondary">
-            Nossa missão é tornar a vida em república mais harmoniosa e organizada,
-            reduzindo conflitos e facilitando a gestão financeira coletiva.
+            Com regras personalizáveis — do acompanhamento leve de gastos do mês até o
+            controle completo de caixinha com aprovação — cada casa adapta o aplicativo
+            ao seu jeito de conviver.
           </AppText>
         </Surface>
       </View>
@@ -285,7 +286,7 @@ const AboutScreen = () => {
       {/* Créditos */}
       <View style={styles.creditsContainer}>
         <AppText variant="caption" color="inkMuted" style={styles.centeredText}>
-          © 2025 RepHelper - Todos os direitos reservados
+          © 2026 Alpendre - Todos os direitos reservados
         </AppText>
         <AppText variant="caption" color="inkMuted" style={styles.centeredText}>
           Desenvolvido com ❤️ no Brasil

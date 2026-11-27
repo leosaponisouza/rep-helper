@@ -323,7 +323,7 @@ const TasksListScreen: React.FC = () => {
         ? 'As tarefas atribuídas a você aparecerão aqui.'
         : filter === 'recurring'
           ? 'Crie tarefas recorrentes para visualizá-las aqui.'
-          : 'Crie sua primeira tarefa para organizar as atividades da república.';
+          : 'Crie sua primeira tarefa para organizar as atividades da casa.';
 
     return (
       <StateView

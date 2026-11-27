@@ -181,7 +181,7 @@ const UserAssignmentSection: React.FC<UserAssignmentSectionProps> = ({
             <StateView
               kind="empty"
               title="Nenhum morador disponível"
-              description="Não foi possível encontrar membros na república."
+              description="Não foi possível encontrar moradores na casa."
             />
           ) : (
             <Surface tone="surface" bordered style={styles.listSurface}>

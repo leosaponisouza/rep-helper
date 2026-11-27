@@ -1,4 +1,4 @@
-// Serviço de upload e remoção de imagens hospedadas no backend RepHelper (/api/v1/media)
+// Serviço de upload e remoção de imagens hospedadas no backend Alpendre (/api/v1/media)
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -171,7 +171,7 @@ export function extractOwnedStoragePath(
 }
 
 /**
- * Upload autenticado de imagem para o backend RepHelper com validação de URI, tamanho e usuário.
+ * Upload autenticado de imagem para o backend Alpendre com validação de URI, tamanho e usuário.
  */
 export const uploadImage = async (
   uri: string,

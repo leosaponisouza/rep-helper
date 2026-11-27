@@ -112,7 +112,7 @@ export default function AppearanceScreen(): React.ReactElement {
           <View style={styles.previewBalanceHeader}>
             <View style={{ gap: theme.spacing.xxs }}>
               <AppText variant="monoLabel" color="inkMuted">
-                Caixa da república
+                Caixinha da casa
               </AppText>
               <AppText variant="monoHero" color="ink">
                 R$ 1.240,00

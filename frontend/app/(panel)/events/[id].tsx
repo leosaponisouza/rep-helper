@@ -382,13 +382,16 @@ const EventDetailsScreen: React.FC = () => {
     );
   }
 
-  const invitationBadge: { label: string; tone: StatusTone } | null = userInvitation
-    ? userInvitation.status === 'CONFIRMED'
-      ? { label: 'Você está confirmado', tone: 'success' }
-      : userInvitation.status === 'INVITED'
-        ? { label: 'Você foi convidado', tone: 'warning' }
-        : { label: 'Você recusou o convite', tone: 'danger' }
-    : null;
+  const isRsvpEnabled = event.requireRsvp !== false;
+
+  const invitationBadge: { label: string; tone: StatusTone } | null =
+    isRsvpEnabled && userInvitation
+      ? userInvitation.status === 'CONFIRMED'
+        ? { label: 'Você está confirmado', tone: 'success' }
+        : userInvitation.status === 'INVITED'
+          ? { label: 'Você foi convidado', tone: 'warning' }
+          : { label: 'Você recusou o convite', tone: 'danger' }
+      : null;
 
   const durationText = formatEventDuration(event.startDate, event.endDate);
   const dateSubtitleParts: string[] = [];
@@ -442,7 +445,7 @@ const EventDetailsScreen: React.FC = () => {
           radiusKey="md"
           style={{ gap: theme.spacing.sm }}
         >
-          {eventHasPassed || eventIsHappening || invitationBadge ? (
+          {eventHasPassed || eventIsHappening || !isRsvpEnabled || invitationBadge ? (
             <View style={[styles.statusRow, { gap: theme.spacing.sm }]}>
               {eventHasPassed ? (
                 <StatusText
@@ -454,7 +457,9 @@ const EventDetailsScreen: React.FC = () => {
                 <StatusText label="Acontecendo agora" tone="accent" showDot />
               ) : null}
 
-              {invitationBadge ? (
+              {!isRsvpEnabled ? (
+                <StatusText label="Aviso na agenda" tone="accent" showDot />
+              ) : invitationBadge ? (
                 <StatusText
                   label={invitationBadge.label}
                   tone={invitationBadge.tone}
@@ -533,7 +538,7 @@ const EventDetailsScreen: React.FC = () => {
           </Surface>
         ) : null}
 
-        {isCreator ? (
+        {isCreator && isRsvpEnabled ? (
           <Surface
             tone="surface"
             bordered
@@ -556,17 +561,21 @@ const EventDetailsScreen: React.FC = () => {
           </Surface>
         ) : null}
 
-        <EventAttendanceGroups
-          invitations={event.invitations}
-          currentUserId={user?.uid}
-        />
+        {isRsvpEnabled ? (
+          <>
+            <EventAttendanceGroups
+              invitations={event.invitations}
+              currentUserId={user?.uid}
+            />
 
-        <EventParticipationActions
-          eventHasPassed={eventHasPassed}
-          userInvitation={userInvitation}
-          refreshing={refreshing}
-          onUpdateStatus={(status) => void handleUpdateStatus(status)}
-        />
+            <EventParticipationActions
+              eventHasPassed={eventHasPassed}
+              userInvitation={userInvitation}
+              refreshing={refreshing}
+              onUpdateStatus={(status) => void handleUpdateStatus(status)}
+            />
+          </>
+        ) : null}
 
         {isCreator ? (
           <ConfirmSection

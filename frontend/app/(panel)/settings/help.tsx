@@ -139,11 +139,11 @@ const HelpScreen = () => {
   const { toast } = useFeedback();
 
   const openEmailSupport = () => {
-    Linking.openURL('mailto:suporte@rephelper.com.br?subject=Suporte%20RepHelper').catch(
+    Linking.openURL('mailto:contato@alpendre.app?subject=Suporte%20Alpendre').catch(
       () => {
         toast({
           title: 'Não foi possível abrir o e-mail',
-          message: 'Envie sua dúvida para suporte@rephelper.com.br.',
+          message: 'Envie sua dúvida para contato@alpendre.app.',
           tone: 'warning',
         });
       }
@@ -165,18 +165,30 @@ const HelpScreen = () => {
       <Surface tone="subtle" bordered padded="md">
         <AppText variant="body" color="inkSecondary">
           Aqui você encontra dicas, tutoriais e respostas para as dúvidas mais comuns
-          sobre o RepHelper.
+          sobre o Alpendre.
         </AppText>
       </Surface>
 
       <HelpSection title="Primeiros Passos" initiallyExpanded={true}>
         <HelpItem
-          title="O que é o RepHelper?"
-          description="O RepHelper é um aplicativo desenvolvido para facilitar a gestão de repúblicas e moradias compartilhadas. Com ele, é possível organizar tarefas, eventos, finanças e muito mais."
+          title="O que é o Alpendre?"
+          description="O Alpendre é o organizador da casa para quem divide o mesmo teto — casais, famílias, amigos dividindo apartamento ou moradias coletivas. Ele centraliza tarefas, agenda e gastos da casa com regras ajustáveis."
         />
         <HelpItem
           title="Como começar?"
-          description="Ao fazer login pela primeira vez, você pode criar uma nova república ou se juntar a uma existente usando um código de convite. Em seguida, configure seu perfil e comece a usar os recursos disponíveis."
+          description="Ao entrar pela primeira vez, você pode criar uma nova casa escolhendo o perfil que melhor combina com sua rotina (Casal / Família, Amigos / Apê ou Moradia coletiva) ou entrar em uma casa existente com um código de convite."
+          isLast
+        />
+      </HelpSection>
+
+      <HelpSection title="Regras da Casa e Modos Financeiros">
+        <HelpItem
+          title="Modo Acompanhar Gastos vs. Modo Caixinha"
+          description="Quando a caixinha está desativada, o Alpendre funciona no modo Acompanhar Gastos do Mês: cada despesa entra registrada para consulta por categoria e histórico mensal. Quando a caixinha está ativada, você acompanha saldo coletivo, entradas e reembolsos."
+        />
+        <HelpItem
+          title="Aprovação de despesas e administração compartilhada"
+          description="Em 'Configurações > Minha Casa', administradores podem ativar ou desativar a exigência de aprovação de despesas, a caixinha compartilhada e a opção em que todos os moradores atuam como administradores."
           isLast
         />
       </HelpSection>
@@ -186,9 +198,9 @@ const HelpScreen = () => {
           title="Como criar uma tarefa"
           steps={[
             "Acesse a seção 'Tarefas' no menu principal",
-            "Toque no botão '+' no canto inferior direito",
-            'Preencha as informações da tarefa (título, descrição, data, etc.)',
-            'Você pode atribuir a tarefa a outros membros da república',
+            "Toque em 'Nova' ou no atalho '+' da tela inicial",
+            'Preencha título, descrição, categoria e prazo',
+            'Atribua a tarefa a um ou mais moradores da casa',
             "Toque em 'Criar Tarefa' para finalizar",
           ]}
         />
@@ -196,72 +208,44 @@ const HelpScreen = () => {
           title="Tarefas recorrentes"
           steps={[
             "Ao criar uma tarefa, ative a opção 'Repetir'",
-            'Selecione a frequência (diária, semanal, mensal, etc.)',
+            'Selecione a frequência (diária, semanal ou mensal)',
             'Defina o intervalo de repetição',
-            'As tarefas serão automaticamente criadas com base na recorrência configurada',
+            'Ao concluir uma ocorrência, a próxima será gerada automaticamente',
           ]}
           isLast
         />
       </HelpSection>
 
-      <HelpSection title="Eventos">
+      <HelpSection title="Agenda da Casa">
         <HelpTopic
-          title="Como criar um evento"
+          title="Como criar um evento ou aviso na agenda"
           steps={[
-            "Acesse a seção 'Eventos' no menu principal",
-            "Toque no botão '+' ou 'Criar Evento'",
-            'Preencha o título, descrição, data e hora',
-            'Você pode convidar membros específicos da república',
+            "Acesse a seção 'Agenda' no menu principal",
+            "Toque em 'Novo' para registrar o compromisso",
+            'Preencha título, descrição, início, término e local',
+            "Escolha se deseja pedir confirmação de presença dos moradores ou registrar apenas um 'Aviso na agenda'",
             "Toque em 'Criar Evento' para finalizar",
           ]}
         />
         <HelpItem
-          title="Confirmação de presença"
-          description="Os membros convidados podem confirmar, recusar ou deixar pendente a participação no evento. Isso ajuda o organizador a planejar melhor."
+          title="Confirmação de presença opcional"
+          description="Eventos sociais podem solicitar confirmação (Confirmado, Pendente ou Recusado), enquanto lembretes como manutenção, dedetização ou visitas rápidas podem ficar como aviso informativo sem lista de presença."
           isLast
         />
       </HelpSection>
 
-      <HelpSection title="Gestão Financeira">
+      <HelpSection title="Moradores e Convites">
         <HelpTopic
-          title="Registrar despesas"
+          title="Convidar novos moradores"
           steps={[
-            "Acesse a seção 'Finanças' no menu principal",
-            "Toque em 'Nova Despesa'",
-            'Preencha o valor, descrição e categoria',
-            'Você pode dividir a despesa entre os membros',
-            'Confirme a criação da despesa',
-          ]}
-        />
-        <HelpTopic
-          title="Registrar receitas"
-          steps={[
-            "Acesse a seção 'Finanças'",
-            "Toque em 'Nova Receita'",
-            'Preencha o valor, descrição e categoria',
-            'Confirme a criação da receita',
+            "Acesse 'Configurações > Minha Casa'",
+            'Copie ou compartilhe o código de convite da casa',
+            "O novo morador informa o código em 'Entrar com código' após criar sua conta",
           ]}
         />
         <HelpItem
-          title="Balanço financeiro"
-          description="Na tela inicial de Finanças, você pode visualizar um resumo do saldo atual, receitas e despesas do mês, além de pendências de pagamento."
-          isLast
-        />
-      </HelpSection>
-
-      <HelpSection title="Gerenciamento de Membros">
-        <HelpTopic
-          title="Convidar novos membros"
-          steps={[
-            "Acesse 'Configurações > Membros'",
-            "Toque em 'Convidar Membro'",
-            'Você pode enviar um link de convite ou código diretamente',
-            'O novo membro precisará criar uma conta caso ainda não tenha',
-          ]}
-        />
-        <HelpItem
-          title="Funções dos membros"
-          description="Existem três níveis de acesso: Proprietário (controle total), Administrador (gerencia tarefas, eventos e membros) e Membro (funções básicas). Apenas o Proprietário pode transferir a propriedade."
+          title="Papéis dos moradores"
+          description="O criador da casa é o Proprietário; Administradores gerenciam regras da casa, convites e finanças; e Moradores participam das tarefas, gastos e agenda. Se 'Todos são administradores' estiver ativo, todos os moradores têm permissões administrativas (exceto remover o proprietário)."
           isLast
         />
       </HelpSection>
@@ -271,139 +255,38 @@ const HelpScreen = () => {
           title="Alterar informações do perfil"
           steps={[
             "Acesse 'Configurações > Conta'",
-            'Edite seu nome, apelido ou telefone',
-            'Você também pode alterar sua foto de perfil',
+            'Edite seu nome, apelido, chave PIX ou telefone',
+            'Você também pode atualizar sua foto de perfil',
             "Toque em 'Salvar Alterações' para confirmar",
           ]}
-        />
-        <HelpTopic
-          title="Alterar senha"
-          steps={[
-            "Acesse 'Configurações > Conta > Alterar Senha'",
-            'Digite sua senha atual',
-            'Digite e confirme sua nova senha',
-            "Toque em 'Atualizar Senha' para confirmar",
-          ]}
-          isLast
-        />
-      </HelpSection>
-
-      <HelpSection title="Dicas e Truques">
-        <HelpItem
-          title="Atualizar dados"
-          description="Puxe a tela para baixo na maioria das seções para atualizar os dados e obter as informações mais recentes."
-        />
-        <HelpItem
-          title="Notificações"
-          description="Mantenha as notificações ativadas para receber alertas sobre novas tarefas, eventos e ações pendentes."
-        />
-        <HelpItem
-          title="Atalhos rápidos"
-          description="Use o botão '+' na tela inicial para acessar rapidamente as ações mais comuns, como criar tarefas ou registrar despesas."
           isLast
         />
       </HelpSection>
 
       <HelpSection title="Perguntas Frequentes (FAQ)">
         <HelpItem
-          title="Posso usar o app sem criar uma república?"
-          description="Não. O RepHelper foi projetado especificamente para gerenciar repúblicas ou moradias compartilhadas. Você precisa criar ou se juntar a uma república para utilizar as funcionalidades."
+          title="Preciso preencher o endereço completo da casa?"
+          description="Não. O endereço postal é opcional no cadastro da casa — basta dar um nome para sua casa e escolher as regras iniciais."
         />
         <HelpItem
-          title="Como transferir a propriedade da república?"
-          description="Acesse 'Configurações > República > Transferir Propriedade'. Selecione um membro para se tornar o novo proprietário e confirme a transferência. Essa ação não pode ser desfeita."
+          title="Posso mudar as regras da casa depois de criá-la?"
+          description="Sim. A qualquer momento, acesse 'Configurações > Minha Casa' para alternar entre perfis ou personalizar caixinha, aprovação de despesas e administração compartilhada."
         />
         <HelpItem
-          title="O que acontece quando saio de uma república?"
-          description="Ao sair, você perde acesso a todas as informações da república. Se você tiver pendências financeiras, elas continuarão visíveis para os administradores. Seus dados pessoais permanecem em sua conta."
-        />
-        <HelpItem
-          title="É possível criar mais de uma república?"
-          description="Atualmente, cada usuário pode pertencer a apenas uma república por vez. Para gerenciar outra república, você precisará sair da atual primeiro."
-        />
-        <HelpItem
-          title="Como funcionam as notificações de tarefas?"
-          description="Você receberá notificações quando: 1) For atribuído a uma nova tarefa; 2) Uma tarefa atribuída a você estiver próxima do prazo; 3) Alguém comentar em uma tarefa que você está envolvido."
-        />
-        <HelpItem
-          title="É possível dividir uma despesa de forma desigual?"
-          description="Sim. Ao criar uma despesa, você pode selecionar a opção 'Divisão personalizada' e atribuir valores ou porcentagens diferentes para cada membro da república."
-        />
-        <HelpItem
-          title="Perdi meu celular. Como proteger minha conta?"
-          description="Acesse sua conta em outro dispositivo e altere sua senha imediatamente. Você pode verificar seus dispositivos conectados em 'Configurações > Conta > Segurança > Dispositivos conectados'."
-        />
-        <HelpItem
-          title="Posso ver o histórico de quem completou uma tarefa recorrente?"
-          description="Sim. Nas tarefas recorrentes, toque na opção 'Ver histórico' para visualizar quem completou cada ocorrência da tarefa, quando foi concluída e observações."
-        />
-        <HelpItem
-          title="Como funciona o sistema de controle financeiro?"
-          description="O app registra receitas (entrada de dinheiro) e despesas (saídas). Você pode atribuir categorias, definir quem pagou, como foi a divisão e manter um saldo atualizado da república e individual de cada membro."
-        />
-        <HelpItem
-          title="Posso exportar os dados financeiros?"
-          description="Sim. Em 'Finanças > Menu (três pontos) > Exportar', você pode gerar relatórios em PDF ou Excel com os dados financeiros do período selecionado, útil para prestação de contas."
-        />
-        <HelpItem
-          title="O que são as 'Ações Pendentes' na tela inicial?"
-          description="São notificações de itens que requerem sua atenção: despesas para confirmar pagamento, tarefas com prazo próximo, eventos aguardando confirmação, entre outros."
-        />
-        <HelpItem
-          title="Como adicionar um novo residente que não tem smartphone?"
-          description="Você pode criar um 'Membro Virtual' em 'Configurações > Membros > Adicionar Membro Virtual'. Este perfil será gerenciado pelos administradores da república."
+          title="O que acontece quando saio de uma casa?"
+          description="Ao sair, você deixa de visualizar as tarefas, agenda e finanças daquela casa, mantendo sua conta pessoal ativa para criar ou entrar em outra casa."
           isLast
         />
       </HelpSection>
 
       <HelpSection title="Solução de Problemas">
         <HelpTopic
-          title="O aplicativo está lento ou travando"
+          title="O aplicativo está lento ou desatualizado"
           steps={[
+            'Puxe a tela para baixo para atualizar os dados mais recentes',
             'Feche o aplicativo completamente e abra novamente',
-            'Verifique se há atualizações pendentes na loja de aplicativos',
-            'Reinicie seu dispositivo',
-            'Verifique a conexão com a internet',
-            'Se persistir, limpe o cache do aplicativo em Configurações > Aplicativos > RepHelper > Armazenamento > Limpar cache',
-          ]}
-        />
-        <HelpTopic
-          title="Não estou recebendo notificações"
-          steps={[
-            'Verifique se as notificações estão ativadas no aplicativo em Configurações > Notificações',
-            'Verifique as configurações de notificação do seu dispositivo',
-            'Certifique-se que o aplicativo não está em modo de economia de bateria',
-            'Desinstale e reinstale o aplicativo (isto não afetará seus dados)',
-          ]}
-        />
-        <HelpTopic
-          title="Não consigo fazer login"
-          steps={[
             'Verifique sua conexão com a internet',
-            'Confirme se está usando o email e senha corretos',
-            "Use a opção 'Esqueci minha senha' para redefinir sua senha",
-            'Se estiver usando login social (Google, Apple), tente fazer login diretamente pelo provedor',
-            'Se o problema persistir, entre em contato com o suporte',
-          ]}
-        />
-        <HelpTopic
-          title="Não consigo carregar ou visualizar imagens"
-          steps={[
-            'Verifique sua conexão com a internet',
-            'Tente atualizar a tela puxando para baixo',
-            'Verifique se o armazenamento do seu dispositivo não está cheio',
-            'Limpe o cache do aplicativo',
-            'Reinicie o aplicativo',
-          ]}
-        />
-        <HelpTopic
-          title="Dados desatualizados ou inconsistentes"
-          steps={[
-            'Puxe a tela para baixo para atualizar os dados',
-            'Vá para a tela inicial e volte para a tela atual',
-            'Verifique se todos os membros da república estão usando a versão mais recente do app',
-            'Desconecte e conecte novamente (logout e login)',
-            'Se o problema persistir, contate o suporte informando detalhes do problema',
+            'Se persistir, limpe o cache em Configurações > Aplicativos > Alpendre > Armazenamento',
           ]}
           isLast
         />
@@ -423,7 +306,7 @@ const HelpScreen = () => {
           onPress={openEmailSupport}
         />
         <AppText variant="caption" color="inkMuted" style={styles.centeredText}>
-          RepHelper v1.0.0
+          Alpendre v1.0.0
         </AppText>
       </Surface>
     </Screen>

@@ -140,7 +140,7 @@ const SoftwareLicensesScreen = () => {
     >
       <Surface tone="subtle" bordered padded="md">
         <AppText variant="body" color="inkSecondary">
-          O RepHelper utiliza diversas bibliotecas e ferramentas de código aberto para
+          O Alpendre utiliza diversas bibliotecas e ferramentas de código aberto para
           fornecer suas funcionalidades. Esta página lista os componentes de software de
           terceiros utilizados no desenvolvimento deste aplicativo, juntamente com suas
           respectivas licenças.
@@ -246,7 +246,7 @@ const SoftwareLicensesScreen = () => {
           <AppText variant="body" color="inkSecondary">
             Para obter informações detalhadas sobre outras licenças utilizadas neste
             aplicativo, entre em contato com nossa equipe de desenvolvimento através do
-            e-mail dev@rephelper.com.br.
+            e-mail dev@alpendre.app.
           </AppText>
         </View>
 

@@ -25,7 +25,7 @@ interface PolicySection {
 const POLICY_SECTIONS: ReadonlyArray<PolicySection> = [
   {
     paragraphs: [
-      'A RepHelper ("nós", "nosso" ou "RepHelper") está comprometida em proteger a privacidade e os dados pessoais dos usuários do aplicativo RepHelper ("Aplicativo"). Esta Política de Privacidade descreve como coletamos, usamos, compartilhamos e protegemos suas informações pessoais em conformidade com a Lei Geral de Proteção de Dados (LGPD - Lei nº 13.709/2018).',
+      'O Alpendre ("nós", "nosso" ou "Alpendre") está comprometido em proteger a privacidade e os dados pessoais dos usuários do aplicativo Alpendre ("Aplicativo"). Esta Política de Privacidade descreve como coletamos, usamos, compartilhamos e protegemos suas informações pessoais em conformidade com a Lei Geral de Proteção de Dados (LGPD - Lei nº 13.709/2018).',
       'Ao usar nosso Aplicativo, você concorda com as práticas descritas nesta Política de Privacidade. Recomendamos que você leia este documento com atenção.',
     ],
   },
@@ -39,7 +39,7 @@ const POLICY_SECTIONS: ReadonlyArray<PolicySection> = [
       },
       {
         boldPrefix: 'Tratamento:',
-        text: ' Toda operação realizada com dados pessoais, como coleta, uso, acesso, reprodução, transmissão, etc.',
+        text: ' Toda operação realizada com dados pessoais, como coleta, uso, acesso, reprodução e transmissão.',
       },
       {
         boldPrefix: 'Titular:',
@@ -47,7 +47,7 @@ const POLICY_SECTIONS: ReadonlyArray<PolicySection> = [
       },
       {
         boldPrefix: 'Controlador:',
-        text: ' Pessoa a quem competem as decisões sobre o tratamento de dados pessoais (RepHelper).',
+        text: ' Pessoa a quem competem as decisões sobre o tratamento de dados pessoais (Alpendre).',
       },
       {
         boldPrefix: 'ANPD:',
@@ -61,23 +61,19 @@ const POLICY_SECTIONS: ReadonlyArray<PolicySection> = [
     bullets: [
       {
         boldPrefix: 'Dados de Cadastro:',
-        text: ' Nome, endereço de e-mail, número de telefone, informações de perfil como foto e apelido.',
+        text: ' Nome, endereço de e-mail, número de telefone opcional, chave PIX opcional e informações de perfil como foto e apelido.',
+      },
+      {
+        boldPrefix: 'Dados da Casa (Opcionais):',
+        text: ' Nome da casa, regras de convivência configuradas e, apenas se preenchido voluntariamente, endereço postal da casa.',
       },
       {
         boldPrefix: 'Dados de Uso:',
-        text: ' Interações com o Aplicativo, tarefas criadas, eventos, transações financeiras e registros de atividades.',
+        text: ' Tarefas criadas, eventos da agenda, registros financeiros e interações dentro da casa compartilhada.',
       },
       {
         boldPrefix: 'Dados de Dispositivo:',
-        text: ' Tipo de dispositivo, sistema operacional, identificadores únicos de dispositivo, informações de rede e endereço IP.',
-      },
-      {
-        boldPrefix: 'Dados de Localização:',
-        text: ' Aproximada ou precisa, conforme permissões concedidas.',
-      },
-      {
-        boldPrefix: 'Conteúdo Criado:',
-        text: ' Informações que você fornece ao utilizar o Aplicativo, como comentários, tarefas e eventos.',
+        text: ' Tipo de dispositivo, sistema operacional, tokens de notificação push e registros técnicos de segurança.',
       },
     ],
   },
@@ -97,7 +93,7 @@ const POLICY_SECTIONS: ReadonlyArray<PolicySection> = [
       },
       {
         boldPrefix: 'Interesse Legítimo:',
-        text: ' Quando o tratamento é necessário para atender aos interesses legítimos da RepHelper ou de terceiros, sem prejudicar seus direitos e liberdades fundamentais.',
+        text: ' Quando o tratamento é necessário para atender aos interesses legítimos do Alpendre ou de terceiros, sem prejudicar seus direitos e liberdades fundamentais.',
       },
       {
         boldPrefix: 'Cumprimento de Obrigação Legal:',
@@ -110,13 +106,11 @@ const POLICY_SECTIONS: ReadonlyArray<PolicySection> = [
     paragraphs: ['Utilizamos seus dados pessoais para:'],
     bullets: [
       { text: 'Fornecer e manter o Aplicativo;' },
-      { text: 'Permitir o gerenciamento de repúblicas e moradias compartilhadas;' },
-      { text: 'Processar e facilitar a divisão de despesas entre moradores;' },
-      { text: 'Coordenar tarefas e eventos compartilhados;' },
+      { text: 'Permitir a organização de casas e moradias compartilhadas;' },
+      { text: 'Registrar despesas, entradas e histórico financeiro da casa;' },
+      { text: 'Coordenar tarefas recorrentes e eventos na agenda compartilhada;' },
       { text: 'Autenticar usuários e proteger suas contas;' },
-      { text: 'Personalizar sua experiência com o Aplicativo;' },
-      { text: 'Enviar comunicações relacionadas ao serviço;' },
-      { text: 'Melhorar e otimizar o Aplicativo;' },
+      { text: 'Enviar comunicações e notificações relacionadas à rotina da casa;' },
       { text: 'Detectar, prevenir e resolver problemas técnicos ou de segurança;' },
       { text: 'Cumprir obrigações legais.' },
     ],
@@ -128,51 +122,40 @@ const POLICY_SECTIONS: ReadonlyArray<PolicySection> = [
     ],
     bullets: [
       {
-        boldPrefix: 'Com outros membros da república:',
-        text: ' Informações de perfil, tarefas atribuídas, despesas compartilhadas e outras informações necessárias para o funcionamento do aplicativo.',
+        boldPrefix: 'Com outros moradores da mesma casa:',
+        text: ' Informações de perfil, tarefas atribuídas, despesas registradas e compromissos necessários para o funcionamento colaborativo da casa.',
       },
       {
         boldPrefix: 'Com prestadores de serviços:',
-        text: ' Empresas que nos fornecem serviços, como hospedagem, análise, processamento de pagamentos e atendimento ao cliente.',
+        text: ' Empresas que nos fornecem infraestrutura de hospedagem, envio de e-mails transacionais e notificações push.',
       },
       {
         boldPrefix: 'Por razões legais:',
-        text: ' Se acreditarmos de boa-fé que o acesso, uso, preservação ou divulgação dos dados é necessário para cumprir uma obrigação legal, processo legal ou solicitação governamental aplicável.',
+        text: ' Quando necessário para cumprir obrigação legal, processo judicial ou solicitação governamental aplicável.',
       },
       {
         boldPrefix: 'Proteção de direitos:',
-        text: ' Para detectar, prevenir ou resolver problemas técnicos, de segurança ou fraude.',
+        text: ' Para detectar, prevenir ou resolver incidentes técnicos, de segurança ou fraude.',
       },
     ],
     trailingParagraphs: [
-      'Todos os terceiros com quem compartilhamos dados estão sujeitos a obrigações de confidencialidade e devem implementar medidas de segurança adequadas.',
+      'Os dados de uma casa são estritamente isolados e nunca ficam visíveis para usuários de outras casas.',
     ],
   },
   {
-    title: '6. Transferência Internacional de Dados',
+    title: '6. Armazenamento e Segurança',
     paragraphs: [
-      'Seus dados pessoais podem ser transferidos e processados em países fora do Brasil, onde mantemos servidores ou onde nossos prestadores de serviços operam. Adotamos salvaguardas contratuais e técnicas adequadas para garantir que seus dados continuem protegidos de acordo com esta Política e com a LGPD.',
-      'Só transferimos dados para países ou organizações que proporcionem um grau de proteção adequado ou mediante a adoção de garantias e mecanismos que assegurem a observância dos princípios, direitos e obrigações estabelecidos pela LGPD.',
-    ],
-  },
-  {
-    title: '7. Armazenamento e Segurança',
-    paragraphs: [
-      'Mantemos medidas de segurança técnicas, administrativas e organizacionais projetadas para proteger seus dados pessoais contra acesso não autorizado, perda, destruição, alteração ou divulgação.',
-      'Algumas medidas adotadas incluem:',
+      'Mantemos medidas de segurança técnicas, administrativas e organizacionais projetadas para proteger seus dados pessoais contra acesso não autorizado, perda, destruição, alteração ou divulgação:',
     ],
     bullets: [
-      { text: 'Criptografia de dados em trânsito e em repouso;' },
-      { text: 'Controles de acesso restritos para funcionários;' },
-      { text: 'Auditorias de segurança regulares;' },
-      { text: 'Monitoramento contínuo de ameaças.' },
-    ],
-    trailingParagraphs: [
-      'Mantemos seus dados pessoais apenas pelo tempo necessário para cumprir as finalidades para as quais foram coletados, a menos que um período de retenção mais longo seja necessário ou permitido por lei.',
+      { text: 'Criptografia de dados em trânsito (TLS) e senhas com hash seguro;' },
+      { text: 'Isolamento multi-tenant por casa em todas as rotas da API;' },
+      { text: 'Rotação de tokens de sessão e detecção de reuso;' },
+      { text: 'Monitoramento contínuo e auditorias regulares.' },
     ],
   },
   {
-    title: '8. Seus Direitos como Titular de Dados',
+    title: '7. Seus Direitos como Titular de Dados',
     paragraphs: [
       'De acordo com a LGPD, você tem os seguintes direitos em relação aos seus dados pessoais:',
     ],
@@ -190,61 +173,22 @@ const POLICY_SECTIONS: ReadonlyArray<PolicySection> = [
         text: ' Solicitar que dados desnecessários, excessivos ou tratados em desconformidade com a LGPD sejam anonimizados, bloqueados ou eliminados.',
       },
       {
-        boldPrefix: 'Portabilidade:',
-        text: ' Obter a portabilidade dos seus dados para outro serviço ou produto.',
-      },
-      {
-        boldPrefix: 'Eliminação:',
-        text: ' Solicitar a eliminação dos dados tratados com seu consentimento, quando aplicável.',
-      },
-      {
-        boldPrefix: 'Informação:',
-        text: ' Ser informado sobre entidades públicas e privadas com as quais compartilhamos seus dados.',
-      },
-      {
-        boldPrefix: 'Revogação do Consentimento:',
-        text: ' Revogar seu consentimento a qualquer momento.',
+        boldPrefix: 'Portabilidade e Revogação:',
+        text: ' Solicitar portabilidade ou revogar seu consentimento a qualquer momento.',
       },
     ],
     trailingParagraphs: [
-      'Para exercer seus direitos, entre em contato conosco através do e-mail privacidade@rephelper.com.br. Responderemos à sua solicitação em até 15 dias, conforme estabelecido pela LGPD.',
+      'Para exercer seus direitos, entre em contato conosco através do e-mail privacidade@alpendre.app. Responderemos à sua solicitação em até 15 dias, conforme estabelecido pela LGPD.',
     ],
   },
   {
-    title: '9. Cookies e Tecnologias Semelhantes',
+    title: '8. Encarregado de Proteção de Dados (DPO) e Contato',
     paragraphs: [
-      'O Aplicativo pode utilizar cookies e tecnologias semelhantes para melhorar a experiência do usuário, lembrar preferências, entender como o Aplicativo é utilizado e personalizar conteúdo.',
-      'Você pode gerenciar suas preferências de cookies através das configurações do seu dispositivo ou navegador, mas tenha em mente que a desativação de certos cookies pode afetar a funcionalidade do Aplicativo.',
-    ],
-  },
-  {
-    title: '10. Crianças e Adolescentes',
-    paragraphs: [
-      'O Aplicativo não é destinado a menores de 16 anos. Não coletamos intencionalmente dados pessoais de crianças ou adolescentes. Se tomarmos conhecimento de que coletamos dados pessoais de um menor de 16 anos sem a autorização específica e verificável de seus pais ou responsáveis legais, tomaremos medidas para excluir essas informações de nossos servidores.',
-    ],
-  },
-  {
-    title: '11. Alterações nesta Política',
-    paragraphs: [
-      'Podemos atualizar esta Política de Privacidade periodicamente para refletir alterações em nossas práticas de privacidade ou por outros motivos operacionais, legais ou regulatórios.',
-      'Notificaremos você sobre quaisquer alterações materiais por meio de uma notificação no Aplicativo ou por e-mail antes que as alterações entrem em vigor. Recomendamos que você revise periodicamente esta Política para se manter informado sobre como estamos protegendo suas informações.',
-    ],
-  },
-  {
-    title: '12. Encarregado de Proteção de Dados (DPO)',
-    paragraphs: [
-      'Em conformidade com a LGPD, designamos um Encarregado de Proteção de Dados (Data Protection Officer - DPO) responsável por atuar como canal de comunicação entre a RepHelper, os titulares dos dados e a Autoridade Nacional de Proteção de Dados (ANPD).',
-      'Para entrar em contato com nosso DPO, envie um e-mail para: dpo@rephelper.com.br',
-    ],
-  },
-  {
-    title: 'Contato',
-    paragraphs: [
-      'Se você tiver dúvidas, preocupações ou solicitações relacionadas a esta Política de Privacidade ou ao tratamento de seus dados pessoais, entre em contato conosco em:',
-      'RepHelper Tecnologia Ltda.',
-      'Av. Paulista, 1000, São Paulo - SP, 01310-100',
-      'privacidade@rephelper.com.br',
-      'Responderemos a todas as solicitações dentro de 15 dias, conforme exigido pela LGPD.',
+      'Para entrar em contato com nosso Encarregado de Proteção de Dados (DPO) ou tirar dúvidas sobre esta Política de Privacidade:',
+      'Alpendre Tecnologia Ltda.',
+      'E-mail de Privacidade: privacidade@alpendre.app',
+      'E-mail do DPO: dpo@alpendre.app',
+      'Contato Geral: contato@alpendre.app',
     ],
   },
 ];
@@ -259,7 +203,7 @@ const PrivacyPolicyScreen = () => {
       header={
         <ScreenHeader
           title="Política de Privacidade"
-          subtitle="Última atualização: 01 de março de 2025"
+          subtitle="Última atualização: 27 de novembro de 2026"
           onBack={() => router.back()}
         />
       }
@@ -285,7 +229,12 @@ const PrivacyPolicyScreen = () => {
             ))}
 
             {section.bullets ? (
-              <View style={[styles.bulletList, { paddingLeft: theme.spacing.sm, gap: theme.spacing.xs }]}>
+              <View
+                style={[
+                  styles.bulletList,
+                  { paddingLeft: theme.spacing.sm, gap: theme.spacing.xs },
+                ]}
+              >
                 {section.bullets.map((bullet) => (
                   <AppText
                     key={`${bullet.boldPrefix ?? ''}${bullet.text}`}

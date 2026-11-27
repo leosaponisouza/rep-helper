@@ -208,13 +208,13 @@ const LoginScreen = () => {
       <View style={styles.container}>
         <View style={styles.brandHeader}>
           <AppText variant="monoLabel" color="accent">
-            REPHELPER
+            ALPENDRE
           </AppText>
           <AppText variant="display" color="ink" style={styles.centeredText}>
-            RepHelper
+            Alpendre
           </AppText>
           <AppText variant="body" color="inkSecondary" style={styles.centeredText}>
-            Gerenciamento de repúblicas
+            Rotina, contas e agenda para quem divide o mesmo teto
           </AppText>
         </View>
 

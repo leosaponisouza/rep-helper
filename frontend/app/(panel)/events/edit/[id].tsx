@@ -1,6 +1,6 @@
 // app/(panel)/events/edit/[id].tsx
 import React, { useCallback, useEffect, useState } from 'react';
-import { Keyboard, Platform, View } from 'react-native';
+import { Keyboard, Platform, StyleSheet, Switch, View } from 'react-native';
 import { addHours, isBefore, isValid, parseISO } from 'date-fns';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -9,10 +9,12 @@ import InviteUsersSection from '../../../../components/events/InviteUsersSection
 import { DateTimePickerFields } from '../../../../components/tasks/TaskEdit/DateTimePickerSection';
 import { useAuth } from '../../../../src/context/AuthContext';
 import {
+  AppText,
   Button,
   Screen,
   ScreenHeader,
   StateView,
+  Surface,
   TextField,
   useFeedback,
   useTheme,
@@ -58,6 +60,7 @@ const EditEventScreen: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [requireRsvp, setRequireRsvp] = useState(true);
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
 
   const handleBack = useCallback(() => {
@@ -106,6 +109,7 @@ const EditEventScreen: React.FC = () => {
       setTitle(eventData.title);
       setDescription(eventData.description || '');
       setLocation(eventData.location || '');
+      setRequireRsvp(eventData.requireRsvp !== false);
 
       const parsedStart = parseISO(eventData.startDate);
       const parsedEnd = parseISO(eventData.endDate);
@@ -216,11 +220,12 @@ const EditEventScreen: React.FC = () => {
         startDate: formatToBackendDateTime(startDate),
         endDate: formatToBackendDateTime(endDate),
         location: location.trim() || '',
+        requireRsvp,
       };
 
       await updateEvent(parseInt(id, 10), eventData);
 
-      if (selectedParticipants.length > 0) {
+      if (requireRsvp && selectedParticipants.length > 0) {
         await inviteUsers(parseInt(id, 10), selectedParticipants);
       }
 
@@ -246,6 +251,7 @@ const EditEventScreen: React.FC = () => {
     location,
     validateForm,
     id,
+    requireRsvp,
     updateEvent,
     selectedParticipants,
     inviteUsers,
@@ -350,7 +356,37 @@ const EditEventScreen: React.FC = () => {
         leftIcon={<MapPin size={18} strokeWidth={1.75} color={theme.colors.accent} />}
       />
 
-      {user?.currentHouseId ? (
+      <Surface
+        tone="surface"
+        bordered
+        padded="md"
+        radiusKey="md"
+        style={[styles.rsvpRow, { gap: theme.spacing.sm }]}
+      >
+        <View style={styles.rsvpTextBlock}>
+          <AppText variant="bodyStrong" color="ink">
+            Pedir confirmação de presença dos moradores
+          </AppText>
+          <AppText variant="caption" color="inkSecondary">
+            {requireRsvp
+              ? 'Os moradores poderão confirmar ou recusar presença'
+              : 'Apenas registra um aviso informativo na agenda da casa'}
+          </AppText>
+        </View>
+        <Switch
+          value={requireRsvp}
+          onValueChange={setRequireRsvp}
+          accessibilityLabel="Pedir confirmação de presença dos moradores"
+          trackColor={{
+            false: theme.colors.borderStrong,
+            true: theme.colors.accentSoft,
+          }}
+          thumbColor={requireRsvp ? theme.colors.accent : theme.colors.surface}
+          ios_backgroundColor={theme.colors.subtle}
+        />
+      </Surface>
+
+      {requireRsvp && user?.currentHouseId ? (
         <InviteUsersSection
           houseId={user.currentHouseId}
           selectedIds={selectedParticipants}
@@ -359,14 +395,16 @@ const EditEventScreen: React.FC = () => {
       ) : null}
 
       <View style={{ gap: theme.spacing.sm, marginTop: theme.spacing.xs }}>
-        <Button
-          label="Gerenciar Convidados"
-          variant="secondary"
-          fullWidth
-          leftIcon={<Users size={18} strokeWidth={1.75} color={theme.colors.accent} />}
-          onPress={() => router.push(`/(panel)/events/invitations/${id}`)}
-          accessibilityLabel="Gerenciar convidados"
-        />
+        {requireRsvp ? (
+          <Button
+            label="Gerenciar Convidados"
+            variant="secondary"
+            fullWidth
+            leftIcon={<Users size={18} strokeWidth={1.75} color={theme.colors.accent} />}
+            onPress={() => router.push(`/(panel)/events/invitations/${id}`)}
+            accessibilityLabel="Gerenciar convidados"
+          />
+        ) : null}
 
         <Button
           label="Atualizar Evento"
@@ -384,5 +422,17 @@ const EditEventScreen: React.FC = () => {
     </Screen>
   );
 };
+
+const styles = StyleSheet.create({
+  rsvpRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  rsvpTextBlock: {
+    flex: 1,
+    gap: 2,
+  },
+});
 
 export default EditEventScreen;
