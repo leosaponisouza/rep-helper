@@ -2,6 +2,8 @@ package com.alpendre.backend.house;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
+import java.util.ArrayList;
+import java.util.List;
 
 @Embeddable
 public class HouseAddress {
@@ -49,16 +51,37 @@ public class HouseAddress {
     public void setZipCode(String zipCode) { this.zipCode = zipCode; }
 
     public String toFullAddress() {
-        StringBuilder sb = new StringBuilder();
-        sb.append(street).append(", ").append(number);
-        if (complement != null && !complement.isBlank()) {
-            sb.append(" - ").append(complement);
+        List<String> segments = new ArrayList<>();
+        if (hasText(street)) {
+            StringBuilder line1 = new StringBuilder(street.trim());
+            if (hasText(number)) {
+                line1.append(", ").append(number.trim());
+            }
+            if (hasText(complement)) {
+                line1.append(" - ").append(complement.trim());
+            }
+            segments.add(line1.toString());
+        } else if (hasText(complement)) {
+            segments.add(complement.trim());
         }
-        sb.append(", ").append(neighborhood)
-          .append(" - ").append(city)
-          .append("/").append(state)
-          .append(", ").append(zipCode);
-        return sb.toString();
+
+        if (hasText(neighborhood)) {
+            segments.add(neighborhood.trim());
+        }
+
+        if (hasText(city) && hasText(state)) {
+            segments.add(city.trim() + "/" + state.trim());
+        } else if (hasText(city)) {
+            segments.add(city.trim());
+        } else if (hasText(state)) {
+            segments.add(state.trim());
+        }
+
+        if (hasText(zipCode)) {
+            segments.add(zipCode.trim());
+        }
+
+        return segments.isEmpty() ? "" : String.join(", ", segments);
     }
 
     public void apply(
@@ -69,16 +92,26 @@ public class HouseAddress {
             String nextCity,
             String nextState,
             String nextZip,
-            boolean overwriteComplement
+            boolean overwriteAll
     ) {
-        if (nextStreet != null && !nextStreet.isBlank()) this.street = nextStreet.trim();
-        if (nextNumber != null && !nextNumber.isBlank()) this.number = nextNumber.trim();
-        if (overwriteComplement || nextComplement != null) {
-            this.complement = nextComplement == null || nextComplement.isBlank() ? null : nextComplement.trim();
+        if (overwriteAll || nextStreet != null) this.street = normalize(nextStreet, false);
+        if (overwriteAll || nextNumber != null) this.number = normalize(nextNumber, false);
+        if (overwriteAll || nextComplement != null) this.complement = normalize(nextComplement, false);
+        if (overwriteAll || nextNeighborhood != null) this.neighborhood = normalize(nextNeighborhood, false);
+        if (overwriteAll || nextCity != null) this.city = normalize(nextCity, false);
+        if (overwriteAll || nextState != null) this.state = normalize(nextState, true);
+        if (overwriteAll || nextZip != null) this.zipCode = normalize(nextZip, false);
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private static String normalize(String value, boolean upper) {
+        if (value == null || value.isBlank()) {
+            return null;
         }
-        if (nextNeighborhood != null && !nextNeighborhood.isBlank()) this.neighborhood = nextNeighborhood.trim();
-        if (nextCity != null && !nextCity.isBlank()) this.city = nextCity.trim();
-        if (nextState != null && !nextState.isBlank()) this.state = nextState.trim().toUpperCase();
-        if (nextZip != null && !nextZip.isBlank()) this.zipCode = nextZip.trim();
+        String trimmed = value.trim();
+        return upper ? trimmed.toUpperCase() : trimmed;
     }
 }

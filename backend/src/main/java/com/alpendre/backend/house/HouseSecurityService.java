@@ -27,10 +27,13 @@ public class HouseSecurityService {
 
     public HouseMember requireAdmin(UUID houseId, UUID userUid) {
         HouseMember membership = requireActiveMember(houseId, userUid);
-        if (!membership.isAdmin() && !membership.isOwner()) {
+        boolean effectiveAdmin = membership.isAdmin()
+                || membership.isOwner()
+                || (membership.getHouse() != null && membership.getHouse().isAllMembersAdmin());
+        if (!effectiveAdmin) {
             throw BusinessException.forbidden(
                     "ADMIN_REQUIRED",
-                    "Apenas administradores ou o proprietário podem realizar esta ação."
+                    "Apenas administradores ou o criador da casa podem realizar esta ação."
             );
         }
         return membership;

@@ -6,6 +6,7 @@ import com.alpendre.backend.user.User;
 import com.alpendre.backend.user.UserDTO;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.time.OffsetDateTime;
 
@@ -24,6 +25,9 @@ public final class HousePayloads {
             String fullAddress
     ) {
         public static AddressView of(HouseAddress entity) {
+            if (entity == null) {
+                return new AddressView(null, null, null, null, null, null, null, "");
+            }
             return new AddressView(
                     entity.getStreet(),
                     entity.getNumber(),
@@ -41,6 +45,10 @@ public final class HousePayloads {
             String id,
             String name,
             String code,
+            String presetType,
+            boolean hasSharedFund,
+            boolean requireExpenseApproval,
+            boolean allMembersAdmin,
             AddressView address,
             String ownerId,
             String ownerName,
@@ -53,6 +61,10 @@ public final class HousePayloads {
                     entity.getId().toString(),
                     entity.getName(),
                     entity.getCode(),
+                    entity.getPresetType(),
+                    entity.isHasSharedFund(),
+                    entity.isRequireExpenseApproval(),
+                    entity.isAllMembersAdmin(),
                     AddressView.of(entity.getAddress()),
                     entity.getOwner().getUid().toString(),
                     entity.getOwner().getName(),
@@ -80,6 +92,9 @@ public final class HousePayloads {
         public static MemberView of(HouseMember membership) {
             User account = membership.getUser();
             String idText = account.getUid().toString();
+            boolean effectiveAdmin = membership.isAdmin()
+                    || membership.isOwner()
+                    || (membership.getHouse() != null && membership.getHouse().isAllMembersAdmin());
             return new MemberView(
                     idText,
                     idText,
@@ -88,7 +103,7 @@ public final class HousePayloads {
                     account.getProfilePictureUrl(),
                     account.getEmail(),
                     account.getPhoneNumber(),
-                    membership.isAdmin() || membership.isOwner(),
+                    effectiveAdmin,
                     membership.isOwner(),
                     membership.getJoinedAt(),
                     membership.getJoinedAt(),
@@ -98,24 +113,32 @@ public final class HousePayloads {
     }
 
     public record CreateInput(
-            @NotBlank @Size(max = 120) String name,
-            @NotBlank @Size(max = 200) String street,
-            @NotBlank @Size(max = 30) String number,
-            @Size(max = 100) String complement,
-            @NotBlank @Size(max = 120) String neighborhood,
-            @NotBlank @Size(max = 120) String city,
-            @NotBlank @Size(min = 2, max = 2) String state,
-            @JsonAlias("zip_code") @NotBlank @Size(max = 20) String zipCode
-    ) {}
-
-    public record UpdateInput(
-            @Size(max = 120) String name,
+            @NotBlank @Size(min = 2, max = 120) String name,
+            String presetType,
+            Boolean hasSharedFund,
+            Boolean requireExpenseApproval,
+            Boolean allMembersAdmin,
             @Size(max = 200) String street,
             @Size(max = 30) String number,
             @Size(max = 100) String complement,
             @Size(max = 120) String neighborhood,
             @Size(max = 120) String city,
-            @Size(max = 2) String state,
+            @Pattern(regexp = "^$|^[A-Za-z]{2}$", message = "Estado deve ter 2 letras") String state,
+            @JsonAlias("zip_code") @Size(max = 20) String zipCode
+    ) {}
+
+    public record UpdateInput(
+            @Size(max = 120) String name,
+            String presetType,
+            Boolean hasSharedFund,
+            Boolean requireExpenseApproval,
+            Boolean allMembersAdmin,
+            @Size(max = 200) String street,
+            @Size(max = 30) String number,
+            @Size(max = 100) String complement,
+            @Size(max = 120) String neighborhood,
+            @Size(max = 120) String city,
+            @Pattern(regexp = "^$|^[A-Za-z]{2}$", message = "Estado deve ter 2 letras") String state,
             @JsonAlias("zip_code") @Size(max = 20) String zipCode,
             @Valid AddressView address
     ) {}

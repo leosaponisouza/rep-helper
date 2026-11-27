@@ -74,8 +74,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             Optional<HouseMember> memberOpt = memberRepository
                     .findByHouseIdAndUserUidAndStatus(currentHouseId, user.getUid(), "ACTIVE");
             if (memberOpt.isPresent()) {
-                isAdmin = memberOpt.get().isAdmin() || memberOpt.get().isOwner();
-                isOwner = memberOpt.get().isOwner();
+                HouseMember m = memberOpt.get();
+                isAdmin = m.isAdmin() || m.isOwner() || (m.getHouse() != null && m.getHouse().isAllMembersAdmin());
+                isOwner = m.isOwner();
             }
         }
 

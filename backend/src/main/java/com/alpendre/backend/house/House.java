@@ -95,7 +95,12 @@ public class House {
     public boolean isAllMembersAdmin() { return allMembersAdmin; }
     public void setAllMembersAdmin(boolean allMembersAdmin) { this.allMembersAdmin = allMembersAdmin; }
 
-    public HouseAddress getAddress() { return address; }
+    public HouseAddress getAddress() {
+        if (this.address == null) {
+            this.address = new HouseAddress();
+        }
+        return this.address;
+    }
     public void setAddress(HouseAddress address) { this.address = address; }
 
     public User getOwner() { return owner; }

@@ -264,7 +264,7 @@ public class AuthService {
         }
         return memberRepository
                 .findByHouseIdAndUserUidAndStatus(user.getCurrentHouseId(), user.getUid(), "ACTIVE")
-                .map(m -> m.isAdmin() || m.isOwner())
+                .map(m -> m.isAdmin() || m.isOwner() || (m.getHouse() != null && m.getHouse().isAllMembersAdmin()))
                 .orElse(false);
     }
 
