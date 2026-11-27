@@ -4,14 +4,14 @@ server:
 
 spring:
   application:
-    name: rephelper-backend
+    name: alpendre-backend
   threads:
     virtual:
       enabled: true
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/rephelper}
-    username: ${SPRING_DATASOURCE_USERNAME:rephelper}
-    password: ${SPRING_DATASOURCE_PASSWORD:rephelper_dev_password}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/alpendre}
+    username: ${SPRING_DATASOURCE_USERNAME:alpendre}
+    password: ${SPRING_DATASOURCE_PASSWORD:alpendre_dev_password}
     hikari:
       maximum-pool-size: ${DB_POOL_MAX_SIZE:10}
       minimum-idle: 2
@@ -55,7 +55,7 @@ app:
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:*}
   jwt:
-    secret: ${JWT_SECRET:rephelper-dev-secret-change-in-production-minimum-256-bits-key}
+    secret: ${JWT_SECRET:alpendre-dev-secret-change-in-production-minimum-256-bits-key}
     access-expiration-ms: ${JWT_ACCESS_EXPIRATION_MS:1800000}
     refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:2592000000}
   media:
@@ -66,7 +66,7 @@ app:
   email:
     provider-url: ${EMAIL_PROVIDER_URL:https://api.resend.com/emails}
     api-key: ${EMAIL_PROVIDER_API_KEY:}
-    from-address: ${EMAIL_FROM_ADDRESS:no-reply@rephelper.local}
+    from-address: ${EMAIL_FROM_ADDRESS:no-reply@alpendre.app}
 
 logging:
   pattern:

@@ -11,11 +11,11 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.rephelper</groupId>
-    <artifactId>rephelper-backend</artifactId>
+    <groupId>com.alpendre</groupId>
+    <artifactId>alpendre-backend</artifactId>
     <version>1.0.0</version>
-    <name>rephelper-backend</name>
-    <description>RepHelper RESTful Backend (Java 21 + Spring Boot 3.4 + PostgreSQL 16)</description>
+    <name>alpendre-backend</name>
+    <description>Alpendre RESTful Backend (Java 21 + Spring Boot 3.4 + PostgreSQL 16)</description>
 
     <properties>
         <java.version>21</java.version>

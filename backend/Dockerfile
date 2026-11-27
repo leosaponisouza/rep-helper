@@ -10,13 +10,13 @@ RUN mvn clean package -DskipTests -B
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
-RUN addgroup -S rephelper && adduser -S rephelper -G rephelper \
-    && mkdir -p /var/lib/rephelper/media/avatars /var/lib/rephelper/media/receipts \
-    && chown -R rephelper:rephelper /var/lib/rephelper/media /app
+RUN addgroup -S alpendre && adduser -S alpendre -G alpendre \
+    && mkdir -p /var/lib/alpendre/media/avatars /var/lib/alpendre/media/receipts \
+    && chown -R alpendre:alpendre /var/lib/alpendre/media /app
 
 COPY --from=builder /app/target/*.jar app.jar
 
-USER rephelper
+USER alpendre
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
