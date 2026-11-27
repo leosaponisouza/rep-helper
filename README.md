@@ -1,7 +1,6 @@
-# RepHelper
+# Alpendre
 
 [![CI](https://github.com/leosaponisouza/rep-helper/actions/workflows/ci.yml/badge.svg)](https://github.com/leosaponisouza/rep-helper/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/leosaponisouza/rep-helper?style=flat-square&color=2ea44f)](https://github.com/leosaponisouza/rep-helper/releases)
 ![Java 21](https://img.shields.io/badge/Java-21-ED8B00?style=flat-square&logo=openjdk&logoColor=white)
 ![Spring Boot 3.4](https://img.shields.io/badge/Spring%20Boot-3.4-6DB33F?style=flat-square&logo=springboot&logoColor=white)
 ![PostgreSQL 16](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql&logoColor=white)
@@ -10,19 +9,19 @@
 ![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 
-Full-stack shared-housing ("república estudantil") management platform built as a unified monorepo: a **Java 21 + Spring Boot 3.4 + PostgreSQL 16** REST API paired with a **React Native / Expo (Mobile & Web)** client, engineered for self-hosted single-VPS deployment with zero external BaaS dependencies.
+**Alpendre** (*"Rotina, contas e agenda para quem divide o mesmo teto"*) is a full-stack shared-household management platform for **couples, families, roommates sharing an apartment, and student residences ("repúblicas")**. Built as a unified monorepo, it pairs a **Java 21 + Spring Boot 3.4 + PostgreSQL 16** REST API with a **React Native / Expo (Mobile & Web)** client (`com.alpendre.app`), engineered for self-hosted single-VPS deployment with zero external BaaS dependencies.
 
 ---
 
 ## Architecture Overview
 
-RepHelper eliminates third-party BaaS lock-in (previously Firebase Auth + Supabase Storage) in favor of an internal, auditable backend architecture:
+Alpendre eliminates third-party BaaS lock-in (zero Firebase Auth, zero Supabase Storage) in favor of an internal, auditable backend architecture:
 
 ```mermaid
 flowchart LR
     Client["Expo Client (iOS / Android / Web)"] -->|HTTPS + JWT Bearer| API["Spring Boot 3.4 API (Java 21)"]
     API -->|Spring Data JPA + Flyway| DB[("PostgreSQL 16")]
-    API -->|Signed / Authenticated Upload| Media[("VPS Media Volume")]
+    API -->|Authenticated Magic-Byte Upload| Media[("VPS Media Volume")]
     API -->|OpenAPI 3 / Actuator| Obs["Swagger UI & Health Checks"]
 ```
 
@@ -30,18 +29,18 @@ flowchart LR
 
 | Domain | Implementation Details |
 |---|---|
-| **Authentication & Security** | Stateless **Spring Security 6 + JWT** with refresh-token rotation, BCrypt password hashing, 2-step OTP password recovery, Google OAuth ID-token verification, correlation IDs, and per-route rate limiting. |
-| **Multi-Tenant Membership (RBAC)** | Household ("republic") isolation enforced server-side (`RepublicSecurityService`) with `OWNER`, `ADMIN`, and `MEMBER` roles, invite code generation/regeneration, and member lifecycle tracking. |
-| **Recurring Household Tasks** | Filtered/paginated task engine with status transitions (`PENDING` → `IN_PROGRESS` → `COMPLETED`) and automatic next-occurrence scheduling for recurring chores (`DAILY`, `WEEKLY`, `MONTHLY`). |
-| **Shared Financial Ledger** | Income tracking, expense approval & reimbursement workflow (`PENDING` → `APPROVED` → `REIMBURSED`), manual balance adjustment, monthly/category analytics, and receipt image uploads. |
-| **Events & Notifications** | Household calendar with `OffsetDateTime` timezone preservation, RSVP status management (`INVITED`, `CONFIRMED`, `DECLINED`), upcoming agenda feed, and in-app notification center. |
-| **Editorial Design System** | Custom React Native / Web design system with light/dark/system themes, semantic tokens, WCAG contrast guardrails, and 125 automated Jest unit & component tests. |
+| **Authentication & Security** | Stateless **Spring Security 6 + JWT** with refresh-token rotation, BCrypt password hashing, 2-step 6-digit OTP password recovery, Google OAuth ID-token verification, correlation IDs, and per-route rate limiting. |
+| **Household Presets & Multi-Tenant RBAC** | Household (`house`) isolation enforced server-side (`HouseSecurityService`) with configurable presets (`COUPLE_FAMILY`, `SHARED_APT`, `REPUBLIC`, `CUSTOM`), optional postal address, `OWNER` / `ADMIN` / `MEMBER` roles, `allMembersAdmin` shared governance, and invite code generation/regeneration. |
+| **Adaptive Financial Engine (`2 × 2`)** | Adapts cleanly across `hasSharedFund × requireExpenseApproval`: **Monthly Expense Tracking** (`hasSharedFund = false`, zero balance mutation) or **Shared Household Fund ("Caixinha")** (`hasSharedFund = true`, pessimistic-locked `HouseBalanceLedger`, incomes, reimbursements, and balance adjustments). |
+| **Recurring Household Tasks** | Filtered/paginated chore engine with status transitions (`PENDING` → `IN_PROGRESS` → `COMPLETED`) and idempotent next-occurrence scheduling (`DAILY`, `WEEKLY`, `MONTHLY`, `YEARLY`). |
+| **Agenda & Optional RSVP** | Household calendar with `OffsetDateTime` timezone preservation, optional attendance confirmation (`requireRsvp = true` with `INVITED` / `CONFIRMED` / `DECLINED`, or `requireRsvp = false` informational *"Aviso na agenda"*), device calendar sync, and in-app notification center. |
+| **Editorial Design System** | Custom React Native / Web design system (`Alpendre` arch identity, light/dark/system themes, semantic tokens, WCAG contrast & clean-slate guardrails) verified by **28 Jest suites (133 tests)**. |
 
 ---
 
-## Visual Showcase (E2E QA)
+## Visual Showcase (Historical E2E QA Baseline)
 
-Captured from live end-to-end browser testing (`Expo Web` + `Spring Boot` + `Flyway`) — full QA report and fix tracking in [`docs/qa/relatorio-testes-alpha.md`](docs/qa/relatorio-testes-alpha.md).
+Captured from end-to-end browser verification (`Expo Web` + `Spring Boot` + `Flyway`) — historical QA baseline in [`docs/qa/relatorio-testes-alpha.md`](docs/qa/relatorio-testes-alpha.md).
 
 <table>
   <tr>
@@ -51,7 +50,7 @@ Captured from live end-to-end browser testing (`Expo Web` + `Spring Boot` + `Fly
     </td>
     <td align="center">
       <img src="docs/qa/13-financas-saldo-ajustado.png" width="210" alt="Financial Dashboard" /><br />
-      <sub><b>Financial Ledger</b></sub>
+      <sub><b>Adaptive Finances</b></sub>
     </td>
     <td align="center">
       <img src="docs/qa/08-tarefas-recorrencia-lista.png" width="210" alt="Recurring Tasks" /><br />
@@ -61,7 +60,7 @@ Captured from live end-to-end browser testing (`Expo Web` + `Spring Boot` + `Fly
   <tr>
     <td align="center">
       <img src="docs/qa/11-eventos-agenda.png" width="210" alt="Events Calendar" /><br />
-      <sub><b>Events &amp; Calendar</b></sub>
+      <sub><b>Agenda &amp; Events</b></sub>
     </td>
     <td align="center">
       <img src="docs/qa/20-configuracoes-aparencia.png" width="210" alt="Dark Theme" /><br />
@@ -79,16 +78,16 @@ Captured from live end-to-end browser testing (`Expo Web` + `Spring Boot` + `Fly
 ## Repository Structure
 
 ```text
-rep-helper/
+alpendre/
 ├── .github/workflows/    # GitHub Actions CI (Maven JDK 21 + Node 20 Typecheck & Jest)
-├── backend/              # Java 21, Spring Boot 3.4, Spring Security, JPA, Flyway, OpenAPI
-├── frontend/             # React Native, Expo Router, TypeScript, Editorial Design System
+├── backend/              # Java 21, Spring Boot 3.4, Spring Security, JPA, Flyway, OpenAPI (com.alpendre.backend)
+├── frontend/             # React Native, Expo Router, TypeScript, Editorial Design System (com.alpendre.app)
 ├── docs/
-│   ├── arquitetura-e-modelagem/  # Architecture, REST API contract, PostgreSQL schema & diagrams
+│   ├── arquitetura-e-modelagem/  # Functional requirements, REST API contract, PostgreSQL schema & diagrams
 │   ├── designs/                  # Monorepo & backend system design specification
 │   ├── specs/                    # Spec-Driven Development (SDD) plans & technical specs
-│   └── qa/                       # E2E browser QA report & 22 verified captures
-├── docker-compose.yml    # PostgreSQL 16 + Spring Boot API + persistent media volume
+│   └── qa/                       # Historical E2E browser QA report & captures
+├── docker-compose.yml    # PostgreSQL 16 + Spring Boot API + persistent media volume (/var/lib/alpendre/media)
 ├── .env.example          # Environment template for local & VPS deployments
 └── LICENSE               # MIT License
 ```
@@ -124,22 +123,22 @@ Automated on every push and pull request via [GitHub Actions CI](.github/workflo
 
 | Layer | Command | Coverage |
 |---|---|---|
-| **Backend (Java 21 / Maven)** | `cd backend && mvn test` | 6 Spring Boot MockMvc integration test suites (27 tests: auth, RBAC, recurring tasks, financial ledger, events, notifications, media magic bytes) |
-| **Frontend (TypeScript / Jest)** | `cd frontend && npm run typecheck && npm run test:ci` | Strict TypeScript typecheck + 26 Jest test suites (125 tests) |
-| **Full-Stack E2E (Browser)** | See [`docs/qa/relatorio-testes-alpha.md`](docs/qa/relatorio-testes-alpha.md) | 22 end-to-end verified flows across auth, tasks, finances, events, and settings |
+| **Backend (Java 21 / Maven)** | `cd backend && mvn test` | 6 Spring Boot MockMvc integration test suites (33 tests: auth, house presets & RBAC, recurring tasks, `2 × 2` financial ledger, optional event RSVP, notifications, media magic bytes) |
+| **Frontend (TypeScript / Jest)** | `cd frontend && npm run typecheck && npm run test:ci` | Strict TypeScript typecheck + 28 Jest test suites (133 tests) |
 
 ---
 
 ## Documentation
 
 - [**Backend Architecture & Java 21 Guide (`backend/README.md`)**](backend/README.md)
+- [Introduction & Functional Requirements (`RF01`–`RF07`)](docs/arquitetura-e-modelagem/introducao.md)
 - [Architecture Overview](docs/arquitetura-e-modelagem/visao-geral-arquitetura.md)
 - [REST API Specification](docs/arquitetura-e-modelagem/especificacao-api-rest.md)
-- [Data Model](docs/arquitetura-e-modelagem/modelo-de-dados.md)
+- [Data Model (DER)](docs/arquitetura-e-modelagem/modelo-de-dados.md)
 - [PostgreSQL & Flyway Schema](docs/arquitetura-e-modelagem/schema-postgresql-flyway.md)
 - [State & Sequence Diagrams](docs/arquitetura-e-modelagem/diagramas-de-estados-e-sequencia.md)
 - [Environment & VPS Setup](docs/arquitetura-e-modelagem/setup-ambiente-e-infraestrutura.md)
-- [System Design Document](docs/designs/rep-helper-backend-monorepo.md)
+- [System Design Document](docs/designs/alpendre-backend-monorepo.md)
 - [Engineering Specs & Plans (SDD)](docs/specs/)
 - [Security Policy](SECURITY.md)
 

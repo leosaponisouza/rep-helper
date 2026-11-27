@@ -1,233 +1,82 @@
-# Serviços de API - RepHelper
+# Serviços de API — Alpendre (`frontend/src/services`)
 
-Este diretório contém implementações dos serviços para interagir com a API do backend RepHelper.
+Este diretório centraliza a comunicação HTTP do cliente **Alpendre** (Expo / React Native / Web) com a API REST **Spring Boot 3.4** (`/api/v1/*`), utilizando autenticação **100% interna via JWT + Refresh Token rotativo** (sem dependências de Firebase Auth ou Supabase Storage).
 
-## Serviço de Autenticação
+---
 
-O arquivo `authService.ts` implementa o fluxo de autenticação conforme a [documentação de referência](https://api.rephelper.com/docs) da API RepHelper. 
+## Catálogo de Serviços
 
-### Fluxo de Autenticação
+| Arquivo / Módulo | Endpoints Consumidos | Responsabilidade |
+| :--- | :--- | :--- |
+| `api.ts` | Base Axios + `/api/v1/auth/refresh` | Instância Axios com validação HTTPS em produção (`assertSecureApiUrl`), injeção de `Authorization: Bearer <token>` e fila automática de renovação de token em respostas `401`. |
+| `authService.ts` | `/api/v1/auth/*` | Cadastro (`signup`), login por credenciais (`login`), Google OAuth direto (`google`), rotação de sessão (`refresh`), troca de senha (`change-password`), recuperação por código de 6 dígitos (`forgot-password` / `reset-password`) e `logout`. |
+| `houseService.ts` | `/api/v1/houses/*` | Criação de casa com preset/regras e endereço opcional, entrada por código (`join`), atualização de regras e dados da casa, listagem/gestão de moradores e regeneração de código de convite. |
+| `taskService.ts` | `/api/v1/tasks/*` | CRUD de tarefas, filtros paginados (`filter` / `assigned/filter`), conclusão idempotente de tarefas recorrentes (`complete`), cancelamento e atribuição de moradores. |
+| `financesService.ts` | `/api/v1/expenses/*`, `/api/v1/incomes/*`, `/api/v1/financial-dashboard/*`, `/api/v1/finances/*` | Gestão adaptável de despesas (modo **Acompanhar Gastos** vs. **Caixinha**), entradas, resumo financeiro, série histórica mensal e ajuste manual de saldo. |
+| `events/eventsService.ts` | `/api/v1/events/*` | CRUD de eventos da agenda com suporte a confirmação de presença opcional (`requireRsvp`), convites (`invite`) e resposta de participação (`respond`). |
+| `calendar/calendarService.ts` | Nativo (`expo-calendar`) | Sincronização opcional de compromissos da casa com o calendário local do dispositivo (Google Calendar / Samsung Calendar / iOS). |
+| `notificationApiService.ts` | `/api/v1/notifications/*` | Listagem de notificações, contador de não lidas, marcação individual/em lote e limpeza de histórico antigo. |
+| `supabase.ts` | `/api/v1/media/{bucket}` | Compressão local de imagens (`600px` JPEG) e upload/remoção autenticada no volume local da VPS (`avatars` e `receipts`), mantendo validação contra path traversal e SSRF. |
 
-O sistema utiliza autenticação em duas etapas:
+---
 
-1. Autenticação inicial via Firebase
-2. Uso de tokens JWT para acesso contínuo à API
+## Fluxo de Sessão e Renovação Automática
 
-### Base URL
+1. No login ou cadastro, `authService.ts` armazena `token` (access token de curta duração), `refreshToken` (rotativo) e `user` (incluindo `currentHouseId` e `isAdmin`) via `storage.ts` (`expo-secure-store` no mobile).
+2. Todas as chamadas protegidas enviam `Authorization: Bearer <token>`.
+3. Ao receber `401 Unauthorized` fora das rotas de autenticação, `api.ts` enfileira requisições concorrentes, chama `POST /api/v1/auth/refresh`, persiste o novo par `{ token, refreshToken }` e reexecuta transparentemente as chamadas pendentes.
 
-```
-https://api.rephelper.com/api/v1
-```
+---
 
-### Autenticação em Requisições
+## Exemplo de Uso com Design System (`useAuth` + `useFeedback`)
 
-Após o login bem-sucedido, todas as requisições subsequentes incluem o token JWT no header de Authorization:
-
-```
-Authorization: Bearer {token}
-```
-
-### Validade do Token
-
-O token JWT tem validade de 7 dias (604.800.000 milissegundos). Após este período, é necessário renovar o token usando o endpoint `/auth/refresh` ou fazer login novamente.
-
-## Exemplo de Uso
-
-### Login com Email e Senha
+> **Guardrail do Design System:** Nunca utilize o modal nativo de alerta do React Native; utilize sempre `useFeedback` (`toast`) ou banners do Design System para exibir feedbacks ao morador.
 
 ```tsx
 import React, { useState } from 'react';
-import { View, TextInput, Button, Text, Alert } from 'react-native';
 import { useAuth } from '../context/AuthContext';
-import { styles } from './styles';
+import { Button, Screen, TextField, useFeedback } from '../design-system';
 
-export const LoginScreen = () => {
+export const ExampleLoginForm = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { loginWithCredentials, loading, error, clearError } = useAuth();
+  const { loginWithCredentials, loading } = useAuth();
+  const { toast } = useFeedback();
 
   const handleLogin = async () => {
     try {
       await loginWithCredentials(email, password);
-      // Navegação realizada automaticamente no AuthContext
-    } catch (err) {
-      Alert.alert('Erro de Login', 'Não foi possível fazer login. Verifique suas credenciais.');
-    }
-  };
-
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Login</Text>
-      
-      {error && (
-        <Text style={styles.errorText}>{error}</Text>
-      )}
-      
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        keyboardType="email-address"
-        onFocus={clearError}
-      />
-      
-      <TextInput
-        style={styles.input}
-        placeholder="Senha"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        onFocus={clearError}
-      />
-      
-      <Button
-        title={loading ? "Carregando..." : "Entrar"}
-        onPress={handleLogin}
-        disabled={loading}
-      />
-    </View>
-  );
-};
-```
-
-### Cadastro de Novo Usuário
-
-```tsx
-import React, { useState } from 'react';
-import { View, TextInput, Button, Text, Alert } from 'react-native';
-import { useAuth } from '../context/AuthContext';
-import { styles } from './styles';
-
-export const SignUpScreen = () => {
-  const [name, setName] = useState('');
-  const [nickname, setNickname] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
-  
-  const { signUp, loading, error, clearError } = useAuth();
-
-  const handleSignUp = async () => {
-    try {
-      await signUp(email, password, {
-        name,
-        nickname: nickname || null,
-        phoneNumber
+    } catch (err: any) {
+      toast({
+        title: 'Falha ao entrar',
+        message: err?.message || 'Verifique suas credenciais e tente novamente.',
+        tone: 'danger',
       });
-      // Navegação realizada automaticamente no AuthContext
-    } catch (err) {
-      Alert.alert('Erro no Cadastro', 'Não foi possível completar o cadastro.');
     }
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Cadastro</Text>
-      
-      {error && (
-        <Text style={styles.errorText}>{error}</Text>
-      )}
-      
-      <TextInput
-        style={styles.input}
-        placeholder="Nome Completo"
-        value={name}
-        onChangeText={setName}
-        onFocus={clearError}
-      />
-      
-      <TextInput
-        style={styles.input}
-        placeholder="Apelido (opcional)"
-        value={nickname}
-        onChangeText={setNickname}
-        onFocus={clearError}
-      />
-      
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
+    <Screen scroll keyboardAvoiding>
+      <TextField
+        label="E-mail"
         value={email}
         onChangeText={setEmail}
         autoCapitalize="none"
         keyboardType="email-address"
-        onFocus={clearError}
       />
-      
-      <TextInput
-        style={styles.input}
-        placeholder="Senha"
+      <TextField
+        label="Senha"
         value={password}
         onChangeText={setPassword}
-        secureTextEntry
-        onFocus={clearError}
+        secureToggle
       />
-      
-      <TextInput
-        style={styles.input}
-        placeholder="Telefone (opcional)"
-        value={phoneNumber}
-        onChangeText={setPhoneNumber}
-        keyboardType="phone-pad"
-        onFocus={clearError}
-      />
-      
       <Button
-        title={loading ? "Processando..." : "Cadastrar"}
-        onPress={handleSignUp}
-        disabled={loading || !name || !email || !password}
+        label="Entrar no Alpendre"
+        variant="primary"
+        loading={loading}
+        onPress={() => void handleLogin()}
       />
-    </View>
+    </Screen>
   );
 };
 ```
-
-### Logout
-
-```tsx
-import React from 'react';
-import { View, Button, Text } from 'react-native';
-import { useAuth } from '../context/AuthContext';
-import { styles } from './styles';
-
-export const ProfileScreen = () => {
-  const { user, logout, loading } = useAuth();
-
-  const handleLogout = async () => {
-    try {
-      await logout();
-      // Navegação realizada automaticamente no AuthContext
-    } catch (err) {
-      console.error('Erro ao fazer logout:', err);
-    }
-  };
-
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Perfil</Text>
-      
-      {user && (
-        <>
-          <Text style={styles.text}>Nome: {user.name}</Text>
-          {user.nickname && <Text style={styles.text}>Apelido: {user.nickname}</Text>}
-          <Text style={styles.text}>Email: {user.email}</Text>
-        </>
-      )}
-      
-      <Button
-        title={loading ? "Saindo..." : "Sair"}
-        onPress={handleLogout}
-        disabled={loading}
-      />
-    </View>
-  );
-};
-```
-
-## Tratamento de Erros e Tokens Expirados
-
-O serviço implementa renovação automática de tokens quando necessário através dos interceptors no arquivo `api.ts`. Se um token estiver expirado, o sistema tentará renovar automaticamente antes de redirecionar o usuário para a tela de login.
-
-Para dúvidas ou suporte, entre em contato com a equipe de desenvolvimento. 

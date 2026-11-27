@@ -1,23 +1,44 @@
-# Diagramas de Máquina de Estados e Sequência
+# Diagramas de Máquina de Estados e Sequência — Alpendre
 
-Este documento ilustra os ciclos de vida das entidades e os principais fluxos transacionais implementados no **RepHelper**.
+Este documento ilustra os ciclos de vida das entidades e os fluxos transacionais adaptáveis implementados no **Alpendre**.
 
 ---
 
 ## 1. Máquinas de Estado
 
-### 1.1 Ciclo de Vida da Despesa (`Expense`) e Impacto no Saldo
+### 1.1 Ciclo de Vida Adaptável da Despesa (`Expense`) — Matriz `2 × 2`
+
+#### A) Modo Acompanhar Gastos (`hasSharedFund = false`) — Saldo inalterado (`SHARED_FUND_DISABLED` em entradas/reembolsos)
 
 ```mermaid
 stateDiagram-v2
-    [*] --> PENDING : Morador cria despesa (saldo inalterado)
-    PENDING --> APPROVED : Admin aprova (saldo inalterado)
-    PENDING --> REJECTED : Admin rejeita com motivo (saldo inalterado)
-    APPROVED --> REJECTED : Admin rejeita com motivo (saldo inalterado)
-    APPROVED --> REIMBURSED : Admin reembolsa (debita amount do saldo)
-    APPROVED --> PENDING : Admin executa /reset (saldo inalterado)
-    REJECTED --> PENDING : Admin executa /reset (saldo inalterado)
-    REIMBURSED --> PENDING : Admin executa /reset (estorna amount ao saldo)
+    [*] --> APPROVED : requireExpenseApproval == false\n(Nasce "Registrada", Δ Saldo = 0)
+    [*] --> PENDING : requireExpenseApproval == true\n(Aguarda revisão, Δ Saldo = 0)
+    PENDING --> APPROVED : Admin executa /approve\n(Δ Saldo = 0)
+    PENDING --> REJECTED : Admin executa /reject\n(Δ Saldo = 0)
+    APPROVED --> REJECTED : Admin executa /reject\n(Δ Saldo = 0)
+    APPROVED --> PENDING : Admin executa /reset\n(Δ Saldo = 0)
+    REJECTED --> PENDING : Admin executa /reset\n(Δ Saldo = 0)
+    APPROVED --> [*] : DELETE [Criador ou Admin]
+    PENDING --> [*] : DELETE [Criador ou Admin]
+    REJECTED --> [*] : DELETE [Criador ou Admin]
+```
+
+#### B) Modo Caixinha (`hasSharedFund = true`) — Mutação atômica via `HouseBalanceLedger`
+
+```mermaid
+stateDiagram-v2
+    [*] --> REIMBURSED : requireExpenseApproval == false\n(Débito direto Δ Saldo = -amount)
+    [*] --> PENDING : requireExpenseApproval == true\n(Δ Saldo = 0)
+    PENDING --> APPROVED : Admin aprova (Δ Saldo = 0)
+    PENDING --> REJECTED : Admin rejeita com motivo (Δ Saldo = 0)
+    APPROVED --> REJECTED : Admin rejeita com motivo (Δ Saldo = 0)
+    APPROVED --> REIMBURSED : Admin reembolsa (Δ Saldo = -amount)
+    APPROVED --> PENDING : Admin executa /reset (Δ Saldo = 0)
+    REJECTED --> PENDING : Admin executa /reset (Δ Saldo = 0)
+    REIMBURSED --> PENDING : Admin executa /reset (Estorno Δ Saldo = +amount)
+    REIMBURSED --> REIMBURSED : PUT /expenses/{id} sem aprovação\n(Ajuste Δ Saldo = valorAnterior - novoValor)
+    REIMBURSED --> [*] : DELETE (Estorno Δ Saldo = +amount)
 ```
 
 ---
@@ -48,7 +69,7 @@ stateDiagram-v2
 ```mermaid
 sequenceDiagram
     autonumber
-    actor User as Usuário
+    actor User as Morador
     participant App as App Expo (Axios Interceptor)
     participant Auth as AuthController / AuthService
     participant DB as PostgreSQL (users / refresh_tokens)
@@ -96,36 +117,60 @@ sequenceDiagram
 
 ---
 
-### 2.3 Reembolso e Estorno Financeiro com Trava Pessimista
+### 2.3 Reembolso e Estorno na Caixinha com Trava Pessimista (`HouseBalanceLedger`)
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Admin as Administrador
+    actor Admin as Administrador da Casa
     participant App as App Expo
-    participant FinSvc as FinanceService / RepublicBalanceLedger
-    participant DB as PostgreSQL (expenses / republics)
+    participant FinSvc as FinanceService / HouseBalanceLedger
+    participant DB as PostgreSQL (expenses / houses)
     participant Notif as NotificationService
 
     Admin->>App: Clica em "Marcar como Reembolsada"
     App->>FinSvc: POST /api/v1/expenses/{id}/reimburse
+    FinSvc->>DB: Verifica house.hasSharedFund == true (ou retorna 400 SHARED_FUND_DISABLED)
     FinSvc->>DB: Lock Expense FOR UPDATE (verifica status == APPROVED)
-    FinSvc->>DB: Lock Republic FOR UPDATE e aplica saldo -= amount
+    FinSvc->>DB: Lock House FOR UPDATE e aplica currentBalance -= amount
     FinSvc->>DB: Salva Expense REIMBURSED + Notificação EXPENSE_REIMBURSED
     FinSvc-->>App: 200 OK (ExpenseView atualizada)
 
     opt Administrador decide reverter reembolso
         Admin->>App: Clica em "Redefinir status" (/reset)
         App->>FinSvc: POST /api/v1/expenses/{id}/reset
-        FinSvc->>DB: Lock Expense FOR UPDATE -> Lock Republic FOR UPDATE
-        FinSvc->>DB: Aplica saldo += amount e volta status para PENDING
+        FinSvc->>DB: Lock Expense FOR UPDATE -> Lock House FOR UPDATE
+        FinSvc->>DB: Aplica currentBalance += amount e volta status para PENDING
         FinSvc-->>App: 200 OK (ExpenseView em PENDING)
     end
 ```
 
 ---
 
-### 2.4 Upload Seguro de Mídia na VPS
+### 2.4 Evento da Agenda com Confirmação Opcional (`requireRsvp`)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Creator as Morador Organizador
+    participant App as App Expo
+    participant EventSvc as EventService (@Transactional)
+    participant DB as PostgreSQL (events / event_invitations)
+
+    Creator->>App: Cria compromisso (toggle requireRsvp = true ou false)
+    App->>EventSvc: POST /api/v1/events { title, startDate, endDate, requireRsvp }
+    alt requireRsvp == true (Padrão)
+        EventSvc->>DB: Salva Event (require_rsvp = true) + criador CONFIRMED em event_invitations
+        EventSvc-->>App: 201 Created (habilita convites e botões de presença)
+    else requireRsvp == false (Aviso na agenda)
+        EventSvc->>DB: Salva Event (require_rsvp = false) sem registros em event_invitations
+        EventSvc-->>App: 201 Created (exibe selo "Aviso na agenda"; /invite e /respond retornam 400 RSVP_NOT_ENABLED)
+    end
+```
+
+---
+
+### 2.5 Upload Seguro de Mídia na VPS
 
 ```mermaid
 sequenceDiagram
@@ -134,7 +179,7 @@ sequenceDiagram
     participant App as App Expo (ImageManipulator)
     participant MediaCtrl as MediaController / MediaStorageService
     participant Validator as ImageMagicByteValidator
-    participant Disk as Volume Local (/var/lib/rephelper/media)
+    participant Disk as Volume Local (/var/lib/alpendre/media)
 
     User->>App: Seleciona avatar ou comprovante
     App->>App: Redimensiona (largura 600px, JPEG 0.6) e valida URI local
