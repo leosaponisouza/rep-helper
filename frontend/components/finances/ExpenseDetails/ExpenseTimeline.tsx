@@ -22,11 +22,36 @@ export interface ExpenseTimelineStep {
   isLast: boolean;
 }
 
-export function buildExpenseTimelineSteps(expense: Expense): ExpenseTimelineStep[] {
+export interface ExpenseTimelineRules {
+  hasSharedFund?: boolean;
+  requireExpenseApproval?: boolean;
+}
+
+export function buildExpenseTimelineSteps(
+  expense: Expense,
+  options?: ExpenseTimelineRules
+): ExpenseTimelineStep[] {
+  const hasSharedFund = options?.hasSharedFund ?? true;
+  const requireExpenseApproval = options?.requireExpenseApproval ?? true;
+
   const isRejected = expense.status === 'REJECTED';
   const isApprovedOrReimbursed =
     expense.status === 'APPROVED' || expense.status === 'REIMBURSED';
   const isReimbursed = expense.status === 'REIMBURSED';
+
+  if (!hasSharedFund && !requireExpenseApproval && !isRejected) {
+    return [
+      {
+        key: 'created',
+        title: 'Registrada',
+        date: expense.createdAt,
+        isCompleted: true,
+        isRejected: false,
+        isFuture: false,
+        isLast: true,
+      },
+    ];
+  }
 
   const createdStep: ExpenseTimelineStep = {
     key: 'created',
@@ -38,6 +63,19 @@ export function buildExpenseTimelineSteps(expense: Expense): ExpenseTimelineStep
     isLast: false,
   };
 
+  if (hasSharedFund && !requireExpenseApproval && !isRejected) {
+    const directDebitStep: ExpenseTimelineStep = {
+      key: 'reimbursement',
+      title: 'Debitada da caixinha',
+      date: expense.reimbursementDate || expense.createdAt,
+      isCompleted: isReimbursed,
+      isRejected: false,
+      isFuture: !isReimbursed,
+      isLast: true,
+    };
+    return [createdStep, directDebitStep];
+  }
+
   const approvalStep: ExpenseTimelineStep = {
     key: 'approval',
     title: isRejected ? 'Rejeitada' : 'Aprovada',
@@ -46,8 +84,12 @@ export function buildExpenseTimelineSteps(expense: Expense): ExpenseTimelineStep
     isRejected,
     rejectionReason: isRejected ? expense.rejectionReason : undefined,
     isFuture: expense.status === 'PENDING' && !expense.approvalDate,
-    isLast: false,
+    isLast: !hasSharedFund,
   };
+
+  if (!hasSharedFund) {
+    return [createdStep, approvalStep];
+  }
 
   const reimbursementStep: ExpenseTimelineStep = {
     key: 'reimbursement',
@@ -159,7 +201,7 @@ const TimelineItem: React.FC<Omit<ExpenseTimelineStep, 'key'>> = ({
           </AppText>
         ) : (
           <AppText variant="caption" color="inkMuted">
-            {isFuture ? 'Aguardando status anterior' : 'Pendente'}
+            {isFuture ? 'Aguardando etapa anterior' : 'Pendente'}
           </AppText>
         )}
 
@@ -187,11 +229,15 @@ const TimelineItem: React.FC<Omit<ExpenseTimelineStep, 'key'>> = ({
 
 export interface ExpenseTimelineProps {
   expense: Expense;
+  options?: ExpenseTimelineRules;
 }
 
-export const ExpenseTimeline: React.FC<ExpenseTimelineProps> = ({ expense }) => {
+export const ExpenseTimeline: React.FC<ExpenseTimelineProps> = ({
+  expense,
+  options,
+}) => {
   const { theme } = useTheme();
-  const steps = buildExpenseTimelineSteps(expense);
+  const steps = buildExpenseTimelineSteps(expense, options);
 
   return (
     <Surface tone="surface" bordered radiusKey="md" style={styles.sectionContainer}>
@@ -202,7 +248,7 @@ export const ExpenseTimeline: React.FC<ExpenseTimelineProps> = ({ expense }) => 
         }}
       >
         <AppText variant="monoLabel" color="inkSecondary">
-          Timeline de Status
+          Histórico da Despesa
         </AppText>
       </View>
       <Divider />

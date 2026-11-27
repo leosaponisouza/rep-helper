@@ -33,6 +33,7 @@ interface RecentTransactionsProps {
   onPressTransaction?: (transaction: Transaction) => void;
   onPressViewAll?: () => void;
   maxItems?: number;
+  hasSharedFund?: boolean;
 }
 
 const FILTER_OPTIONS: ReadonlyArray<{ value: TransactionFilter; label: string }> = [
@@ -49,15 +50,20 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
   onPressTransaction,
   onPressViewAll,
   maxItems = 5,
+  hasSharedFund = true,
 }) => {
   const { theme } = useTheme();
   const [filter, setFilter] = useState<TransactionFilter>('ALL');
   const [expanded, setExpanded] = useState(false);
 
+  const effectiveFilter: TransactionFilter = hasSharedFund ? filter : 'EXPENSE';
+
   const matchingTransactions = useMemo(
     () =>
-      transactions.filter((t) => filter === 'ALL' || t.type === filter),
-    [transactions, filter]
+      transactions.filter(
+        (t) => effectiveFilter === 'ALL' || t.type === effectiveFilter
+      ),
+    [transactions, effectiveFilter]
   );
 
   const visibleTransactions = useMemo(
@@ -122,7 +128,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
     >
       <View style={[styles.headerRow, { gap: theme.spacing.xs }]}>
         <AppText variant="heading" color="ink" style={styles.sectionTitle}>
-          Transações Recentes
+          {hasSharedFund ? 'Transações Recentes' : 'Gastos Recentes'}
         </AppText>
 
         {onPressViewAll ? (
@@ -138,27 +144,29 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
         ) : null}
       </View>
 
-      <SegmentedTabs<TransactionFilter>
-        options={FILTER_OPTIONS}
-        value={filter}
-        onChange={(nextFilter) => {
-          setFilter(nextFilter);
-          setExpanded(false);
-        }}
-      />
+      {hasSharedFund ? (
+        <SegmentedTabs<TransactionFilter>
+          options={FILTER_OPTIONS}
+          value={filter}
+          onChange={(nextFilter) => {
+            setFilter(nextFilter);
+            setExpanded(false);
+          }}
+        />
+      ) : null}
 
       {visibleTransactions.length === 0 ? (
         <StateView
           kind="empty"
           icon={<Wallet size={28} strokeWidth={1.75} color={theme.colors.inkMuted} />}
           title={
-            filter === 'ALL'
-              ? 'Nenhuma transação recente'
-              : filter === 'EXPENSE'
-                ? 'Nenhuma despesa recente'
+            !hasSharedFund || effectiveFilter === 'EXPENSE'
+              ? 'Nenhuma despesa recente'
+              : effectiveFilter === 'ALL'
+                ? 'Nenhuma transação recente'
                 : 'Nenhuma receita recente'
           }
-          description="As movimentações mais recentes da república aparecerão aqui."
+          description="Os lançamentos mais recentes da casa aparecerão aqui."
         />
       ) : (
         <View>

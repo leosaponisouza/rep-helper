@@ -238,7 +238,7 @@ const AdjustBalanceModal: React.FC<AdjustBalanceModalProps> = ({
           placeholder="Motivo do ajuste"
           maxLength={100}
           editable={!loading}
-          helperText="Ajuste o saldo da república para refletir o valor real compartilhado."
+          helperText="Ajuste o saldo da caixinha da casa para refletir o valor real em caixa."
         />
       </View>
     </BottomSheetModal>

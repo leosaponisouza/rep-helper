@@ -41,6 +41,8 @@ const ExpensesScreen: React.FC<ExpensesScreenProps> = ({ hideHeader = false }) =
 
   const {
     expenses,
+    hasSharedFund,
+    requireExpenseApproval,
     loadingExpenses,
     expensesError,
     fetchExpenses,
@@ -49,6 +51,22 @@ const ExpensesScreen: React.FC<ExpensesScreenProps> = ({ hideHeader = false }) =
   } = useFinances({
     initialFilter: 'ALL',
   });
+
+  const visibleFilters = useMemo<FilterOption[]>(() => {
+    if (!hasSharedFund && !requireExpenseApproval) {
+      return [];
+    }
+    if (!hasSharedFund && requireExpenseApproval) {
+      return AVAILABLE_FILTERS.filter((f) => f.key !== 'REIMBURSED');
+    }
+    if (hasSharedFund && !requireExpenseApproval) {
+      return [
+        { key: 'ALL', label: 'Todas' },
+        { key: 'REIMBURSED', label: 'Reembolsadas' },
+      ];
+    }
+    return AVAILABLE_FILTERS;
+  }, [hasSharedFund, requireExpenseApproval]);
 
   const handleBack = useCallback(() => {
     if (router.canGoBack()) {
@@ -98,14 +116,18 @@ const ExpensesScreen: React.FC<ExpensesScreenProps> = ({ hideHeader = false }) =
 
   const body = (
     <View style={styles.body}>
-      <View style={{ paddingVertical: theme.spacing.sm }}>
-        <ExpenseFilters
-          filters={AVAILABLE_FILTERS}
-          activeFilter={expenseFilter}
-          onFilterChange={handleFilterChange}
-        />
-      </View>
-      <Divider />
+      {visibleFilters.length > 0 ? (
+        <>
+          <View style={{ paddingVertical: theme.spacing.sm }}>
+            <ExpenseFilters
+              filters={visibleFilters}
+              activeFilter={expenseFilter}
+              onFilterChange={handleFilterChange}
+            />
+          </View>
+          <Divider />
+        </>
+      ) : null}
 
       {loadingExpenses && expenses.length === 0 ? (
         <StateView kind="loading" title="Carregando despesas..." />
@@ -126,6 +148,7 @@ const ExpensesScreen: React.FC<ExpensesScreenProps> = ({ hideHeader = false }) =
               expense={item}
               onPress={handleExpensePress}
               currentUserId={user?.uid}
+              requireExpenseApproval={requireExpenseApproval}
             />
           )}
           ItemSeparatorComponent={() => (
@@ -168,7 +191,11 @@ const ExpensesScreen: React.FC<ExpensesScreenProps> = ({ hideHeader = false }) =
                   ? `Nenhuma despesa ${getStatusLabel(expenseFilter)}`
                   : 'Nenhuma despesa cadastrada'
               }
-              description="Registre uma despesa para acompanhar aprovações e reembolsos."
+              description={
+                hasSharedFund
+                  ? 'Registre uma despesa para acompanhar aprovações e reembolsos.'
+                  : 'Registre os gastos do dia a dia para acompanhar as contas da casa.'
+              }
               actionLabel="Registrar Despesa"
               onAction={navigateToCreateExpense}
             />

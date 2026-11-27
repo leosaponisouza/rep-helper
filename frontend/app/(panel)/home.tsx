@@ -381,54 +381,90 @@ const HomeScreen = () => {
                 onAction={() => void refreshFinances()}
               />
             ) : financialSummary ? (
-              <>
-                <View style={styles.balanceHeader}>
-                  <View style={{ gap: theme.spacing.xxs, flex: 1 }}>
-                    <AppText variant="monoLabel" color="inkMuted">
-                      Saldo atual
-                    </AppText>
-                    <AppText
-                      variant="monoHero"
-                      color={hasPositiveBalance ? 'ink' : 'danger'}
-                    >
-                      {formatCurrencyBRL(financialSummary.currentBalance)}
+              financialSummary.hasSharedFund === false ? (
+                <>
+                  <View style={styles.balanceHeader}>
+                    <View style={{ gap: theme.spacing.xxs, flex: 1 }}>
+                      <AppText variant="monoLabel" color="inkMuted">
+                        Gastos no mês
+                      </AppText>
+                      <AppText variant="monoHero" color="ink">
+                        {formatCurrencyBRL(
+                          financialSummary.totalExpensesCurrentMonth || 0
+                        )}
+                      </AppText>
+                    </View>
+                    <StatusText label="Acompanhamento" tone="accent" showDot />
+                  </View>
+
+                  <Divider />
+
+                  <View style={styles.financeRow}>
+                    <View style={[styles.financeLabelGroup, { gap: theme.spacing.xs }]}>
+                      <ArrowUpRight
+                        size={18}
+                        strokeWidth={1.75}
+                        color={theme.colors.accent}
+                      />
+                      <AppText variant="body" color="inkSecondary">
+                        Total registrado
+                      </AppText>
+                    </View>
+                    <AppText variant="monoValue" color="ink">
+                      {formatCurrencyBRL(financialSummary.totalExpenses || 0)}
                     </AppText>
                   </View>
-                  <StatusText
-                    label={hasPositiveBalance ? 'Em dia' : 'Negativo'}
-                    tone={hasPositiveBalance ? 'success' : 'danger'}
-                    showDot
-                  />
-                </View>
+                </>
+              ) : (
+                <>
+                  <View style={styles.balanceHeader}>
+                    <View style={{ gap: theme.spacing.xxs, flex: 1 }}>
+                      <AppText variant="monoLabel" color="inkMuted">
+                        Saldo da caixinha
+                      </AppText>
+                      <AppText
+                        variant="monoHero"
+                        color={hasPositiveBalance ? 'ink' : 'danger'}
+                      >
+                        {formatCurrencyBRL(financialSummary.currentBalance)}
+                      </AppText>
+                    </View>
+                    <StatusText
+                      label={hasPositiveBalance ? 'Em dia' : 'Negativo'}
+                      tone={hasPositiveBalance ? 'success' : 'danger'}
+                      showDot
+                    />
+                  </View>
 
-                <Divider />
+                  <Divider />
 
-                <View style={styles.financeRow}>
-                  <View style={[styles.financeLabelGroup, { gap: theme.spacing.xs }]}>
-                    <ArrowUpRight size={18} strokeWidth={1.75} color={theme.colors.danger} />
-                    <AppText variant="body" color="inkSecondary">
-                      Despesas do mês
+                  <View style={styles.financeRow}>
+                    <View style={[styles.financeLabelGroup, { gap: theme.spacing.xs }]}>
+                      <ArrowUpRight size={18} strokeWidth={1.75} color={theme.colors.danger} />
+                      <AppText variant="body" color="inkSecondary">
+                        Despesas do mês
+                      </AppText>
+                    </View>
+                    <AppText variant="monoValue" color="danger">
+                      {formatCurrencyBRL(financialSummary.totalExpensesCurrentMonth || 0)}
                     </AppText>
                   </View>
-                  <AppText variant="monoValue" color="danger">
-                    {formatCurrencyBRL(financialSummary.totalExpensesCurrentMonth || 0)}
-                  </AppText>
-                </View>
 
-                <Divider />
+                  <Divider />
 
-                <View style={styles.financeRow}>
-                  <View style={[styles.financeLabelGroup, { gap: theme.spacing.xs }]}>
-                    <ArrowDownLeft size={18} strokeWidth={1.75} color={theme.colors.success} />
-                    <AppText variant="body" color="inkSecondary">
-                      Receitas do mês
+                  <View style={styles.financeRow}>
+                    <View style={[styles.financeLabelGroup, { gap: theme.spacing.xs }]}>
+                      <ArrowDownLeft size={18} strokeWidth={1.75} color={theme.colors.success} />
+                      <AppText variant="body" color="inkSecondary">
+                        Receitas do mês
+                      </AppText>
+                    </View>
+                    <AppText variant="monoValue" color="success">
+                      {formatCurrencyBRL(financialSummary.totalIncomesCurrentMonth || 0)}
                     </AppText>
                   </View>
-                  <AppText variant="monoValue" color="success">
-                    {formatCurrencyBRL(financialSummary.totalIncomesCurrentMonth || 0)}
-                  </AppText>
-                </View>
-              </>
+                </>
+              )
             ) : (
               <StateView
                 kind="empty"

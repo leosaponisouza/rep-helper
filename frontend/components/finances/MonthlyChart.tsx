@@ -26,6 +26,7 @@ interface MonthlyChartProps {
   data?: MonthlyChartData | null;
   title?: string;
   loading?: boolean;
+  hasSharedFund?: boolean;
 }
 
 const sanitizeAmount = (value: unknown): number => {
@@ -48,6 +49,7 @@ const MonthlyChart: React.FC<MonthlyChartProps> = ({
   data,
   title = 'Análise Mensal',
   loading = false,
+  hasSharedFund = true,
 }) => {
   const { theme } = useTheme();
   const { width: viewportWidth } = useWindowDimensions();
@@ -115,22 +117,34 @@ const MonthlyChart: React.FC<MonthlyChartProps> = ({
   const expensesData = safeData.map((item) => sanitizeAmount(item?.expenses));
   const incomesData = safeData.map((item) => sanitizeAmount(item?.incomes));
 
-  const chartData = {
-    labels,
-    datasets: [
-      {
-        data: expensesData,
-        color: (opacity = 1) => hexToRgba(theme.colors.danger, opacity),
-        strokeWidth: 2,
-      },
-      {
-        data: incomesData,
-        color: (opacity = 1) => hexToRgba(theme.colors.success, opacity),
-        strokeWidth: 2,
-      },
-    ],
-    legend: ['Despesas', 'Receitas'],
-  };
+  const chartData = hasSharedFund
+    ? {
+        labels,
+        datasets: [
+          {
+            data: expensesData,
+            color: (opacity = 1) => hexToRgba(theme.colors.danger, opacity),
+            strokeWidth: 2,
+          },
+          {
+            data: incomesData,
+            color: (opacity = 1) => hexToRgba(theme.colors.success, opacity),
+            strokeWidth: 2,
+          },
+        ],
+        legend: ['Despesas', 'Receitas'],
+      }
+    : {
+        labels,
+        datasets: [
+          {
+            data: expensesData,
+            color: (opacity = 1) => hexToRgba(theme.colors.accent, opacity),
+            strokeWidth: 2,
+          },
+        ],
+        legend: ['Gastos da Casa'],
+      };
 
   return (
     <Surface

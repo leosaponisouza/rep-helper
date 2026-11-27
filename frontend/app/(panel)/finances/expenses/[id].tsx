@@ -76,6 +76,8 @@ const ExpenseDetailsScreen: React.FC = () => {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const {
+    hasSharedFund,
+    requireExpenseApproval,
     getExpenseById,
     approveExpense,
     rejectExpense,
@@ -165,17 +167,29 @@ const ExpenseDetailsScreen: React.FC = () => {
 
   const isCreator = expense?.creatorId === user?.uid;
   const isUserAdmin = user?.isAdmin === true;
-  const canApprove = expense?.status === 'PENDING' && isUserAdmin;
-  const canReimburse = expense?.status === 'APPROVED' && isUserAdmin;
+  const canApprove =
+    requireExpenseApproval && expense?.status === 'PENDING' && isUserAdmin;
+  const canReimburse =
+    hasSharedFund &&
+    requireExpenseApproval &&
+    expense?.status === 'APPROVED' &&
+    isUserAdmin;
   const canReset =
+    requireExpenseApproval &&
     (expense?.status === 'REJECTED' ||
       expense?.status === 'APPROVED' ||
-      expense?.status === 'REIMBURSED') &&
+      (hasSharedFund && expense?.status === 'REIMBURSED')) &&
     isUserAdmin;
-  const canEdit = isCreator && expense?.status === 'PENDING';
-  const canDelete =
-    (isCreator || isUserAdmin) && expense?.status !== 'REIMBURSED';
-  const canModifyExpense = canEdit || isUserAdmin;
+  const canEdit = !requireExpenseApproval
+    ? Boolean(isCreator || isUserAdmin)
+    : Boolean(
+        (isCreator && expense?.status === 'PENDING') ||
+          (isUserAdmin && expense?.status !== 'REIMBURSED')
+      );
+  const canDelete = !requireExpenseApproval
+    ? Boolean(isCreator || isUserAdmin)
+    : Boolean((isCreator || isUserAdmin) && expense?.status !== 'REIMBURSED');
+  const canModifyExpense = canEdit;
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return '';
@@ -190,10 +204,12 @@ const ExpenseDetailsScreen: React.FC = () => {
   };
 
   const statusMeta = expense
-    ? EXPENSE_STATUS_MAP[expense.status] ?? {
-        label: expense.status,
-        tone: 'neutral' as StatusTone,
-      }
+    ? expense.status === 'APPROVED' && !requireExpenseApproval
+      ? { label: 'Registrada', tone: 'success' as StatusTone }
+      : EXPENSE_STATUS_MAP[expense.status] ?? {
+          label: expense.status,
+          tone: 'neutral' as StatusTone,
+        }
     : { label: '', tone: 'neutral' as StatusTone };
 
   const handleApproveExpense = async () => {
@@ -738,7 +754,10 @@ const ExpenseDetailsScreen: React.FC = () => {
           </Surface>
         ) : null}
 
-        <ExpenseTimeline expense={expense} />
+        <ExpenseTimeline
+          expense={expense}
+          options={{ hasSharedFund, requireExpenseApproval }}
+        />
 
         {canDelete ? (
           <ConfirmSection

@@ -53,6 +53,8 @@ const FinancesDashboardScreen = () => {
 
   const {
     dashboardSummary,
+    hasSharedFund,
+    requireExpenseApproval,
     monthlyData,
     categoryExpenses,
     pendingActions,
@@ -80,18 +82,29 @@ const FinancesDashboardScreen = () => {
   const safePendingActions = Array.isArray(pendingActions) ? pendingActions : [];
   const isAdmin = Boolean(user?.isAdmin);
 
-  const tabOptions = useMemo<ReadonlyArray<SegmentedTabOption<TabType>>>(
-    () => [
+  useEffect(() => {
+    if (!hasSharedFund && activeTab === 'incomes') {
+      setActiveTab('dashboard');
+    }
+  }, [hasSharedFund, activeTab]);
+
+  const tabOptions = useMemo<ReadonlyArray<SegmentedTabOption<TabType>>>(() => {
+    const base: Array<SegmentedTabOption<TabType>> = [
       { value: 'dashboard', label: 'Resumo' },
       {
         value: 'expenses',
-        label: 'Despesas',
-        badge: safePendingActions.length > 0 ? safePendingActions.length : undefined,
+        label: hasSharedFund ? 'Despesas' : 'Gastos',
+        badge:
+          requireExpenseApproval && safePendingActions.length > 0
+            ? safePendingActions.length
+            : undefined,
       },
-      { value: 'incomes', label: 'Receitas' },
-    ],
-    [safePendingActions.length]
-  );
+    ];
+    if (hasSharedFund) {
+      base.push({ value: 'incomes', label: 'Receitas' });
+    }
+    return base;
+  }, [hasSharedFund, requireExpenseApproval, safePendingActions.length]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -205,13 +218,19 @@ const FinancesDashboardScreen = () => {
       title="Finanças"
       rightActions={
         <Button
-          label="Novo"
+          label={hasSharedFund ? 'Novo' : 'Novo Gasto'}
           variant="primary"
           size="sm"
           leftIcon={
             <Plus size={16} strokeWidth={1.75} color={theme.colors.onAccent} />
           }
-          onPress={() => setShowNewSheet(true)}
+          onPress={() => {
+            if (hasSharedFund) {
+              setShowNewSheet(true);
+            } else {
+              navigateToCreateExpense();
+            }
+          }}
           accessibilityLabel="Criar novo lançamento financeiro"
         />
       }
@@ -246,6 +265,7 @@ const FinancesDashboardScreen = () => {
               currentBalance={dashboardSummary?.currentBalance ?? 0}
               pendingExpenses={dashboardSummary?.pendingExpensesAmount ?? 0}
               approvedExpenses={dashboardSummary?.approvedExpensesAmount ?? 0}
+              totalExpenses={dashboardSummary?.totalExpenses}
               totalIncomes={dashboardSummary?.totalIncomes ?? 0}
               totalExpensesCurrentMonth={
                 dashboardSummary?.totalExpensesCurrentMonth
@@ -253,18 +273,21 @@ const FinancesDashboardScreen = () => {
               totalIncomesCurrentMonth={
                 dashboardSummary?.totalIncomesCurrentMonth
               }
+              hasSharedFund={hasSharedFund}
+              requireExpenseApproval={requireExpenseApproval}
               loading={loadingDashboard}
               error={dashboardError}
               isAdmin={isAdmin}
               onRetry={() => void handleRefresh()}
-              onPressBalance={handleAdjustBalance}
+              onPressBalance={hasSharedFund ? handleAdjustBalance : undefined}
               onPressExpenses={navigateToExpensesList}
-              onPressIncomes={navigateToIncomesList}
-              onAdjustBalance={handleAdjustBalance}
+              onPressIncomes={hasSharedFund ? navigateToIncomesList : undefined}
+              onAdjustBalance={hasSharedFund ? handleAdjustBalance : undefined}
             />
 
             <RecentTransactions
               transactions={recentTransactions || []}
+              hasSharedFund={hasSharedFund}
               loading={loadingDashboard}
               error={dashboardError}
               onRetry={() => void handleRefresh()}
@@ -272,7 +295,8 @@ const FinancesDashboardScreen = () => {
               onPressViewAll={navigateToExpensesList}
             />
 
-            {safePendingActions.length > 0 || loadingDashboard ? (
+            {requireExpenseApproval &&
+            (safePendingActions.length > 0 || loadingDashboard) ? (
               <PendingActions
                 actions={safePendingActions}
                 loading={loadingDashboard}
@@ -285,7 +309,8 @@ const FinancesDashboardScreen = () => {
 
             <MonthlyChart
               data={monthlyData || undefined}
-              title="Movimentação Financeira"
+              title={hasSharedFund ? 'Movimentação Financeira' : 'Gastos por Mês'}
+              hasSharedFund={hasSharedFund}
               loading={loadingDashboard}
             />
 
@@ -343,7 +368,7 @@ const FinancesDashboardScreen = () => {
           />
           <ListRow
             title="Nova Receita"
-            subtitle="Registrar uma entrada ou contribuição na república"
+            subtitle="Registrar uma entrada na caixinha da casa"
             leading={
               <ArrowDownLeft
                 size={20}

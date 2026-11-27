@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import {
@@ -22,6 +22,7 @@ import {
   useTheme,
   type ThemeColors,
 } from '../../src/design-system';
+import { useFinances } from '../../src/hooks/useFinances';
 
 interface QuickActionItem {
   id: string;
@@ -37,7 +38,7 @@ const COMMON_ACTIONS: ReadonlyArray<QuickActionItem> = [
   {
     id: 'create-task',
     title: 'Criar Tarefa',
-    description: 'Adicionar uma nova tarefa para a república',
+    description: 'Adicionar uma nova tarefa para a casa',
     Icon: PlusCircle,
     colorKey: 'accent',
     mainRoute: '/(panel)/tasks',
@@ -46,7 +47,7 @@ const COMMON_ACTIONS: ReadonlyArray<QuickActionItem> = [
   {
     id: 'create-event',
     title: 'Criar Evento',
-    description: 'Agendar um novo evento para a república',
+    description: 'Registrar um evento ou aviso na agenda da casa',
     Icon: CalendarPlus,
     colorKey: 'accent',
     mainRoute: '/(panel)/events',
@@ -55,7 +56,7 @@ const COMMON_ACTIONS: ReadonlyArray<QuickActionItem> = [
   {
     id: 'create-expense',
     title: 'Registrar Despesa',
-    description: 'Adicionar uma nova despesa compartilhada',
+    description: 'Adicionar um novo gasto da casa',
     Icon: ArrowUpRight,
     colorKey: 'danger',
     mainRoute: '/(panel)/finances',
@@ -64,7 +65,7 @@ const COMMON_ACTIONS: ReadonlyArray<QuickActionItem> = [
   {
     id: 'create-income',
     title: 'Registrar Receita',
-    description: 'Adicionar uma nova receita ou pagamento',
+    description: 'Adicionar uma nova entrada na caixinha da casa',
     Icon: ArrowDownLeft,
     colorKey: 'success',
     mainRoute: '/(panel)/finances',
@@ -76,7 +77,7 @@ const MANAGE_ACTIONS: ReadonlyArray<QuickActionItem> = [
   {
     id: 'invite-member',
     title: 'Convidar Morador',
-    description: 'Adicionar uma nova pessoa à república',
+    description: 'Adicionar uma nova pessoa à casa',
     Icon: UserPlus,
     colorKey: 'accent',
     mainRoute: '/(panel)/settings',
@@ -101,7 +102,7 @@ const MANAGE_ACTIONS: ReadonlyArray<QuickActionItem> = [
   {
     id: 'settings',
     title: 'Configurações',
-    description: 'Gerenciar preferências e configurações',
+    description: 'Gerenciar preferências e regras da casa',
     Icon: Settings,
     colorKey: 'inkSecondary',
     mainRoute: '/(panel)/settings',
@@ -119,6 +120,23 @@ const navigateToAction = (mainRoute: string, detailRoute?: string) => {
 
 const QuickActionsScreen = () => {
   const { theme } = useTheme();
+  const { hasSharedFund, requireExpenseApproval } = useFinances();
+
+  const commonActions = useMemo(
+    () =>
+      COMMON_ACTIONS.filter((item) =>
+        item.id === 'create-income' ? hasSharedFund : true
+      ),
+    [hasSharedFund]
+  );
+
+  const manageActions = useMemo(
+    () =>
+      MANAGE_ACTIONS.filter((item) =>
+        item.id === 'pending-approvals' ? requireExpenseApproval : true
+      ),
+    [requireExpenseApproval]
+  );
 
   const renderSection = (label: string, items: ReadonlyArray<QuickActionItem>) => (
     <View style={{ gap: theme.spacing.xs }}>
@@ -176,8 +194,8 @@ const QuickActionsScreen = () => {
       }
       contentContainerStyle={{ gap: theme.spacing.lg }}
     >
-      {renderSection('Ações comuns', COMMON_ACTIONS)}
-      {renderSection('Gerenciar', MANAGE_ACTIONS)}
+      {renderSection('Ações comuns', commonActions)}
+      {renderSection('Gerenciar', manageActions)}
     </Screen>
   );
 };

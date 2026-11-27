@@ -122,7 +122,7 @@ const IncomesScreen: React.FC<IncomesScreenProps> = ({ hideHeader = false }) => 
                 />
               }
               title="Nenhuma receita cadastrada"
-              description="Registre contribuições, reembolsos e entradas financeiras da república."
+              description="Registre contribuições, reembolsos e entradas financeiras da casa."
               actionLabel="Registrar Receita"
               onAction={navigateToCreateIncome}
             />

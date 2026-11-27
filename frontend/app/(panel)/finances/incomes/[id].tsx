@@ -127,7 +127,7 @@ const IncomeTimelineItem: React.FC<IncomeTimelineItemProps> = ({
 const getSourceDescription = (source: string): string => {
   switch (source) {
     case 'Contribuição':
-      return 'Contribuição de membro da república';
+      return 'Contribuição de morador da casa';
     case 'Reembolso':
       return 'Valor reembolsado';
     case 'Evento':

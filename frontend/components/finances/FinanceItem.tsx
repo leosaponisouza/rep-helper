@@ -25,16 +25,21 @@ interface FinanceItemProps {
   type: 'income' | 'expense';
   onPress: (item: any) => void;
   currentUserId?: string;
+  requireExpenseApproval?: boolean;
 }
 
 const getExpenseStatusMeta = (
-  status: string
+  status: string,
+  requireExpenseApproval: boolean = true
 ): { label: string; tone: StatusTone } => {
   switch (status) {
     case 'PENDING':
       return { label: 'Pendente', tone: 'warning' };
     case 'APPROVED':
-      return { label: 'Aprovada', tone: 'success' };
+      return {
+        label: requireExpenseApproval ? 'Aprovada' : 'Registrada',
+        tone: 'success',
+      };
     case 'REJECTED':
       return { label: 'Rejeitada', tone: 'danger' };
     case 'REIMBURSED':
@@ -49,6 +54,7 @@ const FinanceItem: React.FC<FinanceItemProps> = ({
   type,
   onPress,
   currentUserId,
+  requireExpenseApproval = true,
 }) => {
   const { theme } = useTheme();
   const isIncome = type === 'income';
@@ -63,7 +69,7 @@ const FinanceItem: React.FC<FinanceItemProps> = ({
     const pendingItem = item as PendingAction;
     categoryValue = pendingItem.category || 'Outros';
     dateValue = pendingItem.expenseDate;
-    statusMeta = getExpenseStatusMeta(pendingItem.status);
+    statusMeta = getExpenseStatusMeta(pendingItem.status, requireExpenseApproval);
   } else if (isIncome) {
     const incomeItem = item as Income;
     categoryValue = incomeItem.source;
@@ -75,7 +81,7 @@ const FinanceItem: React.FC<FinanceItemProps> = ({
     categoryValue = expenseItem.category;
     dateValue = expenseItem.expenseDate;
     notes = expenseItem.notes;
-    statusMeta = getExpenseStatusMeta(expenseItem.status);
+    statusMeta = getExpenseStatusMeta(expenseItem.status, requireExpenseApproval);
   }
 
   const categoryLabel =

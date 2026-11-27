@@ -385,6 +385,8 @@ export const useFinances = (options: UseFinancesOptions = {}) => {
 
     // Dashboard
     dashboardSummary,
+    hasSharedFund: dashboardSummary?.hasSharedFund ?? true,
+    requireExpenseApproval: dashboardSummary?.requireExpenseApproval ?? true,
     monthlyData,
     categoryExpenses,
     pendingActions,

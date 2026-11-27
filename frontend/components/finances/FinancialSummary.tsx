@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Clock,
   Pencil,
+  Receipt,
   Wallet,
 } from 'lucide-react-native';
 import {
@@ -93,9 +94,12 @@ interface FinancialSummaryProps {
   currentBalance: number;
   pendingExpenses: number;
   approvedExpenses: number;
+  totalExpenses?: number;
   totalIncomes: number;
   totalExpensesCurrentMonth?: number;
   totalIncomesCurrentMonth?: number;
+  hasSharedFund?: boolean;
+  requireExpenseApproval?: boolean;
   loading?: boolean;
   error?: string | null;
   isAdmin?: boolean;
@@ -110,9 +114,12 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
   currentBalance,
   pendingExpenses,
   approvedExpenses,
+  totalExpenses,
   totalIncomes,
   totalExpensesCurrentMonth,
   totalIncomesCurrentMonth,
+  hasSharedFund = true,
+  requireExpenseApproval = true,
   loading = false,
   error = null,
   isAdmin = false,
@@ -158,6 +165,101 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
     );
   }
 
+  if (!hasSharedFund) {
+    const monthlyTotal = totalExpensesCurrentMonth ?? approvedExpenses;
+    const formattedMonthly = formatCurrencyBRL(monthlyTotal);
+    const cumulativeTotal = totalExpenses ?? approvedExpenses;
+
+    return (
+      <View style={{ gap: theme.spacing.sm }}>
+        <Surface
+          tone="surface"
+          bordered
+          padded="md"
+          radiusKey="md"
+          style={{ gap: theme.spacing.xs }}
+        >
+          <View style={[styles.balanceHeader, { gap: theme.spacing.xs }]}>
+            <Pressable
+              onPress={onPressExpenses}
+              disabled={!onPressExpenses}
+              accessibilityRole={onPressExpenses ? 'button' : undefined}
+              accessibilityLabel={`Gastos no mês: ${formattedMonthly}`}
+              style={({ pressed }) => [
+                styles.balancePressable,
+                { opacity: pressed && onPressExpenses ? theme.motion.pressOpacity : 1 },
+              ]}
+            >
+              <View style={{ gap: theme.spacing.xxs }}>
+                <View style={[styles.balanceLabelRow, { gap: theme.spacing.xs }]}>
+                  <Receipt size={16} strokeWidth={1.75} color={theme.colors.accent} />
+                  <AppText variant="monoLabel" color="inkSecondary">
+                    Gastos no Mês
+                  </AppText>
+                </View>
+                <AppText
+                  variant="monoHero"
+                  color="ink"
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.85}
+                >
+                  {formattedMonthly}
+                </AppText>
+              </View>
+            </Pressable>
+
+            <StatusText label="Acompanhamento" tone="accent" showDot />
+          </View>
+        </Surface>
+
+        {requireExpenseApproval ? (
+          <View style={[styles.row, { gap: theme.spacing.sm }]}>
+            <MetricCard
+              title="Pendentes"
+              subtitle="Aguardando aprovação"
+              value={formatCurrencyBRL(pendingExpenses)}
+              valueColor="warning"
+              icon={<Clock size={18} strokeWidth={1.75} color={theme.colors.warning} />}
+              onPress={onPressExpenses}
+            />
+            <MetricCard
+              title="Aprovadas"
+              subtitle="Confirmadas"
+              value={formatCurrencyBRL(approvedExpenses)}
+              valueColor="success"
+              icon={
+                <CheckCircle2 size={18} strokeWidth={1.75} color={theme.colors.success} />
+              }
+              onPress={onPressExpenses}
+            />
+          </View>
+        ) : (
+          <View style={[styles.row, { gap: theme.spacing.sm }]}>
+            <MetricCard
+              title="Registradas"
+              subtitle="Total acumulado"
+              value={formatCurrencyBRL(cumulativeTotal)}
+              valueColor="ink"
+              icon={
+                <CheckCircle2 size={18} strokeWidth={1.75} color={theme.colors.success} />
+              }
+              onPress={onPressExpenses}
+            />
+            <MetricCard
+              title="Neste Mês"
+              subtitle="Gastos correntes"
+              value={formattedMonthly}
+              valueColor="accent"
+              icon={<ArrowUpRight size={18} strokeWidth={1.75} color={theme.colors.accent} />}
+              onPress={onPressExpenses}
+            />
+          </View>
+        )}
+      </View>
+    );
+  }
+
   const isPositiveBalance = currentBalance >= 0;
   const formattedBalance = formatCurrencyBRL(currentBalance);
   const balanceBody = (
@@ -165,7 +267,7 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
       <View style={[styles.balanceLabelRow, { gap: theme.spacing.xs }]}>
         <Wallet size={16} strokeWidth={1.75} color={theme.colors.accent} />
         <AppText variant="monoLabel" color="inkSecondary">
-          Saldo Total
+          Saldo da Caixinha
         </AppText>
       </View>
       <AppText
@@ -194,7 +296,7 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
             <Pressable
               onPress={onPressBalance}
               accessibilityRole="button"
-              accessibilityLabel={`Saldo total: ${formattedBalance}`}
+              accessibilityLabel={`Saldo da caixinha: ${formattedBalance}`}
               style={({ pressed }) => [
                 styles.balancePressable,
                 { opacity: pressed ? theme.motion.pressOpacity : 1 },
@@ -246,25 +348,27 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
         />
       </View>
 
-      <View style={[styles.row, { gap: theme.spacing.sm }]}>
-        <MetricCard
-          title="Pendentes"
-          subtitle="Neste mês"
-          value={formatCurrencyBRL(pendingExpenses)}
-          valueColor="warning"
-          icon={<Clock size={18} strokeWidth={1.75} color={theme.colors.warning} />}
-          onPress={onPressExpenses}
-        />
+      {requireExpenseApproval ? (
+        <View style={[styles.row, { gap: theme.spacing.sm }]}>
+          <MetricCard
+            title="Pendentes"
+            subtitle="Neste mês"
+            value={formatCurrencyBRL(pendingExpenses)}
+            valueColor="warning"
+            icon={<Clock size={18} strokeWidth={1.75} color={theme.colors.warning} />}
+            onPress={onPressExpenses}
+          />
 
-        <MetricCard
-          title="Aprovadas"
-          subtitle="Neste mês"
-          value={formatCurrencyBRL(approvedExpenses)}
-          valueColor="accent"
-          icon={<CheckCircle2 size={18} strokeWidth={1.75} color={theme.colors.accent} />}
-          onPress={onPressExpenses}
-        />
-      </View>
+          <MetricCard
+            title="Aprovadas"
+            subtitle="Neste mês"
+            value={formatCurrencyBRL(approvedExpenses)}
+            valueColor="accent"
+            icon={<CheckCircle2 size={18} strokeWidth={1.75} color={theme.colors.accent} />}
+            onPress={onPressExpenses}
+          />
+        </View>
+      ) : null}
     </View>
   );
 };

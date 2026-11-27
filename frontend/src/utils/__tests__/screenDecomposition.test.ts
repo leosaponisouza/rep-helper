@@ -39,4 +39,33 @@ describe('buildExpenseTimelineSteps', () => {
       rejectionReason: 'Comprovante ilegível',
     });
   });
+
+  it('returns a single completed "Registrada" step when hasSharedFund=false and requireExpenseApproval=false', () => {
+    const tracked: Expense = {
+      ...baseExpense,
+      status: 'APPROVED',
+      approvalDate: '2026-11-01T12:00:00',
+    };
+    const steps = buildExpenseTimelineSteps(tracked, {
+      hasSharedFund: false,
+      requireExpenseApproval: false,
+    });
+    expect(steps).toHaveLength(1);
+    expect(steps[0]).toMatchObject({
+      key: 'created',
+      title: 'Registrada',
+      isCompleted: true,
+      isLast: true,
+    });
+  });
+
+  it('returns two steps without reimbursement when hasSharedFund=false and requireExpenseApproval=true', () => {
+    const steps = buildExpenseTimelineSteps(baseExpense, {
+      hasSharedFund: false,
+      requireExpenseApproval: true,
+    });
+    expect(steps).toHaveLength(2);
+    expect(steps.map((s) => s.key)).toEqual(['created', 'approval']);
+    expect(steps[1].isLast).toBe(true);
+  });
 });
